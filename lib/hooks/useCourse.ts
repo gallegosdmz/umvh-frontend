@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Course } from '../mock-data';
+import { Course, CourseGroup } from '../mock-data';
 import { CourseService } from '../services/course.service';
 import { toast } from 'react-toastify';
 
@@ -77,6 +77,26 @@ export const useCourse = () => {
         }
     };
 
+    const handleGetCourseGroupWithStudents = async (courseGroupId: number) => {
+        try {
+            const response = await CourseService.getCourseGroupWithStudents(courseGroupId);
+            return response;
+        } catch (error) {
+            console.error('Error al obtener el grupo con sus estudiantes:', error);
+            throw error;
+        }
+    };
+
+    const handleGetStudentsByCourseGroup = async (courseGroupId: number, limit: number = 10, offset: number = 0) => {
+        try {
+            const response = await CourseService.getStudentsByCourseGroup(courseGroupId, limit, offset);
+            return response;
+        } catch (error) {
+            console.error('Error al obtener los estudiantes del grupo:', error);
+            throw error;
+        }
+    };
+
     return {
         loading,
         error,
@@ -84,6 +104,8 @@ export const useCourse = () => {
         handleGetCourses,
         handleCreateCourse,
         handleUpdateCourse,
-        handleDeleteCourse
+        handleDeleteCourse,
+        handleGetCourseGroupWithStudents,
+        handleGetStudentsByCourseGroup
     };
 }; 

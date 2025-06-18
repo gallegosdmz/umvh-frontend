@@ -1,0 +1,829 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { useAuth } from "@/lib/auth-context"
+import { useCourse } from "@/lib/hooks/useCourse"
+import { useGroup } from "@/lib/hooks/useGroup"
+import { CourseService } from "@/lib/services/course.service"
+import { Course, CourseGroup, Student } from "@/lib/mock-data"
+import { Users, BookOpen, Calendar, GraduationCap, Plus, BarChart3, Clock, TrendingUp, Search, Trash2, UserPlus } from "lucide-react"
+import Link from "next/link"
+import { useStudent } from "@/lib/hooks/useStudent"
+import { toast } from 'react-toastify';
+import { Label } from "@/components/ui/label"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { studentService } from "@/lib/services/student.service"
+
+
+export default function MaestroAsignaturas() {
+  const { user } = useAuth()
+  const { handleGetCourses, handleGetCourseGroupWithStudents, handleGetStudentsByCourseGroup } = useCourse()
+  const { handleGetGroups } = useGroup()
+  const { handleCreateStudent } = useStudent()
+  const [asignaturas, setAsignaturas] = useState<Course[]>([])
+  const [filteredAsignaturas, setFilteredAsignaturas] = useState<Course[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [selectedCourseGroup, setSelectedCourseGroup] = useState<any | null>(null)
+  const [alumnos, setAlumnos] = useState<Student[]>([])
+  const [isLoadingAlumnos, setIsLoadingAlumnos] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formData, setFormData] = useState({
+    fullName: "",
+    registrationNumber: "",
+    semester: 1,
+  })
+  const itemsPerPage = 5
+  const [isSelectModalOpen, setIsSelectModalOpen] = useState(false)
+  const [allStudents, setAllStudents] = useState<Student[]>([])
+  const [searchStudentTerm, setSearchStudentTerm] = useState("")
+  const [filteredStudents, setFilteredStudents] = useState<Student[]>([])
+  const [currentStudentPage, setCurrentStudentPage] = useState(1)
+  const [totalStudentPages, setTotalStudentPages] = useState(1)
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false)
+  const studentsPerPage = 5
+  const [currentAlumnosPage, setCurrentAlumnosPage] = useState(1)
+  const [totalAlumnosPages, setTotalAlumnosPages] = useState(1)
+  const alumnosPerPage = 5
+
+  useEffect(() => {
+    if (user?.id) {
+      loadAsignaturas()
+    }
+  }, [user])
+
+  useEffect(() => {
+    const filtered = asignaturas.filter((asignatura) =>
+      asignatura.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    setFilteredAsignaturas(filtered)
+    setTotalItems(filtered.length)
+    setCurrentPage(1)
+  }, [searchTerm, asignaturas])
+
+  useEffect(() => {
+    if (searchStudentTerm) {
+      loadStudents(1);
+    }
+  }, [searchStudentTerm]);
+
+  const loadAsignaturas = async () => {
+    try {
+      const maestroId = user?.id || 0
+      const cursosData = await handleGetCourses(100, 0)
+
+      console.log(cursosData)
+
+      setAsignaturas(cursosData)
+      setFilteredAsignaturas(cursosData)
+      setTotalItems(cursosData.length)
+    } catch (error) {
+      console.error('Error al cargar las asignaturas:', error)
+    }
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
+  const totalPages = Math.ceil(totalItems / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentAsignaturas = filteredAsignaturas.slice(startIndex, endIndex)
+
+  
+
+  const handleOpenAlumnosModal = async (groupId: number, course: Course, courseGroup: CourseGroup) => {
+    setSelectedGroupId(groupId)
+    setSelectedCourse(course)
+    setSelectedCourseGroup(courseGroup)
+    setIsModalOpen(true)
+    setIsLoadingAlumnos(true)
+    try {
+      console.log('GroupId:', groupId)
+      console.log('Course:', course)
+      console.log('CourseGroup:', courseGroup)
+      const response = await handleGetStudentsByCourseGroup(courseGroup.id!, alumnosPerPage, 0)
+      console.log('Respuesta del servidor:', response)
+      const students = Array.isArray(response) ? response : response.items || []
+      const mappedStudents = students.map((item: any) => ({
+        id: item.student.id,
+        fullName: item.student.fullName,
+        semester: item.student.semester,
+        registrationNumber: item.student.registrationNumber
+      }))
+      setAlumnos(mappedStudents)
+      setCurrentAlumnosPage(1)
+    } catch (error) {
+      console.error('Error al cargar los alumnos:', error)
+      toast.error('Error al cargar los alumnos')
+    } finally {
+      setIsLoadingAlumnos(false)
+    }
+  }
+
+  const handleAlumnosPageChange = async (page: number) => {
+    if (!selectedCourseGroup?.id) return
+    setIsLoadingAlumnos(true)
+    try {
+      const offset = (page - 1) * alumnosPerPage
+      const response = await handleGetStudentsByCourseGroup(selectedCourseGroup.id, alumnosPerPage, offset)
+      const students = Array.isArray(response) ? response : response.items || []
+      const mappedStudents = students.map((item: any) => ({
+        id: item.student.id,
+        fullName: item.student.fullName,
+        semester: item.student.semester,
+        registrationNumber: item.student.registrationNumber
+      }))
+      setAlumnos(mappedStudents)
+      setCurrentAlumnosPage(page)
+    } catch (error) {
+      console.error('Error al cargar los alumnos:', error)
+      toast.error('Error al cargar los alumnos')
+    } finally {
+      setIsLoadingAlumnos(false)
+    }
+  }
+
+  const handleDeleteStudent = async (studentId: number | undefined) => {
+    if (!studentId) return
+    try {
+      // Aquí irá la llamada al servicio para eliminar el alumno
+      console.log('Eliminando alumno:', studentId)
+    } catch (error) {
+      console.error('Error al eliminar el alumno:', error)
+    }
+  }
+
+  const handleOpenCreateModal = () => {
+    if (!selectedCourse || !selectedCourseGroup) {
+      toast.error("No se ha seleccionado un curso")
+      return
+    }
+    setIsCreateModalOpen(true)
+  }
+
+  const handleCloseCreateModal = () => {
+    setIsCreateModalOpen(false)
+    setFormData({
+      fullName: "",
+      registrationNumber: "",
+      semester: 1,
+    })
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "semester" ? parseInt(value) || 1 : value,
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const studentData = {
+        ...formData
+      }
+
+      const student = await handleCreateStudent(studentData)
+      await CourseService.assignStudentToCourseGroup(selectedCourseGroup.id!, student.id!)
+      
+      toast.success('Alumno agregado exitosamente')
+      handleCloseCreateModal()
+
+      // Recargar la lista de estudiantes
+      if (selectedCourseGroup?.id) {
+        const offset = (currentAlumnosPage - 1) * alumnosPerPage
+        const response = await handleGetStudentsByCourseGroup(selectedCourseGroup.id, alumnosPerPage, offset)
+        const students = Array.isArray(response) ? response : response.items || []
+        const mappedStudents = students.map((item: any) => ({
+          id: item.student.id,
+          fullName: item.student.fullName,
+          semester: item.student.semester,
+          registrationNumber: item.student.registrationNumber
+        }))
+        setAlumnos(mappedStudents)
+      }
+
+    } catch (error) {
+      console.error("Error al crear el alumno:", error)
+      toast.error("Error al crear el alumno")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleOpenSelectModal = async () => {
+    if (!selectedCourse || !selectedCourseGroup) {
+      toast.error("No se ha seleccionado un curso")
+      return
+    }
+    setIsSelectModalOpen(true)
+    setSearchStudentTerm("")
+    setCurrentStudentPage(1)
+    await loadStudents(1)
+  }
+
+  const loadStudents = async (page: number) => {
+    if (!selectedCourseGroup?.id) {
+      return;
+    }
+
+    setIsLoadingStudents(true);
+    try {
+      const offset = (page - 1) * studentsPerPage;
+      const students = await studentService.getStudentsNotInCourseGroup(
+        selectedCourseGroup.id,
+        studentsPerPage,
+        offset,
+        searchStudentTerm || undefined
+      );
+
+      if (Array.isArray(students)) {
+        setAllStudents(students);
+        setFilteredStudents(students);
+      } else {
+        setAllStudents([]);
+        setFilteredStudents([]);
+      }
+    } catch (error) {
+      console.error('Error al cargar los alumnos:', error);
+      toast.error('Error al cargar los alumnos');
+      setAllStudents([]);
+      setFilteredStudents([]);
+    } finally {
+      setIsLoadingStudents(false);
+    }
+  };
+
+  const handleStudentPageChange = async (page: number) => {
+    setCurrentStudentPage(page)
+    await loadStudents(page)
+  }
+
+  const handleAddStudentToGroup = async (student: Student) => {
+    if (!selectedCourseGroup?.id) return
+    try {
+      await CourseService.assignStudentToCourseGroup(selectedCourseGroup.id, student.id!)
+      toast.success('Alumno agregado exitosamente')
+      setIsSelectModalOpen(false)
+
+      // Recargar la lista de estudiantes
+      const offset = (currentAlumnosPage - 1) * alumnosPerPage
+      const response = await handleGetStudentsByCourseGroup(selectedCourseGroup.id, alumnosPerPage, offset)
+      const students = Array.isArray(response) ? response : response.items || []
+      const mappedStudents = students.map((item: any) => ({
+        id: item.student.id,
+        fullName: item.student.fullName,
+        semester: item.student.semester,
+        registrationNumber: item.student.registrationNumber
+      }))
+      setAlumnos(mappedStudents)
+    } catch (error) {
+      console.error('Error al agregar el alumno:', error)
+      toast.error('Error al agregar el alumno')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 mb-2">Mis Asignaturas</h1>
+              <p className="text-gray-600 text-lg">
+                Gestiona tus asignaturas y grupos
+              </p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Badge variant="secondary" className="px-3 py-1">
+                <Clock className="h-3 w-3 mr-1" />
+                {new Date().toLocaleDateString("es-MX", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="bg-gradient-to-br from-[#bc4b26] to-[#d05f27] text-white border-0 shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium opacity-90">Total Asignaturas</CardTitle>
+              <BookOpen className="h-4 w-4 opacity-90" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{asignaturas.length}</div>
+              <p className="text-xs opacity-90 mt-1">Asignaturas activas</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-[#d05f27] to-[#bc4b26] text-white border-0 shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium opacity-90">Total Grupos</CardTitle>
+              <Users className="h-4 w-4 opacity-90" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {new Set(asignaturas.flatMap(a => a.coursesGroups!.map(cg => cg.group!.id))).size}
+              </div>
+              <p className="text-xs opacity-90 mt-1">Grupos asignados</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-[#003d5c] to-[#004a73] text-white border-0 shadow-lg">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium opacity-90">Total Alumnos</CardTitle>
+              <GraduationCap className="h-4 w-4 opacity-90" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                {asignaturas.reduce((sum, a) => sum + a.coursesGroups!.length, 0)}
+              </div>
+              <p className="text-xs opacity-90 mt-1">Alumnos en total</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Table */}
+        <Card className="border-0 shadow-lg bg-white">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold text-gray-900">Lista de Asignaturas</CardTitle>
+                <CardDescription>Gestiona tus asignaturas y grupos</CardDescription>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                  <Input
+                    placeholder="Buscar asignatura..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 w-[300px]"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Asignatura</TableHead>
+                    <TableHead>Grupo</TableHead>
+                    <TableHead>Periodo</TableHead>
+                    <TableHead>Horario</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentAsignaturas.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <div className="flex flex-col items-center justify-center text-gray-500">
+                          <BookOpen className="h-12 w-12 mb-4" />
+                          <p className="text-lg font-medium">No hay asignaturas asignadas</p>
+                          <p className="text-sm">Comienza agregando asignaturas a tus grupos</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    currentAsignaturas.flatMap((asignatura) => 
+                      asignatura.coursesGroups!.map((courseGroup) => (
+                        <TableRow key={`${asignatura.id}-${courseGroup.id}`}>
+                          <TableCell className="font-medium">
+                            {asignatura.name}
+                          </TableCell>
+                          <TableCell>{courseGroup.group!.name}</TableCell>
+                          <TableCell>{courseGroup.group!.period.name}</TableCell>
+                          <TableCell>{courseGroup.schedule}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (courseGroup.id && asignatura.id && courseGroup.user?.id) {
+                                    const courseGroupData: CourseGroup = {
+                                      id: courseGroup.id,
+                                      course: {
+                                        id: asignatura.id,
+                                        name: asignatura.name
+                                      },
+                                      group: {
+                                        id: courseGroup.group!.id,
+                                        name: courseGroup.group!.name
+                                      },
+                                      user: {
+                                        id: courseGroup.user.id,
+                                        fullName: courseGroup.user.fullName,
+                                        email: courseGroup.user.email || '',
+                                        role: courseGroup.user.role || 'maestro'
+                                      }
+                                    }
+                                    handleOpenAlumnosModal(courseGroup.group!.id!, asignatura, courseGroupData)
+                                  }
+                                }}
+                              >
+                                <Users className="h-4 w-4 mr-2" />
+                                Alumnos
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                asChild
+                              >
+                                <Link href={`/maestro/asignaturas/${asignatura.id}/ponderaciones?groupId=${courseGroup.group!.id}`}>
+                                  <BarChart3 className="h-4 w-4 mr-2" />
+                                  Ponderaciones
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                asChild
+                              >
+                                <Link href={`/maestro/asignaturas/${asignatura.id}/asistencia?groupId=${courseGroup.group!.id}`}>
+                                  <Calendar className="h-4 w-4 mr-2" />
+                                  Asistencia
+                                </Link>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Modal de Alumnos */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <DialogContent className="max-w-4xl [&>button]:hidden">
+                <DialogHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <DialogTitle>Lista de Alumnos</DialogTitle>
+                      <DialogDescription>
+                        Alumnos inscritos en el grupo seleccionado
+                      </DialogDescription>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="default" 
+                          className="bg-[#bc4b26] hover:bg-[#d05f27]"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Nuevo Alumno
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={handleOpenCreateModal}>
+                          Registrar Alumno
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleOpenSelectModal}>
+                          Seleccionar Alumno
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </DialogHeader>
+                <div className="mt-4">
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre Completo</TableHead>
+                          <TableHead>Semestre</TableHead>
+                          <TableHead>Matricula</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {isLoadingAlumnos ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8">
+                              <div className="flex flex-col items-center justify-center text-gray-500">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                                <p>Cargando alumnos...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : alumnos.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8">
+                              <div className="flex flex-col items-center justify-center text-gray-500">
+                                <Users className="h-12 w-12 mb-4" />
+                                <p className="text-lg font-medium">No hay alumnos inscritos</p>
+                                <p className="text-sm">Este grupo aún no tiene alumnos asignados</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          alumnos.map((alumno) => (
+                            <TableRow key={alumno.id}>
+                              <TableCell className="font-medium">{alumno.fullName}</TableCell>
+                              <TableCell>{alumno.semester}</TableCell>
+                              <TableCell>{alumno.registrationNumber}</TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteStudent(alumno.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Eliminar
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-gray-500">
+                      Página {currentAlumnosPage}
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAlumnosPageChange(currentAlumnosPage - 1)}
+                        disabled={currentAlumnosPage === 1 || isLoadingAlumnos}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAlumnosPageChange(currentAlumnosPage + 1)}
+                        disabled={alumnos.length < alumnosPerPage || isLoadingAlumnos}
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                    Cerrar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Modal de Crear Alumno */}
+            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Agregar nuevo alumno</DialogTitle>
+                  <DialogDescription>
+                    Llena los campos para registrar un nuevo alumno.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  <div>
+                    <Label htmlFor="fullName">Nombre</Label>
+                    <Input 
+                      id="fullName" 
+                      name="fullName"
+                      value={formData.fullName} 
+                      onChange={handleInputChange} 
+                      placeholder="Ej. Juan Pérez" 
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="registrationNumber">Matrícula</Label>
+                    <Input 
+                      id="registrationNumber" 
+                      name="registrationNumber"
+                      value={formData.registrationNumber} 
+                      onChange={handleInputChange} 
+                      placeholder="Ej. 2024001" 
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="semester">Semestre</Label>
+                    <Input 
+                      id="semester" 
+                      name="semester"
+                      type="number"
+                      min="1"
+                      max="12"
+                      value={formData.semester} 
+                      onChange={handleInputChange} 
+                      placeholder="Ej. 1" 
+                      required
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCloseCreateModal}
+                      disabled={isSubmitting}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Modal de Seleccionar Alumno */}
+            <Dialog open={isSelectModalOpen} onOpenChange={setIsSelectModalOpen}>
+              <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>Seleccionar Alumno</DialogTitle>
+                  <DialogDescription>
+                    Selecciona un alumno para agregarlo al grupo
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="mt-4">
+                  <div className="mb-4">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
+                      <Input
+                        placeholder="Buscar por nombre, matrícula o semestre..."
+                        value={searchStudentTerm}
+                        onChange={(e) => setSearchStudentTerm(e.target.value)}
+                        className="pl-8"
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre Completo</TableHead>
+                          <TableHead>Semestre</TableHead>
+                          <TableHead>Matricula</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {isLoadingStudents ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8">
+                              <div className="flex flex-col items-center justify-center text-gray-500">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                                <p>Cargando alumnos...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredStudents.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8">
+                              <div className="flex flex-col items-center justify-center text-gray-500">
+                                <Users className="h-12 w-12 mb-4" />
+                                <p className="text-lg font-medium">No hay alumnos disponibles</p>
+                                <p className="text-sm">
+                                  {searchStudentTerm 
+                                    ? "No se encontraron alumnos que coincidan con la búsqueda" 
+                                    : "No se encontraron alumnos para agregar"}
+                                </p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredStudents.map((alumno) => (
+                            <TableRow key={alumno.id}>
+                              <TableCell className="font-medium">{alumno.fullName}</TableCell>
+                              <TableCell>{alumno.semester}</TableCell>
+                              <TableCell>{alumno.registrationNumber}</TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleAddStudentToGroup(alumno)}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Agregar
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-gray-500">
+                      Página {currentStudentPage}
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStudentPageChange(currentStudentPage - 1)}
+                        disabled={currentStudentPage === 1 || isLoadingStudents}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStudentPageChange(currentStudentPage + 1)}
+                        disabled={filteredStudents.length < studentsPerPage || isLoadingStudents}
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" onClick={() => setIsSelectModalOpen(false)}>
+                    Cerrar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-gray-500">
+                  Mostrando {startIndex + 1} a {Math.min(endIndex, totalItems)} de {totalItems} resultados
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}

@@ -26,6 +26,26 @@ export const studentService = {
     }
   },
 
+  async getStudentsNotInCourseGroup(courseGroupId: number, limit: number = 20, offset: number = 0, searchTerm?: string): Promise<Student[]> {
+    try {
+      const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : '';
+      const url = `${API_URL}/students/not-in-course-group/${courseGroupId}?limit=${limit}&offset=${offset}${searchParam}`;
+      
+      const response = await fetch(url, {
+        headers: getAuthHeaders()
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al obtener los alumnos');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error en getStudents:', error);
+      throw error;
+    }
+  },
+
   async createStudent(student: Student): Promise<Student> {
     try {
       const response = await fetch(`${API_URL}/students`, {

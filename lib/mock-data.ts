@@ -34,6 +34,28 @@ export interface Period {
 export interface Course {
   id?: number
   name: string
+  coursesGroups?: Array<{
+    id?: number
+    schedule: string
+    isDeleted: boolean
+    group?: {
+      id?: number
+      name: string
+      period: {
+        id: number
+        name: string
+        startDate: string
+        endDate: string
+        isActive: boolean
+      }
+    }
+    user?: {
+      id?: number
+      fullName: string
+      email: string
+      role: string
+    }
+  }>
 }
 
 export interface Student {
@@ -44,15 +66,25 @@ export interface Student {
 }
 
 export interface CourseGroup {
-  id: number;
-  course: {
-    id: number;
+  id?: number;
+  course?: {
+    id?: number;
     name: string;
   };
-  user: {
-    id: number;
-    fullName: string;
+  group?: {
+    id?: number;
+    name: string;
   };
+  user?: {
+    id?: number;
+    fullName: string;
+    email: string;
+    role: string;
+  };
+  coursesGroupsStudents?: {
+    id?: number;
+    student: Student;
+  }
 }
 
 export interface Group {

@@ -7,13 +7,11 @@ import { Badge } from "@/components/ui/badge"
 import { Users, BookOpen, Calendar, GraduationCap, Plus, BarChart3, Clock, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
-import {
-  getGruposByMaestro,
-  getAsignaturasByGrupo,
-  getAlumnosByAsignaturaGrupo,
-  getPeriodoById,
-  getAsignaturaById,
-} from "@/lib/mock-data"
+import { useGroup } from "@/lib/hooks/useGroup"
+import { useCourse } from "@/lib/hooks/useCourse"
+import { usePeriod } from "@/lib/hooks/usePeriod"
+import { Group, Course } from "@/lib/mock-data"
+import { CourseService } from "@/lib/services/course.service"
 
 interface MaestroStats {
   misGrupos: number
@@ -34,8 +32,17 @@ interface GrupoInfo {
   totalAlumnos: number
 }
 
+interface Assignment {
+  id: number
+  courseId: number
+  students?: any[]
+}
+
 export default function MaestroDashboard() {
   const { user } = useAuth()
+  const { handleGetGroups } = useGroup()
+  const { handleGetCourses } = useCourse()
+  const { handleGetPeriods } = usePeriod()
   const [stats, setStats] = useState<MaestroStats>({
     misGrupos: 0,
     misAsignaturas: 0,
@@ -50,56 +57,64 @@ export default function MaestroDashboard() {
     }
   }, [user])
 
-  const loadMaestroData = () => {
-    const maestroId = user?.id || 0
-    const gruposMaestro = getGruposByMaestro(maestroId)
+  const loadMaestroData = async () => {
+    try {
+      const maestroId = user?.id || 0
+      const gruposData = await handleGetGroups(100, 0)
+      const periodosData = await handleGetPeriods(100, 0)
+      const cursosData = await handleGetCourses(100, 0)
 
-    const gruposInfo: GrupoInfo[] = gruposMaestro.map((grupo) => {
-      const asignaturasGrupo = getAsignaturasByGrupo(grupo.id)
-      const periodo = getPeriodoById(grupo.periodoId)
+      const gruposInfo: GrupoInfo[] = await Promise.all(
+        gruposData.map(async (grupo: Group) => {
+          const asignaturasGrupo = await CourseService.getAssignments(grupo.id!, 100, 0)
+          const periodo = periodosData.find((p) => p.id === grupo.periodId)
 
-      const asignaturasInfo = asignaturasGrupo.map((ag) => {
-        const asignatura = getAsignaturaById(ag.asignaturaId)
-        const alumnos = getAlumnosByAsignaturaGrupo(ag.id)
+          const asignaturasInfo = await Promise.all(
+            asignaturasGrupo.map(async (ag: Assignment) => {
+              const asignatura = cursosData.find((c: Course) => c.id === ag.courseId)
+              return {
+                id: ag.id,
+                nombre: asignatura?.name || "Sin nombre",
+                alumnos: ag.students?.length || 0,
+              }
+            })
+          )
 
-        return {
-          id: ag.id,
-          nombre: asignatura?.nombre || "Sin nombre",
-          alumnos: alumnos.length,
-        }
+          const totalAlumnos = asignaturasInfo.reduce((sum, a) => sum + a.alumnos, 0)
+
+          return {
+            id: grupo.id!,
+            nombre: grupo.name,
+            periodo: periodo?.name || "Sin periodo",
+            asignaturas: asignaturasInfo,
+            totalAlumnos,
+          }
+        })
+      )
+
+      setGrupos(gruposInfo)
+
+      // Calcular estadísticas
+      const totalGrupos = gruposInfo.length
+      const totalAsignaturas = gruposInfo.reduce((sum, g) => sum + g.asignaturas.length, 0)
+      const totalAlumnos = gruposInfo.reduce((sum, g) => sum + g.totalAlumnos, 0)
+
+      setStats({
+        misGrupos: totalGrupos,
+        misAsignaturas: totalAsignaturas,
+        totalAlumnos: totalAlumnos,
+        evaluacionesPendientes: Math.floor(Math.random() * 15) + 5, // Simulado
       })
-
-      const totalAlumnos = asignaturasInfo.reduce((sum, a) => sum + a.alumnos, 0)
-
-      return {
-        id: grupo.id,
-        nombre: grupo.nombre,
-        periodo: periodo?.nombre || "Sin periodo",
-        asignaturas: asignaturasInfo,
-        totalAlumnos,
-      }
-    })
-
-    setGrupos(gruposInfo)
-
-    // Calcular estadísticas
-    const totalGrupos = gruposInfo.length
-    const totalAsignaturas = gruposInfo.reduce((sum, g) => sum + g.asignaturas.length, 0)
-    const totalAlumnos = gruposInfo.reduce((sum, g) => sum + g.totalAlumnos, 0)
-
-    setStats({
-      misGrupos: totalGrupos,
-      misAsignaturas: totalAsignaturas,
-      totalAlumnos: totalAlumnos,
-      evaluacionesPendientes: Math.floor(Math.random() * 15) + 5, // Simulado
-    })
+    } catch (error) {
+      console.error('Error al cargar los datos del maestro:', error)
+    }
   }
 
   const quickActions = [
     {
-      title: "Nuevo Grupo",
-      description: "Crear un nuevo grupo",
-      href: "/maestro/grupos/nuevo",
+      title: "Gestionar Asignaturas",
+      description: "Administrar asignaturas académicas",
+      href: "/maestro/asignaturas",
       icon: Users,
       color: "from-[#bc4b26] to-[#d05f27]",
     },
@@ -135,7 +150,7 @@ export default function MaestroDashboard() {
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2">Panel del Maestro</h1>
               <p className="text-gray-600 text-lg">
-                Bienvenido, <span className="font-semibold text-[#bc4b26]">{user?.nombre}</span>
+                Bienvenido, <span className="font-semibold text-[#bc4b26]">{user?.fullName}</span>
               </p>
             </div>
             <div className="flex items-center space-x-3">

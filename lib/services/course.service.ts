@@ -1,4 +1,4 @@
-import { Course } from "../mock-data";
+import { Course, Group, Student } from "../mock-data";
 import { handleError } from "../utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -57,6 +57,28 @@ export const CourseService = {
 
         if (!response.ok) {
             return handleError(response, 'No se pudo crear la asignatura');
+        }
+
+        return data;
+    },
+
+    async assignStudentToCourseGroup(courseGroupId: number, studentId: number) {
+        const req = {courseGroupId, studentId};
+
+        console.log(req);
+
+        const response = await fetch(`${ API_URL }/courses-groups-students`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(req),
+        });
+
+        console.log(response)
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return handleError(response, 'No se pudo asignar el estudiante a la materia');
         }
 
         return data;
@@ -127,5 +149,23 @@ export const CourseService = {
         }
 
         return data;
+    },
+
+    async getCourseGroupWithStudents(courseGroupId: number) {
+        const response = await fetch(`${API_URL}/courses-groups/${courseGroupId}`, {
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+        console.log(data);
+        if (!response.ok) throw new Error('Error al obtener el grupo con sus estudiantes');
+        return data;
+    },
+
+    async getStudentsByCourseGroup(courseGroupId: number, limit: number = 10, offset: number = 0) {
+        const response = await fetch(`${API_URL}/courses-groups-students/findAll/${courseGroupId}?limit=${limit}&offset=${offset}`, {
+            headers: getAuthHeaders()
+        });
+        if (!response.ok) throw new Error('Error al obtener los estudiantes del grupo');
+        return response.json();
     }
 }; 
