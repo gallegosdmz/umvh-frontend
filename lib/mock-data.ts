@@ -84,7 +84,15 @@ export interface CourseGroup {
   coursesGroupsStudents?: {
     id?: number;
     student: Student;
-  }
+  };
+  coursesGroupsGradingschemes?: GradingScheme[];
+}
+
+export interface GradingScheme {
+  id?: number;
+  courseGroupId: number;
+  type: string;
+  percentage: number;
 }
 
 export interface Group {

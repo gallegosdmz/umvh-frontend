@@ -59,12 +59,12 @@ export const groupService = {
   async updateGroup(id: string, groupData: CreateGroupDto): Promise<Group> {
     try {
       const response = await fetch(`${API_URL}/groups/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: 'PATCH',
+        headers: getAuthHeaders(),
         body: JSON.stringify(groupData),
       });
+
+      console.log(response)
 
       if (!response.ok) {
         throw new Error('Error al actualizar el grupo');
@@ -72,6 +72,7 @@ export const groupService = {
 
       return await response.json();
     } catch (error) {
+      console.log(error)
       console.error('Error en updateGroup:', error);
       throw error;
     }

@@ -51,7 +51,7 @@ export default function SignIn() {
     if (role === "admin") {
       setEmail("admin@escuela.com")
     } else {
-      setEmail("maria.garcia@escuela.com")
+      setEmail("maestro.correo@gmail.com")
     }
     setPassword("Juvencio12")
   }

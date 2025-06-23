@@ -20,14 +20,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/auth-context"
 import { useCourse } from "@/lib/hooks/useCourse"
 import { useGroup } from "@/lib/hooks/useGroup"
 import { CourseService } from "@/lib/services/course.service"
 import { Course, CourseGroup, Student } from "@/lib/mock-data"
-import { Users, BookOpen, Calendar, GraduationCap, Plus, BarChart3, Clock, TrendingUp, Search, Trash2, UserPlus } from "lucide-react"
+import { Users, BookOpen, Calendar, GraduationCap, Plus, BarChart3, Clock, Search, Trash2, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { useStudent } from "@/lib/hooks/useStudent"
 import { toast } from 'react-toastify';
@@ -40,6 +39,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { studentService } from "@/lib/services/student.service"
 
+interface AttendanceData {
+  id?: number;
+  courseGroupStudentId: number;
+  date: string;
+  attend: boolean;
+}
 
 export default function MaestroAsignaturas() {
   const { user } = useAuth()
@@ -56,7 +61,7 @@ export default function MaestroAsignaturas() {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [selectedCourseGroup, setSelectedCourseGroup] = useState<any | null>(null)
-  const [alumnos, setAlumnos] = useState<Student[]>([])
+  const [alumnos, setAlumnos] = useState<(Student & { courseGroupStudentId?: number })[]>([])
   const [isLoadingAlumnos, setIsLoadingAlumnos] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
@@ -76,53 +81,71 @@ export default function MaestroAsignaturas() {
   const [currentAlumnosPage, setCurrentAlumnosPage] = useState(1)
   const [totalAlumnosPages, setTotalAlumnosPages] = useState(1)
   const alumnosPerPage = 5
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [studentToDelete, setStudentToDelete] = useState<(Student & { courseGroupStudentId?: number }) | null>(null)
+  const [isPonderacionesModalOpen, setIsPonderacionesModalOpen] = useState(false)
+  const [ponderacionesCurso, setPonderacionesCurso] = useState<{
+    asistencia: number,
+    actividades: number,
+    evidencias: number,
+    producto: number,
+    examen: number
+  } | null>(null)
+  const [ponderacionesIds, setPonderacionesIds] = useState<{
+    asistencia?: number,
+    actividades?: number,
+    evidencias?: number,
+    producto?: number,
+    examen?: number
+  }>({})
+  const [selectedCourseGroupForPonderaciones, setSelectedCourseGroupForPonderaciones] = useState<any | null>(null)
+  const [isAsistenciaModalOpen, setIsAsistenciaModalOpen] = useState(false)
+  const [asistenciaAlumnos, setAsistenciaAlumnos] = useState<any[]>([])
+  const [asistenciaGrupo, setAsistenciaGrupo] = useState<{ asignatura: any, courseGroup: any } | null>(null)
+  const [asistenciaFecha, setAsistenciaFecha] = useState<string>("")
+  const [isLoadingAsistencia, setIsLoadingAsistencia] = useState(false)
+  const [isSavingAttendance, setIsSavingAttendance] = useState(false)
+  const [isLoadingDateChange, setIsLoadingDateChange] = useState(false)
 
-  useEffect(() => {
-    if (user?.id) {
-      loadAsignaturas()
-    }
-  }, [user])
-
-  useEffect(() => {
-    const filtered = asignaturas.filter((asignatura) =>
-      asignatura.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    setFilteredAsignaturas(filtered)
-    setTotalItems(filtered.length)
-    setCurrentPage(1)
-  }, [searchTerm, asignaturas])
-
-  useEffect(() => {
-    if (searchStudentTerm) {
-      loadStudents(1);
-    }
-  }, [searchStudentTerm]);
-
-  const loadAsignaturas = async () => {
+  const loadAsignaturas = async (page = 1) => {
     try {
-      const maestroId = user?.id || 0
-      const cursosData = await handleGetCourses(100, 0)
-
-      console.log(cursosData)
-
-      setAsignaturas(cursosData)
-      setFilteredAsignaturas(cursosData)
-      setTotalItems(cursosData.length)
+      const limit = itemsPerPage
+      const offset = (page - 1) * limit
+      const data = await handleGetCourses(limit, offset)
+      setAsignaturas(data.items || data)
+      setFilteredAsignaturas(data.items || data)
+      setTotalItems(data.total || (data.items ? data.items.length : data.length))
+      setCurrentPage(page)
     } catch (error) {
       console.error('Error al cargar las asignaturas:', error)
     }
   }
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
-  }
+  useEffect(() => {
+    if (user?.id) {
+      loadAsignaturas(1)
+    }
+  }, [user])
 
   const totalPages = Math.ceil(totalItems / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentAsignaturas = filteredAsignaturas.slice(startIndex, endIndex)
 
-  
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) return
+    loadAsignaturas(page)
+  }
+
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredAsignaturas(asignaturas)
+    } else {
+      const filtered = asignaturas.filter((asignatura) =>
+        asignatura.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      setFilteredAsignaturas(filtered)
+    }
+  }, [searchTerm, asignaturas])
+
+  const currentAsignaturas = filteredAsignaturas
 
   const handleOpenAlumnosModal = async (groupId: number, course: Course, courseGroup: CourseGroup) => {
     setSelectedGroupId(groupId)
@@ -141,7 +164,8 @@ export default function MaestroAsignaturas() {
         id: item.student.id,
         fullName: item.student.fullName,
         semester: item.student.semester,
-        registrationNumber: item.student.registrationNumber
+        registrationNumber: item.student.registrationNumber,
+        courseGroupStudentId: item.id
       }))
       setAlumnos(mappedStudents)
       setCurrentAlumnosPage(1)
@@ -164,7 +188,8 @@ export default function MaestroAsignaturas() {
         id: item.student.id,
         fullName: item.student.fullName,
         semester: item.student.semester,
-        registrationNumber: item.student.registrationNumber
+        registrationNumber: item.student.registrationNumber,
+        courseGroupStudentId: item.id
       }))
       setAlumnos(mappedStudents)
       setCurrentAlumnosPage(page)
@@ -176,13 +201,32 @@ export default function MaestroAsignaturas() {
     }
   }
 
-  const handleDeleteStudent = async (studentId: number | undefined) => {
-    if (!studentId) return
+  const handleDeleteStudent = async (courseGroupStudentId: number | undefined) => {
+    if (!courseGroupStudentId) return
     try {
-      // Aquí irá la llamada al servicio para eliminar el alumno
-      console.log('Eliminando alumno:', studentId)
+      await CourseService.deleteStudentToCourse(courseGroupStudentId)
+      toast.success('Alumno eliminado exitosamente')
+      
+      // Recargar la lista de estudiantes
+      if (selectedCourseGroup?.id) {
+        const offset = (currentAlumnosPage - 1) * alumnosPerPage
+        const response = await handleGetStudentsByCourseGroup(selectedCourseGroup.id, alumnosPerPage, offset)
+        const students = Array.isArray(response) ? response : response.items || []
+        const mappedStudents = students.map((item: any) => ({
+          id: item.student.id,
+          fullName: item.student.fullName,
+          semester: item.student.semester,
+          registrationNumber: item.student.registrationNumber,
+          courseGroupStudentId: item.id
+        }))
+        setAlumnos(mappedStudents)
+      }
+      
+      // Limpiar el estado del modal
+      setStudentToDelete(null)
     } catch (error) {
       console.error('Error al eliminar el alumno:', error)
+      toast.error('Error al eliminar el alumno')
     }
   }
 
@@ -235,7 +279,8 @@ export default function MaestroAsignaturas() {
           id: item.student.id,
           fullName: item.student.fullName,
           semester: item.student.semester,
-          registrationNumber: item.student.registrationNumber
+          registrationNumber: item.student.registrationNumber,
+          courseGroupStudentId: item.id
         }))
         setAlumnos(mappedStudents)
       }
@@ -311,13 +356,324 @@ export default function MaestroAsignaturas() {
         id: item.student.id,
         fullName: item.student.fullName,
         semester: item.student.semester,
-        registrationNumber: item.student.registrationNumber
+        registrationNumber: item.student.registrationNumber,
+        courseGroupStudentId: item.id
       }))
       setAlumnos(mappedStudents)
     } catch (error) {
       console.error('Error al agregar el alumno:', error)
       toast.error('Error al agregar el alumno')
     }
+  }
+
+  const handleOpenPonderacionesModal = async (course: Course, courseGroup: any) => {
+    setSelectedCourseGroupForPonderaciones(courseGroup)
+    setIsPonderacionesModalOpen(true)
+    
+    try {
+      // Cargar las ponderaciones usando el endpoint individual
+      const courseGroupWithPonderaciones = await CourseService.getCourseGroupIndividual(courseGroup.id)
+      
+      // Usar las ponderaciones que vienen en el courseGroup
+      const gradingschemes = courseGroupWithPonderaciones.coursesGroupsGradingschemes || []
+      
+      // Mapear las ponderaciones existentes
+      const ponderaciones = {
+        asistencia: 0,
+        actividades: 0,
+        evidencias: 0,
+        producto: 0,
+        examen: 0
+      }
+      
+      const ids: {
+        asistencia?: number,
+        actividades?: number,
+        evidencias?: number,
+        producto?: number,
+        examen?: number
+      } = {}
+      
+      gradingschemes.forEach((scheme: any) => {
+        const type = scheme.type.toLowerCase()
+        if (type === 'asistencia') {
+          ponderaciones.asistencia = scheme.percentage
+          ids.asistencia = scheme.id
+        } else if (type === 'actividades') {
+          ponderaciones.actividades = scheme.percentage
+          ids.actividades = scheme.id
+        } else if (type === 'evidencias') {
+          ponderaciones.evidencias = scheme.percentage
+          ids.evidencias = scheme.id
+        } else if (type === 'producto') {
+          ponderaciones.producto = scheme.percentage
+          ids.producto = scheme.id
+        } else if (type === 'examen') {
+          ponderaciones.examen = scheme.percentage
+          ids.examen = scheme.id
+        }
+      })
+      
+      setPonderacionesCurso(ponderaciones)
+      setPonderacionesIds(ids)
+      setSelectedCourseGroupForPonderaciones(courseGroupWithPonderaciones)
+      
+    } catch (error) {
+      console.error('Error al cargar las ponderaciones:', error)
+      toast.error('Error al cargar las ponderaciones')
+      
+      // Si hay error, inicializar con valores por defecto
+      setPonderacionesCurso({
+        asistencia: 0,
+        actividades: 0,
+        evidencias: 0,
+        producto: 0,
+        examen: 0
+      })
+      setPonderacionesIds({})
+    }
+  }
+
+  const handlePonderacionChange = async (type: string, value: number) => {
+    if (!selectedCourseGroupForPonderaciones?.id) return
+    
+    // Solo actualizar el estado local, no hacer llamada al backend
+    setPonderacionesCurso(prev => prev ? {
+      ...prev,
+      [type]: value
+    } : null)
+  }
+
+  const handlePonderacionKeyPress = async (type: string, value: number, event: React.KeyboardEvent) => {
+    if (event.key !== 'Enter') return
+    await handlePonderacionButtonClick(type, value)
+  }
+
+  const handlePonderacionButtonClick = async (type: string, value: number) => {
+    if (!selectedCourseGroupForPonderaciones?.id) return
+    
+    try {
+      const gradingSchemeData = {
+        courseGroupId: selectedCourseGroupForPonderaciones.id,
+        type: type.charAt(0).toUpperCase() + type.slice(1), // Capitalizar primera letra
+        percentage: value
+      }
+      
+      // Verificar si ya existe la ponderación
+      const existingId = ponderacionesIds[type as keyof typeof ponderacionesIds]
+      
+      if (existingId) {
+        // Actualizar ponderación existente
+        await CourseService.updateGradingScheme(existingId, gradingSchemeData)
+        toast.success('Ponderación actualizada correctamente')
+      } else {
+        // Crear nueva ponderación
+        await CourseService.createGradingScheme(gradingSchemeData)
+        toast.success('Ponderación creada correctamente')
+        
+        // Recargar las ponderaciones para obtener los IDs actualizados
+        await reloadPonderacionesAfterCreate()
+      }
+      
+    } catch (error) {
+      console.error('Error al guardar la ponderación:', error)
+      toast.error('Error al guardar la ponderación')
+    }
+  }
+
+  const reloadPonderacionesAfterCreate = async () => {
+    if (!selectedCourseGroupForPonderaciones?.id) return
+    
+    try {
+      // Recargar el courseGroup individual para obtener las ponderaciones actualizadas
+      const updatedCourseGroup = await CourseService.getCourseGroupIndividual(selectedCourseGroupForPonderaciones.id)
+      
+      // Usar las ponderaciones que vienen en el courseGroup actualizado
+      const gradingschemes = updatedCourseGroup.coursesGroupsGradingschemes || []
+      
+      // Mapear las ponderaciones actualizadas
+      const ponderaciones = {
+        asistencia: 0,
+        actividades: 0,
+        evidencias: 0,
+        producto: 0,
+        examen: 0
+      }
+      
+      const ids: {
+        asistencia?: number,
+        actividades?: number,
+        evidencias?: number,
+        producto?: number,
+        examen?: number
+      } = {}
+      
+      gradingschemes.forEach((scheme: any) => {
+        const type = scheme.type.toLowerCase()
+        if (type === 'asistencia') {
+          ponderaciones.asistencia = scheme.percentage
+          ids.asistencia = scheme.id
+        } else if (type === 'actividades') {
+          ponderaciones.actividades = scheme.percentage
+          ids.actividades = scheme.id
+        } else if (type === 'evidencias') {
+          ponderaciones.evidencias = scheme.percentage
+          ids.evidencias = scheme.id
+        } else if (type === 'producto') {
+          ponderaciones.producto = scheme.percentage
+          ids.producto = scheme.id
+        } else if (type === 'examen') {
+          ponderaciones.examen = scheme.percentage
+          ids.examen = scheme.id
+        }
+      })
+      
+      setPonderacionesCurso(ponderaciones)
+      setPonderacionesIds(ids)
+      setSelectedCourseGroupForPonderaciones(updatedCourseGroup)
+      
+    } catch (error) {
+      console.error('Error al recargar las ponderaciones:', error)
+      toast.error('Error al recargar los datos')
+    }
+  }
+
+  const handleOpenAsistenciaModal = async (asignatura: any, courseGroup: any) => {
+    setAsistenciaGrupo({ asignatura, courseGroup })
+    setIsAsistenciaModalOpen(true)
+    setIsLoadingAsistencia(true)
+    // Fecha actual por defecto
+    const currentDate = new Date().toISOString().slice(0, 10)
+    setAsistenciaFecha(currentDate)
+    
+    // Cargar los alumnos del grupo
+    try {
+      const response = await handleGetStudentsByCourseGroup(courseGroup.id, 100, 0) // Cargar todos los alumnos
+      const students = Array.isArray(response) ? response : response.items || []
+      
+      // Obtener las asistencias existentes para la fecha actual desde los datos en memoria
+      const existingAttendances: AttendanceData[] = []
+      
+      // Recorrer los alumnos del courseGroup para obtener sus asistencias
+      courseGroup.coursesGroupsStudents?.forEach((courseGroupStudent: any) => {
+        courseGroupStudent.coursesGroupsAttendances?.forEach((attendance: any) => {
+          if (attendance.date === currentDate) {
+            existingAttendances.push({
+              id: attendance.id,
+              courseGroupStudentId: courseGroupStudent.id,
+              date: attendance.date,
+              attend: attendance.attend
+            })
+          }
+        })
+      })
+      
+      // Crear un mapa de asistencias por courseGroupStudentId para búsqueda rápida
+      const attendanceMap = new Map()
+      existingAttendances.forEach((att: AttendanceData) => {
+        attendanceMap.set(att.courseGroupStudentId, att.attend)
+      })
+      
+      const mappedStudents = students.map((item: any) => ({
+        id: item.student.id,
+        fullName: item.student.fullName,
+        semester: item.student.semester,
+        registrationNumber: item.student.registrationNumber,
+        courseGroupStudentId: item.id, // Este es el ID que necesitamos para el endpoint
+        presente: attendanceMap.has(item.id) ? attendanceMap.get(item.id) : true // Usar asistencia existente o true por defecto
+      }))
+      setAsistenciaAlumnos(mappedStudents)
+    } catch (error) {
+      console.error('Error al cargar los alumnos para asistencia:', error)
+      toast.error('Error al cargar los alumnos')
+      setAsistenciaAlumnos([])
+    } finally {
+      setIsLoadingAsistencia(false)
+    }
+  }
+
+  const handleCloseAsistenciaModal = () => {
+    setIsAsistenciaModalOpen(false)
+    setAsistenciaGrupo(null)
+    setAsistenciaAlumnos([])
+    setAsistenciaFecha("")
+    setIsLoadingAsistencia(false)
+    setIsSavingAttendance(false)
+    setIsLoadingDateChange(false)
+  }
+
+  const handleSaveAttendance = async () => {
+    if (!asistenciaFecha || asistenciaAlumnos.length === 0) {
+      toast.error('Por favor selecciona una fecha y verifica que hay alumnos')
+      return
+    }
+
+    setIsSavingAttendance(true)
+    
+    try {
+      // Crear un array de promesas para todas las asistencias
+      const attendancePromises = asistenciaAlumnos.map(alumno => {
+        const attendanceData = {
+          courseGroupStudentId: alumno.courseGroupStudentId,
+          date: asistenciaFecha,
+          attend: alumno.presente
+        }
+        
+        return CourseService.createAttendance(attendanceData)
+      })
+
+      // Ejecutar todas las promesas en paralelo
+      await Promise.all(attendancePromises)
+      
+      toast.success('Asistencia guardada correctamente')
+      handleCloseAsistenciaModal()
+      
+    } catch (error) {
+      console.error('Error al guardar la asistencia:', error)
+      toast.error('Error al guardar la asistencia')
+    } finally {
+      setIsSavingAttendance(false)
+    }
+  }
+
+  const handleDateChange = (newDate: string) => {
+    setAsistenciaFecha(newDate)
+    
+    if (!asistenciaGrupo?.courseGroup) return
+    
+    setIsLoadingDateChange(true)
+    
+    // Obtener las asistencias existentes para la nueva fecha desde los datos en memoria
+    const existingAttendances: AttendanceData[] = []
+    
+    // Recorrer los alumnos del courseGroup para obtener sus asistencias
+    asistenciaGrupo.courseGroup.coursesGroupsStudents?.forEach((courseGroupStudent: any) => {
+      courseGroupStudent.coursesGroupsAttendances?.forEach((attendance: any) => {
+        if (attendance.date === newDate) {
+          existingAttendances.push({
+            id: attendance.id,
+            courseGroupStudentId: courseGroupStudent.id,
+            date: attendance.date,
+            attend: attendance.attend
+          })
+        }
+      })
+    })
+    
+    // Crear un mapa de asistencias por courseGroupStudentId
+    const attendanceMap = new Map()
+    existingAttendances.forEach((att: AttendanceData) => {
+      attendanceMap.set(att.courseGroupStudentId, att.attend)
+    })
+    
+    // Actualizar las asistencias de los alumnos
+    const updatedAlumnos = asistenciaAlumnos.map(alumno => ({
+      ...alumno,
+      presente: attendanceMap.has(alumno.courseGroupStudentId) ? attendanceMap.get(alumno.courseGroupStudentId) : true
+    }))
+    
+    setAsistenciaAlumnos(updatedAlumnos)
+    setIsLoadingDateChange(false)
   }
 
   return (
@@ -474,22 +830,17 @@ export default function MaestroAsignaturas() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                asChild
+                                onClick={() => handleOpenPonderacionesModal(asignatura, courseGroup)}
                               >
-                                <Link href={`/maestro/asignaturas/${asignatura.id}/ponderaciones?groupId=${courseGroup.group!.id}`}>
-                                  <BarChart3 className="h-4 w-4 mr-2" />
-                                  Ponderaciones
-                                </Link>
+                                <BarChart3 className="h-4 w-4 mr-2" />
+                                Ponderaciones
                               </Button>
                               <Button
                                 variant="outline"
-                                size="sm"
-                                asChild
+                                onClick={() => handleOpenAsistenciaModal(asignatura, courseGroup)}
                               >
-                                <Link href={`/maestro/asignaturas/${asignatura.id}/asistencia?groupId=${courseGroup.group!.id}`}>
-                                  <Calendar className="h-4 w-4 mr-2" />
-                                  Asistencia
-                                </Link>
+                                <Calendar className="h-4 w-4 mr-2" />
+                                Asistencia
                               </Button>
                             </div>
                           </TableCell>
@@ -574,7 +925,10 @@ export default function MaestroAsignaturas() {
                                 <Button
                                   variant="destructive"
                                   size="sm"
-                                  onClick={() => handleDeleteStudent(alumno.id)}
+                                  onClick={() => {
+                                    setIsDeleteModalOpen(true)
+                                    setStudentToDelete(alumno)
+                                  }}
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
                                   Eliminar
@@ -795,11 +1149,310 @@ export default function MaestroAsignaturas() {
               </DialogContent>
             </Dialog>
 
+            {/* Modal de Confirmación de Eliminación */}
+            <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirmar Eliminación</DialogTitle>
+                  <DialogDescription>
+                    ¿Estás seguro de que quieres eliminar a <strong>{studentToDelete?.fullName}</strong> del grupo?
+                    <br />
+                    <span className="text-sm text-gray-500">
+                      Matrícula: {studentToDelete?.registrationNumber} | Semestre: {studentToDelete?.semester}
+                    </span>
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsDeleteModalOpen(false)
+                      setStudentToDelete(null)
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      if (studentToDelete) {
+                        handleDeleteStudent(studentToDelete.courseGroupStudentId)
+                      }
+                      setIsDeleteModalOpen(false)
+                    }}
+                  >
+                    Eliminar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Modal de Ponderaciones */}
+            <Dialog open={isPonderacionesModalOpen} onOpenChange={setIsPonderacionesModalOpen}>
+              <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>Ponderaciones</DialogTitle>
+                  <DialogDescription>
+                    Estas son las ponderaciones del curso seleccionado.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="w-full flex justify-center">
+                  <table className="min-w-full w-full border border-gray-300 text-center">
+                    <thead>
+                      <tr className="bg-gradient-to-br from-[#bc4b26] to-[#d05f27] text-white">
+                        <th className="px-6 py-3">Asistencia</th>
+                        <th className="px-6 py-3">Actividades</th>
+                        <th className="px-6 py-3">Evidencias</th>
+                        <th className="px-6 py-3">Producto</th>
+                        <th className="px-6 py-3">Examen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="font-bold text-lg">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={ponderacionesCurso?.asistencia ?? 0}
+                                onChange={(e) => handlePonderacionChange('asistencia', Number(e.target.value))}
+                                onKeyPress={(e) => handlePonderacionKeyPress('asistencia', Number(e.currentTarget.value), e)}
+                                className="w-16 text-center border rounded px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#bc4b26]"
+                              />
+                              <span className="ml-1">%</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={ponderacionesIds.asistencia ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${ponderacionesIds.asistencia ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handlePonderacionButtonClick('asistencia', ponderacionesCurso?.asistencia ?? 0)}
+                            >
+                              {ponderacionesIds.asistencia ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={ponderacionesCurso?.actividades ?? 0}
+                                onChange={(e) => handlePonderacionChange('actividades', Number(e.target.value))}
+                                onKeyPress={(e) => handlePonderacionKeyPress('actividades', Number(e.currentTarget.value), e)}
+                                className="w-16 text-center border rounded px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#bc4b26]"
+                              />
+                              <span className="ml-1">%</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={ponderacionesIds.actividades ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${ponderacionesIds.actividades ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handlePonderacionButtonClick('actividades', ponderacionesCurso?.actividades ?? 0)}
+                            >
+                              {ponderacionesIds.actividades ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={ponderacionesCurso?.evidencias ?? 0}
+                                onChange={(e) => handlePonderacionChange('evidencias', Number(e.target.value))}
+                                onKeyPress={(e) => handlePonderacionKeyPress('evidencias', Number(e.currentTarget.value), e)}
+                                className="w-16 text-center border rounded px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#bc4b26]"
+                              />
+                              <span className="ml-1">%</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={ponderacionesIds.evidencias ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${ponderacionesIds.evidencias ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handlePonderacionButtonClick('evidencias', ponderacionesCurso?.evidencias ?? 0)}
+                            >
+                              {ponderacionesIds.evidencias ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={ponderacionesCurso?.producto ?? 0}
+                                onChange={(e) => handlePonderacionChange('producto', Number(e.target.value))}
+                                onKeyPress={(e) => handlePonderacionKeyPress('producto', Number(e.currentTarget.value), e)}
+                                className="w-16 text-center border rounded px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#bc4b26]"
+                              />
+                              <span className="ml-1">%</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={ponderacionesIds.producto ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${ponderacionesIds.producto ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handlePonderacionButtonClick('producto', ponderacionesCurso?.producto ?? 0)}
+                            >
+                              {ponderacionesIds.producto ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={ponderacionesCurso?.examen ?? 0}
+                                onChange={(e) => handlePonderacionChange('examen', Number(e.target.value))}
+                                onKeyPress={(e) => handlePonderacionKeyPress('examen', Number(e.currentTarget.value), e)}
+                                className="w-16 text-center border rounded px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-[#bc4b26]"
+                              />
+                              <span className="ml-1">%</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={ponderacionesIds.examen ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${ponderacionesIds.examen ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handlePonderacionButtonClick('examen', ponderacionesCurso?.examen ?? 0)}
+                            >
+                              {ponderacionesIds.examen ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsPonderacionesModalOpen(false)}>
+                    Cerrar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Modal de Asistencia */}
+            <Dialog open={isAsistenciaModalOpen} onOpenChange={setIsAsistenciaModalOpen}>
+              <DialogContent className="max-w-4xl">
+                <DialogHeader>
+                  <DialogTitle>Asistencia</DialogTitle>
+                  <DialogDescription>
+                    Selecciona los alumnos presentes y ausentes
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="mb-4 flex items-center gap-2">
+                  <label htmlFor="asistenciaFecha" className="font-medium">Fecha:</label>
+                  <input
+                    id="asistenciaFecha"
+                    type="date"
+                    value={asistenciaFecha}
+                    onChange={e => handleDateChange(e.target.value)}
+                    className="border rounded px-2 py-1"
+                    disabled={isLoadingDateChange}
+                  />
+                </div>
+                <div className="mt-4">
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre Completo</TableHead>
+                          <TableHead>Matrícula</TableHead>
+                          <TableHead>Presente</TableHead>
+                          <TableHead>Ausente</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {isLoadingAsistencia || isLoadingDateChange ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8">
+                              <div className="flex flex-col items-center justify-center text-gray-500">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                                <p>{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : asistenciaAlumnos.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8">
+                              <div className="flex flex-col items-center justify-center text-gray-500">
+                                <Users className="h-12 w-12 mb-4" />
+                                <p className="text-lg font-medium">No hay alumnos en este grupo</p>
+                                <p className="text-sm">Agrega alumnos al grupo para tomar asistencia</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          asistenciaAlumnos.map((alumno) => (
+                            <TableRow key={alumno.id}>
+                              <TableCell className="font-medium">{alumno.fullName}</TableCell>
+                              <TableCell>{alumno.registrationNumber}</TableCell>
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={alumno.presente}
+                                  onChange={(e) => {
+                                    const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                      a.id === alumno.id ? { ...a, presente: e.target.checked } : a
+                                    );
+                                    setAsistenciaAlumnos(updatedAlumnos);
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={!alumno.presente}
+                                  onChange={(e) => {
+                                    const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                      a.id === alumno.id ? { ...a, presente: !e.target.checked } : a
+                                    );
+                                    setAsistenciaAlumnos(updatedAlumnos);
+                                  }}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex items-center justify-between mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={handleCloseAsistenciaModal}
+                      disabled={isSavingAttendance}
+                    >
+                      Cerrar
+                    </Button>
+                    <Button
+                      variant="default"
+                      onClick={handleSaveAttendance}
+                      disabled={isSavingAttendance || asistenciaAlumnos.length === 0}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {isSavingAttendance ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-4">
                 <div className="text-sm text-gray-500">
-                  Mostrando {startIndex + 1} a {Math.min(endIndex, totalItems)} de {totalItems} resultados
+                  Página {currentPage} de {totalPages}
                 </div>
                 <div className="flex space-x-2">
                   <Button

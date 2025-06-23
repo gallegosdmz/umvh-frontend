@@ -137,6 +137,15 @@ export const CourseService = {
         }
     },
 
+    async deleteStudentToCourse(courseGroupStudentId: number) {
+        const response = await fetch(`${ API_URL }/courses-groups-students/${courseGroupStudentId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+        });
+
+        if (!response.ok) return handleError(response, 'No se pudo eliminar el estudiante');
+    },
+
     async getById(id: number) {
         const response = await fetch(`${API_URL}/courses/${id}`, {
             headers: getAuthHeaders()
@@ -161,11 +170,69 @@ export const CourseService = {
         return data;
     },
 
+    async getCourseGroupIndividual(courseGroupId: number) {
+        const response = await fetch(`${API_URL}/courses-groups/individual/${courseGroupId}`, {
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+        console.log('CourseGroup individual:', data);
+        if (!response.ok) throw new Error('Error al obtener el grupo individual');
+        return data;
+    },
+
     async getStudentsByCourseGroup(courseGroupId: number, limit: number = 10, offset: number = 0) {
         const response = await fetch(`${API_URL}/courses-groups-students/findAll/${courseGroupId}?limit=${limit}&offset=${offset}`, {
             headers: getAuthHeaders()
         });
         if (!response.ok) throw new Error('Error al obtener los estudiantes del grupo');
         return response.json();
+    },
+
+    async createGradingScheme(gradingSchemeData: { courseGroupId: number; type: string; percentage: number }) {
+        const response = await fetch(`${API_URL}/courses-groups-gradingschemes`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(gradingSchemeData)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return handleError(response, 'No se pudo crear la ponderación');
+        }
+
+        return data;
+    },
+
+    async updateGradingScheme(id: number, gradingSchemeData: { courseGroupId: number; type: string; percentage: number }) {
+        const response = await fetch(`${API_URL}/courses-groups-gradingschemes/${id}`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(gradingSchemeData)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return handleError(response, 'No se pudo actualizar la ponderación');
+        }
+
+        return data;
+    },
+
+    async createAttendance(attendanceData: { courseGroupStudentId: number; date: string; attend: boolean }) {
+        const response = await fetch(`${API_URL}/courses-groups-attendances`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(attendanceData)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return handleError(response, 'No se pudo registrar la asistencia');
+        }
+
+        return data;
     }
 }; 
