@@ -636,35 +636,84 @@ export default function MaestroAsignaturas() {
     setIsSavingAttendance(true)
     
     try {
-      // Crear un array de promesas para todas las asistencias
-      const attendancePromises = asistenciaAlumnos.map(alumno => {
+      console.log('=== INICIANDO GUARDADO DE ASISTENCIAS ===')
+      console.log('Fecha:', asistenciaFecha)
+      console.log('Alumnos a procesar:', asistenciaAlumnos)
+      
+      // Procesar cada asistencia individualmente
+      for (const alumno of asistenciaAlumnos) {
         if (!alumno.courseGroupStudentId) {
-          throw new Error('courseGroupStudentId es requerido')
+          console.error('❌ courseGroupStudentId es requerido para:', alumno)
+          continue
         }
         
         const attendanceData = {
           courseGroupStudentId: alumno.courseGroupStudentId as number,
           date: asistenciaFecha,
-          attend: alumno.presente || false
+          attend: alumno.presente === true // Enviar el valor real del estado
         }
         
-        // Si tiene attendanceId, actualizar la asistencia existente
-        if (alumno.attendanceId) {
-          return CourseService.updateAttendance(alumno.attendanceId, attendanceData)
-        } else {
-          // Si no tiene attendanceId, crear una nueva asistencia
-          return CourseService.createAttendance(attendanceData)
+        console.log(`\n--- Procesando alumno: ${alumno.fullName} ---`)
+        console.log('Datos a enviar:', attendanceData)
+        console.log('attendanceId actual:', alumno.attendanceId)
+        console.log('Estado presente:', alumno.presente)
+        console.log('Valor attend que se enviará:', alumno.presente === true)
+        
+        try {
+          if (alumno.attendanceId) {
+            // ACTUALIZAR ASISTENCIA EXISTENTE
+            console.log(`🔄 Actualizando asistencia existente con ID: ${alumno.attendanceId}`)
+            console.log(`📡 Llamando a: PATCH /api/courses-groups-attendances/${alumno.attendanceId}`)
+            
+            const updatedAttendance = await CourseService.updateAttendance(alumno.attendanceId, attendanceData)
+            console.log('✅ Respuesta del servidor (actualización):', updatedAttendance)
+            
+            if (updatedAttendance) {
+              console.log('✅ Asistencia actualizada exitosamente en el backend')
+            } else {
+              console.error('❌ No se recibió respuesta del servidor para la actualización')
+              toast.error(`Error al actualizar asistencia de ${alumno.fullName}`)
+            }
+          } else {
+            // CREAR NUEVA ASISTENCIA
+            console.log('🆕 Creando nueva asistencia')
+            console.log('📡 Llamando a: POST /api/courses-groups-attendances')
+            
+            const newAttendance = await CourseService.createAttendance(attendanceData)
+            console.log('✅ Respuesta del servidor (creación):', newAttendance)
+            
+            if (newAttendance && newAttendance.id) {
+              console.log('✅ Nueva asistencia creada exitosamente con ID:', newAttendance.id)
+              
+              // Actualizar el attendanceId en el estado local
+              const updatedAlumnos = asistenciaAlumnos.map(a => 
+                a.id === alumno.id 
+                  ? { ...a, attendanceId: newAttendance.id }
+                  : a
+              )
+              setAsistenciaAlumnos(updatedAlumnos)
+              console.log('✅ Estado local actualizado con nuevo attendanceId')
+            } else {
+              console.error('❌ No se recibió ID válido del servidor para la nueva asistencia')
+              toast.error(`Error al crear asistencia de ${alumno.fullName}`)
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error procesando asistencia para ${alumno.fullName}:`, error)
+          console.error('Detalles del error:', {
+            message: error instanceof Error ? error.message : 'Error desconocido',
+            status: (error as any)?.status,
+            response: (error as any)?.response
+          })
+          toast.error(`Error al procesar asistencia de ${alumno.fullName}`)
         }
-      })
-
-      // Ejecutar todas las promesas en paralelo
-      await Promise.all(attendancePromises)
+      }
       
+      console.log('\n=== FINALIZADO GUARDADO DE ASISTENCIAS ===')
       toast.success('Asistencia guardada correctamente')
-      handleCloseAsistenciaModal()
       
     } catch (error) {
-      console.error('Error al guardar la asistencia:', error)
+      console.error('❌ Error general al guardar la asistencia:', error)
       toast.error('Error al guardar la asistencia')
     } finally {
       setIsSavingAttendance(false)
@@ -686,26 +735,26 @@ export default function MaestroAsignaturas() {
         console.log('Asistencias para nueva fecha:', existingAttendances)
         
         // Crear un mapa de asistencias por courseGroupStudentId
-        const attendanceMap = new Map()
-        const attendanceIdMap = new Map() // Nuevo mapa para guardar los IDs
+        const dateAttendanceMap = new Map()
+        const dateAttendanceIdMap = new Map()
+        
         existingAttendances.forEach((att: AttendanceData) => {
-          console.log('Procesando asistencia:', att)
-          // El courseGroupStudentId está anidado dentro de courseGroupStudent
           const courseGroupStudentId = att.courseGroupStudent?.id || att.courseGroupStudentId
-          console.log('courseGroupStudentId extraído:', courseGroupStudentId)
-          attendanceMap.set(courseGroupStudentId, att.attend)
-          attendanceIdMap.set(courseGroupStudentId, att.id) // Guardar el ID de la asistencia
+          if (courseGroupStudentId) {
+            dateAttendanceMap.set(courseGroupStudentId, att.attend)
+            dateAttendanceIdMap.set(courseGroupStudentId, att.id)
+          }
         })
         
         // Actualizar las asistencias de los alumnos
         const updatedAlumnos = asistenciaAlumnos.map(alumno => {
-          const isPresent = attendanceMap.has(alumno.courseGroupStudentId) ? attendanceMap.get(alumno.courseGroupStudentId) : true
-          const attendanceId = attendanceIdMap.has(alumno.courseGroupStudentId) ? attendanceIdMap.get(alumno.courseGroupStudentId) : null
+          const isPresent = dateAttendanceMap.has(alumno.courseGroupStudentId) ? dateAttendanceMap.get(alumno.courseGroupStudentId) : true
+          const attendanceId = dateAttendanceIdMap.has(alumno.courseGroupStudentId) ? dateAttendanceIdMap.get(alumno.courseGroupStudentId) : null
           
           return {
             ...alumno,
             presente: isPresent,
-            attendanceId: attendanceId // Guardar el ID de la asistencia si existe
+            attendanceId: attendanceId
           }
         })
         
