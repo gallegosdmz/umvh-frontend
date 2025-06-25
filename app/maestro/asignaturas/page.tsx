@@ -41,7 +41,13 @@ import { studentService } from "@/lib/services/student.service"
 
 interface AttendanceData {
   id?: number;
-  courseGroupStudentId: number;
+  courseGroupStudentId?: number;
+  courseGroupStudent?: {
+    id: number;
+    isDeleted: boolean;
+    courseGroup: any;
+    student: any;
+  };
   date: string;
   attend: boolean;
 }
@@ -106,6 +112,11 @@ export default function MaestroAsignaturas() {
   const [isLoadingAsistencia, setIsLoadingAsistencia] = useState(false)
   const [isSavingAttendance, setIsSavingAttendance] = useState(false)
   const [isLoadingDateChange, setIsLoadingDateChange] = useState(false)
+
+  // Debug: Monitorear cambios en asistenciaAlumnos
+  useEffect(() => {
+    console.log('Estado actual de asistenciaAlumnos:', asistenciaAlumnos)
+  }, [asistenciaAlumnos])
 
   const loadAsignaturas = async (page = 1) => {
     try {
@@ -551,40 +562,51 @@ export default function MaestroAsignaturas() {
       const response = await handleGetStudentsByCourseGroup(courseGroup.id, 100, 0) // Cargar todos los alumnos
       const students = Array.isArray(response) ? response : response.items || []
       
-      // Obtener las asistencias existentes para la fecha actual desde los datos en memoria
-      const existingAttendances: AttendanceData[] = []
+      // Obtener las asistencias existentes para la fecha actual desde el backend
+      let existingAttendances: AttendanceData[] = []
+      try {
+        const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(courseGroup.id, currentDate)
+        existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
+        console.log('Asistencias existentes:', existingAttendances)
+      } catch (attendanceError) {
+        console.log('No se encontraron asistencias para esta fecha, se crearán nuevas')
+        existingAttendances = []
+      }
       
-      // Recorrer los alumnos del courseGroup para obtener sus asistencias
-      courseGroup.coursesGroupsStudents?.forEach((courseGroupStudent: any) => {
-        courseGroupStudent.coursesGroupsAttendances?.forEach((attendance: any) => {
-          if (attendance.date === currentDate) {
-            existingAttendances.push({
-              id: attendance.id,
-              courseGroupStudentId: courseGroupStudent.id,
-              date: attendance.date,
-              attend: attendance.attend
-            })
-          }
-        })
-      })
-      
-      // Crear un mapa de asistencias por courseGroupStudentId para búsqueda rápida
+      // Crear un mapa de asistencias por courseGroupStudentId
       const attendanceMap = new Map()
       const attendanceIdMap = new Map() // Nuevo mapa para guardar los IDs
       existingAttendances.forEach((att: AttendanceData) => {
-        attendanceMap.set(att.courseGroupStudentId, att.attend)
-        attendanceIdMap.set(att.courseGroupStudentId, att.id) // Guardar el ID de la asistencia
+        console.log('Procesando asistencia:', att)
+        // El courseGroupStudentId está anidado dentro de courseGroupStudent
+        const courseGroupStudentId = att.courseGroupStudent?.id || att.courseGroupStudentId
+        console.log('courseGroupStudentId extraído:', courseGroupStudentId)
+        attendanceMap.set(courseGroupStudentId, att.attend)
+        attendanceIdMap.set(courseGroupStudentId, att.id) // Guardar el ID de la asistencia
       })
       
-      const mappedStudents = students.map((item: any) => ({
-        id: item.student.id,
-        fullName: item.student.fullName,
-        semester: item.student.semester,
-        registrationNumber: item.student.registrationNumber,
-        courseGroupStudentId: item.id, // Este es el ID que necesitamos para el endpoint
-        presente: attendanceMap.has(item.id) ? attendanceMap.get(item.id) : true, // Usar asistencia existente o true por defecto
-        attendanceId: attendanceIdMap.has(item.id) ? attendanceIdMap.get(item.id) : null // Guardar el ID de la asistencia si existe
-      }))
+      console.log('Mapa de asistencias:', Object.fromEntries(attendanceMap))
+      console.log('Mapa de IDs de asistencias:', Object.fromEntries(attendanceIdMap))
+      
+      const mappedStudents = students.map((item: any) => {
+        const courseGroupStudentId = item.id // Este es el ID de la relación courseGroup-student
+        const isPresent = attendanceMap.has(courseGroupStudentId) ? attendanceMap.get(courseGroupStudentId) : true
+        const attendanceId = attendanceIdMap.has(courseGroupStudentId) ? attendanceIdMap.get(courseGroupStudentId) : null
+        
+        console.log(`Alumno ${item.student.fullName}: courseGroupStudentId=${courseGroupStudentId}, presente=${isPresent}, attendanceId=${attendanceId}`)
+        
+        return {
+          id: item.student.id,
+          fullName: item.student.fullName,
+          semester: item.student.semester,
+          registrationNumber: item.student.registrationNumber,
+          courseGroupStudentId: courseGroupStudentId, // Este es el ID que necesitamos para el endpoint
+          presente: isPresent, // Usar asistencia existente o true por defecto
+          attendanceId: attendanceId // Guardar el ID de la asistencia si existe
+        }
+      })
+      
+      console.log('Alumnos mapeados:', mappedStudents)
       setAsistenciaAlumnos(mappedStudents)
     } catch (error) {
       console.error('Error al cargar los alumnos para asistencia:', error)
@@ -656,40 +678,54 @@ export default function MaestroAsignaturas() {
     
     setIsLoadingDateChange(true)
     
-    // Obtener las asistencias existentes para la nueva fecha desde los datos en memoria
-    const existingAttendances: AttendanceData[] = []
+    // Obtener las asistencias existentes para la nueva fecha desde el backend
+    const loadAttendancesForDate = async () => {
+      try {
+        const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(asistenciaGrupo.courseGroup.id, newDate)
+        const existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
+        console.log('Asistencias para nueva fecha:', existingAttendances)
+        
+        // Crear un mapa de asistencias por courseGroupStudentId
+        const attendanceMap = new Map()
+        const attendanceIdMap = new Map() // Nuevo mapa para guardar los IDs
+        existingAttendances.forEach((att: AttendanceData) => {
+          console.log('Procesando asistencia:', att)
+          // El courseGroupStudentId está anidado dentro de courseGroupStudent
+          const courseGroupStudentId = att.courseGroupStudent?.id || att.courseGroupStudentId
+          console.log('courseGroupStudentId extraído:', courseGroupStudentId)
+          attendanceMap.set(courseGroupStudentId, att.attend)
+          attendanceIdMap.set(courseGroupStudentId, att.id) // Guardar el ID de la asistencia
+        })
+        
+        // Actualizar las asistencias de los alumnos
+        const updatedAlumnos = asistenciaAlumnos.map(alumno => {
+          const isPresent = attendanceMap.has(alumno.courseGroupStudentId) ? attendanceMap.get(alumno.courseGroupStudentId) : true
+          const attendanceId = attendanceIdMap.has(alumno.courseGroupStudentId) ? attendanceIdMap.get(alumno.courseGroupStudentId) : null
+          
+          return {
+            ...alumno,
+            presente: isPresent,
+            attendanceId: attendanceId // Guardar el ID de la asistencia si existe
+          }
+        })
+        
+        console.log('Alumnos actualizados para nueva fecha:', updatedAlumnos)
+        setAsistenciaAlumnos(updatedAlumnos)
+      } catch (error) {
+        console.log('No se encontraron asistencias para esta fecha, se crearán nuevas')
+        // Si no hay asistencias, resetear todos los attendanceId a null y presente a true
+        const updatedAlumnos = asistenciaAlumnos.map(alumno => ({
+          ...alumno,
+          presente: true,
+          attendanceId: null
+        }))
+        setAsistenciaAlumnos(updatedAlumnos)
+      } finally {
+        setIsLoadingDateChange(false)
+      }
+    }
     
-    // Recorrer los alumnos del courseGroup para obtener sus asistencias
-    asistenciaGrupo.courseGroup.coursesGroupsStudents?.forEach((courseGroupStudent: any) => {
-      courseGroupStudent.coursesGroupsAttendances?.forEach((attendance: any) => {
-        if (attendance.date === newDate) {
-          existingAttendances.push({
-            id: attendance.id,
-            courseGroupStudentId: courseGroupStudent.id,
-            date: attendance.date,
-            attend: attendance.attend
-          })
-        }
-      })
-    })
-    
-    // Crear un mapa de asistencias por courseGroupStudentId
-    const attendanceMap = new Map()
-    const attendanceIdMap = new Map() // Nuevo mapa para guardar los IDs
-    existingAttendances.forEach((att: AttendanceData) => {
-      attendanceMap.set(att.courseGroupStudentId, att.attend)
-      attendanceIdMap.set(att.courseGroupStudentId, att.id) // Guardar el ID de la asistencia
-    })
-    
-    // Actualizar las asistencias de los alumnos
-    const updatedAlumnos = asistenciaAlumnos.map(alumno => ({
-      ...alumno,
-      presente: attendanceMap.has(alumno.courseGroupStudentId) ? attendanceMap.get(alumno.courseGroupStudentId) : true,
-      attendanceId: attendanceIdMap.has(alumno.courseGroupStudentId) ? attendanceIdMap.get(alumno.courseGroupStudentId) : null // Guardar el ID de la asistencia si existe
-    }))
-    
-    setAsistenciaAlumnos(updatedAlumnos)
-    setIsLoadingDateChange(false)
+    loadAttendancesForDate()
   }
 
   return (
@@ -1392,7 +1428,7 @@ export default function MaestroAsignaturas() {
                       <TableBody>
                         {isLoadingAsistencia || isLoadingDateChange ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8">
+                            <TableCell colSpan={5} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
                                 <p>{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
@@ -1401,7 +1437,7 @@ export default function MaestroAsignaturas() {
                           </TableRow>
                         ) : asistenciaAlumnos.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8">
+                            <TableCell colSpan={5} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <Users className="h-12 w-12 mb-4" />
                                 <p className="text-lg font-medium">No hay alumnos en este grupo</p>

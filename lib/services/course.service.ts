@@ -250,5 +250,24 @@ export const CourseService = {
         }
 
         return data;
+    },
+
+    async getAttendancesByCourseGroupAndDate(courseGroupId: number, date: string) {
+        console.log(courseGroupId)
+        console.log(date)
+        
+        const response = await fetch(`${API_URL}/courses-groups-attendances/${courseGroupId}?date=${date}`, {
+            headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+
+        console.log(data);
+
+        if (!response.ok) {
+            return handleError(response, 'No se pudo obtener las asistencias');
+        }
+
+        return data;
     }
 }; 
