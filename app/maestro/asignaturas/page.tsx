@@ -100,7 +100,7 @@ export default function MaestroAsignaturas() {
   }>({})
   const [selectedCourseGroupForPonderaciones, setSelectedCourseGroupForPonderaciones] = useState<any | null>(null)
   const [isAsistenciaModalOpen, setIsAsistenciaModalOpen] = useState(false)
-  const [asistenciaAlumnos, setAsistenciaAlumnos] = useState<any[]>([])
+  const [asistenciaAlumnos, setAsistenciaAlumnos] = useState<(Student & { courseGroupStudentId?: number, attendanceId?: number | null, presente?: boolean })[]>([])
   const [asistenciaGrupo, setAsistenciaGrupo] = useState<{ asignatura: any, courseGroup: any } | null>(null)
   const [asistenciaFecha, setAsistenciaFecha] = useState<string>("")
   const [isLoadingAsistencia, setIsLoadingAsistencia] = useState(false)
@@ -570,8 +570,10 @@ export default function MaestroAsignaturas() {
       
       // Crear un mapa de asistencias por courseGroupStudentId para búsqueda rápida
       const attendanceMap = new Map()
+      const attendanceIdMap = new Map() // Nuevo mapa para guardar los IDs
       existingAttendances.forEach((att: AttendanceData) => {
         attendanceMap.set(att.courseGroupStudentId, att.attend)
+        attendanceIdMap.set(att.courseGroupStudentId, att.id) // Guardar el ID de la asistencia
       })
       
       const mappedStudents = students.map((item: any) => ({
@@ -580,7 +582,8 @@ export default function MaestroAsignaturas() {
         semester: item.student.semester,
         registrationNumber: item.student.registrationNumber,
         courseGroupStudentId: item.id, // Este es el ID que necesitamos para el endpoint
-        presente: attendanceMap.has(item.id) ? attendanceMap.get(item.id) : true // Usar asistencia existente o true por defecto
+        presente: attendanceMap.has(item.id) ? attendanceMap.get(item.id) : true, // Usar asistencia existente o true por defecto
+        attendanceId: attendanceIdMap.has(item.id) ? attendanceIdMap.get(item.id) : null // Guardar el ID de la asistencia si existe
       }))
       setAsistenciaAlumnos(mappedStudents)
     } catch (error) {
@@ -613,13 +616,23 @@ export default function MaestroAsignaturas() {
     try {
       // Crear un array de promesas para todas las asistencias
       const attendancePromises = asistenciaAlumnos.map(alumno => {
-        const attendanceData = {
-          courseGroupStudentId: alumno.courseGroupStudentId,
-          date: asistenciaFecha,
-          attend: alumno.presente
+        if (!alumno.courseGroupStudentId) {
+          throw new Error('courseGroupStudentId es requerido')
         }
         
-        return CourseService.createAttendance(attendanceData)
+        const attendanceData = {
+          courseGroupStudentId: alumno.courseGroupStudentId as number,
+          date: asistenciaFecha,
+          attend: alumno.presente || false
+        }
+        
+        // Si tiene attendanceId, actualizar la asistencia existente
+        if (alumno.attendanceId) {
+          return CourseService.updateAttendance(alumno.attendanceId, attendanceData)
+        } else {
+          // Si no tiene attendanceId, crear una nueva asistencia
+          return CourseService.createAttendance(attendanceData)
+        }
       })
 
       // Ejecutar todas las promesas en paralelo
@@ -662,14 +675,17 @@ export default function MaestroAsignaturas() {
     
     // Crear un mapa de asistencias por courseGroupStudentId
     const attendanceMap = new Map()
+    const attendanceIdMap = new Map() // Nuevo mapa para guardar los IDs
     existingAttendances.forEach((att: AttendanceData) => {
       attendanceMap.set(att.courseGroupStudentId, att.attend)
+      attendanceIdMap.set(att.courseGroupStudentId, att.id) // Guardar el ID de la asistencia
     })
     
     // Actualizar las asistencias de los alumnos
     const updatedAlumnos = asistenciaAlumnos.map(alumno => ({
       ...alumno,
-      presente: attendanceMap.has(alumno.courseGroupStudentId) ? attendanceMap.get(alumno.courseGroupStudentId) : true
+      presente: attendanceMap.has(alumno.courseGroupStudentId) ? attendanceMap.get(alumno.courseGroupStudentId) : true,
+      attendanceId: attendanceIdMap.has(alumno.courseGroupStudentId) ? attendanceIdMap.get(alumno.courseGroupStudentId) : null // Guardar el ID de la asistencia si existe
     }))
     
     setAsistenciaAlumnos(updatedAlumnos)
@@ -1368,6 +1384,7 @@ export default function MaestroAsignaturas() {
                         <TableRow>
                           <TableHead>Nombre Completo</TableHead>
                           <TableHead>Matrícula</TableHead>
+                          <TableHead>Estado</TableHead>
                           <TableHead>Presente</TableHead>
                           <TableHead>Ausente</TableHead>
                         </TableRow>
@@ -1397,6 +1414,17 @@ export default function MaestroAsignaturas() {
                             <TableRow key={alumno.id}>
                               <TableCell className="font-medium">{alumno.fullName}</TableCell>
                               <TableCell>{alumno.registrationNumber}</TableCell>
+                              <TableCell>
+                                {alumno.attendanceId ? (
+                                  <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                    ✓ Creada
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                    ⚠ Nueva
+                                  </Badge>
+                                )}
+                              </TableCell>
                               <TableCell>
                                 <input
                                   type="checkbox"

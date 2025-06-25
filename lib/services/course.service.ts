@@ -234,5 +234,21 @@ export const CourseService = {
         }
 
         return data;
+    },
+
+    async updateAttendance(id: number, attendanceData: { courseGroupStudentId: number; date: string; attend: boolean }) {
+        const response = await fetch(`${API_URL}/courses-groups-attendances/${id}`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(attendanceData)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return handleError(response, 'No se pudo actualizar la asistencia');
+        }
+
+        return data;
     }
 }; 
