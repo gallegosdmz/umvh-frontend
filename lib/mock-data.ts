@@ -61,7 +61,6 @@ export interface Course {
 export interface Student {
   id?: number
   fullName: string
-  semester: number
   registrationNumber: string
 }
 
@@ -99,6 +98,7 @@ export interface Group {
   id?: number;
   name: string;
   periodId?: number;
+  semester?: number;
   period?: {
     id: number;
     name: string;
@@ -113,6 +113,7 @@ export interface Group {
 export interface CreateGroupDto {
   name: string;
   periodId: number;
+  semester: number;
 }
 
 export interface AsignaturaGrupo {

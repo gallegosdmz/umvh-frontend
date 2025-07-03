@@ -39,9 +39,7 @@ export const groupService = {
     try {
       const response = await fetch(`${API_URL}/groups`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(groupData),
       });
 

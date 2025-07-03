@@ -66,7 +66,6 @@ export default function AlumnosPage() {
   const [openAssignStudents, setOpenAssignStudents] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSemester, setSelectedSemester] = useState<string>("");
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -87,7 +86,7 @@ export default function AlumnosPage() {
 
   useEffect(() => {
     filterStudents();
-  }, [searchTerm, selectedSemester, allStudents]);
+  }, [searchTerm, allStudents]);
 
   const loadPeriods = async () => {
     try {
@@ -160,11 +159,8 @@ export default function AlumnosPage() {
       });
     }
     
-    if (selectedSemester && selectedSemester !== "all") {
-      filtered = filtered.filter(student => 
-        student.semester.toString() === selectedSemester
-      );
-    }
+    // Ya no filtramos por semestre porque los estudiantes ya no tienen semester
+    // El filtro de semestre ahora se aplica a los grupos
     
     setFilteredStudents(filtered);
   };
@@ -178,14 +174,15 @@ export default function AlumnosPage() {
 
     try {
       if (showGrupos) {
-        if (!periodoId) {
-          toast.error('Debes seleccionar un período');
+        if (!periodoId || !semestre) {
+          toast.error('Debes seleccionar un período y un semestre');
           return;
         }
 
         const groupData: CreateGroupDto = {
           name: nombre,
-          periodId: Number(periodoId)
+          periodId: Number(periodoId),
+          semester: Number(semestre)
         };
 
         if (editingItem && editingItem.id) {
@@ -201,7 +198,6 @@ export default function AlumnosPage() {
       } else {
         const studentData: Student = {
           fullName: nombre,
-          semester: Number(semestre),
           registrationNumber: matricula
         };
 
@@ -224,10 +220,11 @@ export default function AlumnosPage() {
     if ('fullName' in item) {
       setNombre(item.fullName);
       setMatricula(item.registrationNumber);
-      setSemestre(item.semester.toString());
+      setSemestre("");
     } else {
       setNombre(item.name);
       setPeriodoId(item.period?.id?.toString() || "");
+      setSemestre(item.semester?.toString() || "");
     }
     setOpen(true);
   };
@@ -394,6 +391,24 @@ export default function AlumnosPage() {
                       required
                     />
                   </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <Label htmlFor="periodo">Período</Label>
+                    <Select value={periodoId} onValueChange={setPeriodoId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un período" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {periodos.map((periodo) => (
+                          <SelectItem key={periodo.id} value={periodo.id?.toString() || ""}>
+                            {periodo.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div>
                     <Label htmlFor="semestre">Semestre</Label>
                     <Input 
@@ -408,22 +423,6 @@ export default function AlumnosPage() {
                     />
                   </div>
                 </>
-              ) : (
-                <div>
-                  <Label htmlFor="periodo">Período</Label>
-                  <Select value={periodoId} onValueChange={setPeriodoId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un período" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {periodos.map((periodo) => (
-                        <SelectItem key={periodo.id} value={periodo.id?.toString() || ""}>
-                          {periodo.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               )}
               <DialogFooter>
                 <DialogClose asChild>
@@ -481,11 +480,11 @@ export default function AlumnosPage() {
                     {!showGrupos ? (
                       <>
                         <TableHead className="font-semibold">Matrícula</TableHead>
-                        <TableHead className="font-semibold">Semestre</TableHead>
                       </>
                     ) : (
                       <>
                         <TableHead className="font-semibold">Período</TableHead>
+                        <TableHead className="font-semibold">Semestre</TableHead>
                         <TableHead className="font-semibold">Cursos</TableHead>
                       </>
                     )}
@@ -500,6 +499,9 @@ export default function AlumnosPage() {
                           <TableCell className="font-medium">{grupo.name}</TableCell>
                           <TableCell>
                             {grupo.period?.name || 'No asignado'}
+                          </TableCell>
+                          <TableCell>
+                            {grupo.semester?.toString() || 'No asignado'}
                           </TableCell>
                           <TableCell>
                             {grupo.coursesGroups?.length || 0} cursos
@@ -544,7 +546,6 @@ export default function AlumnosPage() {
                       <TableRow key={alumno.id} className="hover:bg-gray-50">
                         <TableCell className="font-medium">{alumno.fullName}</TableCell>
                         <TableCell>{alumno.registrationNumber}</TableCell>
-                        <TableCell>{alumno.semester}</TableCell>
                         <TableCell className="flex gap-2 justify-center">
                           <Button 
                             variant="outline" 
@@ -619,22 +620,6 @@ export default function AlumnosPage() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <div className="w-48">
-                  <Label htmlFor="semester">Filtrar por semestre</Label>
-                  <Select value={selectedSemester} onValueChange={setSelectedSemester}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos los semestres" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((sem) => (
-                        <SelectItem key={sem} value={sem.toString()}>
-                          Semestre {sem}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               <div className="border rounded-lg">
@@ -644,7 +629,6 @@ export default function AlumnosPage() {
                       <TableHead className="w-12"></TableHead>
                       <TableHead>Nombre</TableHead>
                       <TableHead>Matrícula</TableHead>
-                      <TableHead>Semestre</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -658,7 +642,6 @@ export default function AlumnosPage() {
                         </TableCell>
                         <TableCell>{student.fullName}</TableCell>
                         <TableCell>{student.registrationNumber}</TableCell>
-                        <TableCell>{student.semester}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
