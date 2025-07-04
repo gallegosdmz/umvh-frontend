@@ -5,8 +5,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit, Trash, ChevronLeft, ChevronRight, Users, UserPlus } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import { Plus, Edit, Trash, ChevronLeft, ChevronRight, Users, UserPlus, Upload, FileSpreadsheet } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,16 @@ import { useStudent } from '@/lib/hooks/useStudent';
 import { toast } from 'react-toastify';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CourseService } from '@/lib/services/course.service';
+import { studentService } from '@/lib/services/student.service';
+// Importación dinámica de xlsx para evitar problemas de tipos
+const XLSX = require('xlsx');
+
+interface ImportedStudent {
+  numero: string;
+  matricula: string;
+  nombre: string;
+  isValid: boolean;
+}
 
 export default function AsignaturasPage() {
   const router = useRouter();
@@ -69,6 +79,10 @@ export default function AsignaturasPage() {
   const [selectedCourseGroupForStudents, setSelectedCourseGroupForStudents] = useState<any>(null);
   const [currentStudentsPage, setCurrentStudentsPage] = useState(1);
   const studentsPerPage = 10;
+  const [openImportModal, setOpenImportModal] = useState(false);
+  const [importedStudents, setImportedStudents] = useState<ImportedStudent[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadItems();
@@ -564,6 +578,144 @@ export default function AsignaturasPage() {
     setCurrentStudentsPage(newPage);
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validar que sea un archivo Excel
+    const validExtensions = ['.xlsx', '.xls'];
+    const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+    
+    if (!validExtensions.includes(fileExtension)) {
+      toast.error('Por favor selecciona un archivo Excel (.xlsx o .xls)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        console.log('Primera fila del Excel:', jsonData[0]);
+
+        // Buscar la primera fila que contenga los encabezados correctos
+        let headerRowIndex = 0;
+        const headerKeywords = ['MATRICULA', 'NOMBRE', 'NO', 'NO.'];
+        for (let i = 0; i < jsonData.length; i++) {
+          const row = jsonData[i] || [];
+          const rowString = row.map((cell: any) => (cell ? cell.toString().toUpperCase() : '')).join(' ');
+          if (headerKeywords.every(keyword => rowString.includes(keyword))) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+        const headers = jsonData[headerRowIndex] as string[];
+        console.log('Fila de encabezados detectada:', headers);
+        const dataRows = jsonData.slice(headerRowIndex + 1);
+
+        // Validación robusta de headers
+        const requiredHeaders = [
+          { key: 'numero', variants: ['NO.', 'NO', 'NÚMERO', 'NUMERO'] },
+          { key: 'matricula', variants: ['MATRICULA', 'MATRÍCULA', 'MATRICULA '] },
+          { key: 'nombre', variants: ['NOMBRE', 'NOMBRE '] }
+        ];
+
+        const headerMap: Record<string, number> = {};
+        headers.forEach((header, idx) => {
+          const normalized = header?.toString().toUpperCase().replace(/[^A-Z0-9.ÁÉÍÓÚÜÑ]/g, '').trim();
+          requiredHeaders.forEach(req => {
+            if (req.variants.some(variant => normalized === variant.replace(/[^A-Z0-9.ÁÉÍÓÚÜÑ]/g, '').trim())) {
+              headerMap[req.key] = idx;
+            }
+          });
+        });
+
+        const missing = requiredHeaders.filter(req => headerMap[req.key] === undefined).map(req => req.variants[0]);
+        if (missing.length > 0) {
+          console.log('Headers RAW:', headers, headers.map(h => typeof h === 'string' ? h.split('').map(c => c.charCodeAt(0)) : h));
+          toast.error(`Columnas faltantes: ${missing.join(', ')}`);
+          return;
+        }
+
+        // Procesar los datos usando el headerMap y dataRows
+        const processedStudents = dataRows.map((row: any) => ({
+          numero: row[headerMap['numero']]?.toString() || '',
+          matricula: row[headerMap['matricula']]?.toString() || '',
+          nombre: row[headerMap['nombre']]?.toString() || '',
+          isValid: row[headerMap['matricula']] && row[headerMap['nombre']]
+        })).filter((student: ImportedStudent) => student.isValid);
+
+        if (processedStudents.length === 0) {
+          toast.error('No se encontraron datos válidos en el archivo');
+          return;
+        }
+
+        setImportedStudents(processedStudents);
+        toast.success(`${processedStudents.length} alumnos importados correctamente`);
+        setOpenImportModal(true);
+      } catch (error) {
+        console.error('Error al procesar el archivo:', error);
+        toast.error('Error al procesar el archivo Excel');
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleImportStudents = async () => {
+    if (importedStudents.length === 0) {
+      toast.error('No hay alumnos para importar');
+      return;
+    }
+
+    setImportLoading(true);
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const student of importedStudents) {
+        try {
+          // Mapear los datos del Excel a la estructura de la API
+          const studentData = {
+            fullName: student.nombre,        // Columna NOMBRE del Excel
+            registrationNumber: student.matricula  // Columna MATRICULA del Excel
+          };
+
+          // Llamar a la API para crear el estudiante
+          await studentService.createStudent(studentData);
+          
+          successCount++;
+        } catch (error) {
+          console.error('Error al crear estudiante:', error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} alumnos importados correctamente`);
+      }
+      
+      if (errorCount > 0) {
+        toast.error(`${errorCount} alumnos no se pudieron importar`);
+      }
+
+      setOpenImportModal(false);
+      setImportedStudents([]);
+      
+      // Recargar la lista de estudiantes
+      await loadStudents();
+      
+    } catch (error) {
+      console.error('Error en la importación:', error);
+      toast.error('Error al importar los alumnos');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
       <div className="max-w-4xl mx-auto">
@@ -1022,12 +1174,24 @@ export default function AsignaturasPage() {
                         )}
                       </h3>
                     </div>
-                    <div className="w-64">
-                      <Input
-                        placeholder="Buscar por nombre o matrícula..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setOpenImportModal(true);
+                        }}
+                      >
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Importar alumnos
+                      </Button>
+                      <div className="w-64">
+                        <Input
+                          placeholder="Buscar por nombre o matrícula..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="border rounded-lg flex-1 overflow-auto">
@@ -1415,6 +1579,98 @@ export default function AsignaturasPage() {
                 setSelectedCourseGroupForStudents(null);
               }}>
                 Cerrar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Importación de Alumnos */}
+        <Dialog open={openImportModal} onOpenChange={setOpenImportModal}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Importar Alumnos desde Excel</DialogTitle>
+              <DialogDescription>
+                Sube un archivo Excel (.xlsx) con las columnas: No., MATRICULA, NOMBRE
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mb-4"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Seleccionar archivo Excel
+                </Button>
+                <p className="text-sm text-gray-600">
+                  Formatos soportados: .xlsx, .xls
+                </p>
+              </div>
+
+              {importedStudents.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold">
+                      Alumnos a importar ({importedStudents.length})
+                    </h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImportedStudents([])}
+                    >
+                      Limpiar
+                    </Button>
+                  </div>
+                  
+                  <div className="border rounded-lg max-h-60 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>No.</TableHead>
+                          <TableHead>Matrícula</TableHead>
+                          <TableHead>Nombre</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {importedStudents.map((student, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{student.numero}</TableCell>
+                            <TableCell className="font-medium">{student.matricula}</TableCell>
+                            <TableCell>{student.nombre}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setOpenImportModal(false);
+                  setImportedStudents([]);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleImportStudents}
+                disabled={importedStudents.length === 0 || importLoading}
+                className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
+              >
+                {importLoading ? 'Importando...' : `Importar ${importedStudents.length} alumnos`}
               </Button>
             </DialogFooter>
           </DialogContent>
