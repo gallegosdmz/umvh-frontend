@@ -49,7 +49,7 @@ interface AttendanceData {
     student: any;
   };
   date: string;
-  attend: boolean;
+  attend: number; // 1=Presente, 2=Ausente, 3=Retardo
 }
 
 export default function MaestroAsignaturas() {
@@ -106,7 +106,7 @@ export default function MaestroAsignaturas() {
   }>({})
   const [selectedCourseGroupForPonderaciones, setSelectedCourseGroupForPonderaciones] = useState<any | null>(null)
   const [isAsistenciaModalOpen, setIsAsistenciaModalOpen] = useState(false)
-  const [asistenciaAlumnos, setAsistenciaAlumnos] = useState<(Student & { courseGroupStudentId?: number, attendanceId?: number | null, presente?: boolean })[]>([])
+  const [asistenciaAlumnos, setAsistenciaAlumnos] = useState<(Student & { courseGroupStudentId?: number, attendanceId?: number | null, attend?: number })[]>([])
   const [asistenciaGrupo, setAsistenciaGrupo] = useState<{ asignatura: any, courseGroup: any } | null>(null)
   const [asistenciaFecha, setAsistenciaFecha] = useState<string>("")
   const [isLoadingAsistencia, setIsLoadingAsistencia] = useState(false)
@@ -655,10 +655,10 @@ export default function MaestroAsignaturas() {
       
       const mappedStudents = students.map((item: any) => {
         const courseGroupStudentId = item.id // Este es el ID de la relación courseGroup-student
-        const isPresent = attendanceMap.has(courseGroupStudentId) ? attendanceMap.get(courseGroupStudentId) : true
+        const attendValue = attendanceMap.has(courseGroupStudentId) ? attendanceMap.get(courseGroupStudentId) : 1 // 1 = Presente por defecto
         const attendanceId = attendanceIdMap.has(courseGroupStudentId) ? attendanceIdMap.get(courseGroupStudentId) : null
         
-        console.log(`Alumno ${item.student.fullName}: courseGroupStudentId=${courseGroupStudentId}, presente=${isPresent}, attendanceId=${attendanceId}`)
+        console.log(`Alumno ${item.student.fullName}: courseGroupStudentId=${courseGroupStudentId}, attend=${attendValue}, attendanceId=${attendanceId}`)
         
         return {
           id: item.student.id,
@@ -666,7 +666,7 @@ export default function MaestroAsignaturas() {
           semester: item.student.semester,
           registrationNumber: item.student.registrationNumber,
           courseGroupStudentId: courseGroupStudentId, // Este es el ID que necesitamos para el endpoint
-          presente: isPresent, // Usar asistencia existente o true por defecto
+          attend: attendValue, // 1=Presente, 2=Ausente, 3=Retardo
           attendanceId: attendanceId // Guardar el ID de la asistencia si existe
         }
       })
@@ -715,14 +715,9 @@ export default function MaestroAsignaturas() {
         const attendanceData = {
           courseGroupStudentId: alumno.courseGroupStudentId as number,
           date: asistenciaFecha,
-          attend: alumno.presente === true // Enviar el valor real del estado
+          attend: alumno.attend || 1 // Enviar el valor numérico (1=Presente, 2=Ausente, 3=Retardo)
         }
         
-        console.log(`\n--- Procesando alumno: ${alumno.fullName} ---`)
-        console.log('Datos a enviar:', attendanceData)
-        console.log('attendanceId actual:', alumno.attendanceId)
-        console.log('Estado presente:', alumno.presente)
-        console.log('Valor attend que se enviará:', alumno.presente === true)
         
         try {
           if (alumno.attendanceId) {
@@ -813,12 +808,12 @@ export default function MaestroAsignaturas() {
         
         // Actualizar las asistencias de los alumnos
         const updatedAlumnos = asistenciaAlumnos.map(alumno => {
-          const isPresent = dateAttendanceMap.has(alumno.courseGroupStudentId) ? dateAttendanceMap.get(alumno.courseGroupStudentId) : true
+          const attendValue = dateAttendanceMap.has(alumno.courseGroupStudentId) ? dateAttendanceMap.get(alumno.courseGroupStudentId) : 1 // 1 = Presente por defecto
           const attendanceId = dateAttendanceIdMap.has(alumno.courseGroupStudentId) ? dateAttendanceIdMap.get(alumno.courseGroupStudentId) : null
           
           return {
             ...alumno,
-            presente: isPresent,
+            attend: attendValue, // 1=Presente, 2=Ausente, 3=Retardo
             attendanceId: attendanceId
           }
         })
@@ -827,10 +822,10 @@ export default function MaestroAsignaturas() {
         setAsistenciaAlumnos(updatedAlumnos)
       } catch (error) {
         console.log('No se encontraron asistencias para esta fecha, se crearán nuevas')
-        // Si no hay asistencias, resetear todos los attendanceId a null y presente a true
+        // Si no hay asistencias, resetear todos los attendanceId a null y attend a 1 (Presente)
         const updatedAlumnos = asistenciaAlumnos.map(alumno => ({
           ...alumno,
-          presente: true,
+          attend: 1, // 1 = Presente por defecto
           attendanceId: null
         }))
         setAsistenciaAlumnos(updatedAlumnos)
@@ -1547,12 +1542,13 @@ export default function MaestroAsignaturas() {
                           <TableHead>Estado</TableHead>
                           <TableHead>Presente</TableHead>
                           <TableHead>Ausente</TableHead>
+                          <TableHead>Retardo</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {isLoadingAsistencia || isLoadingDateChange ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8">
+                            <TableCell colSpan={6} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
                                 <p>{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
@@ -1561,7 +1557,7 @@ export default function MaestroAsignaturas() {
                           </TableRow>
                         ) : asistenciaAlumnos.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8">
+                            <TableCell colSpan={6} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <Users className="h-12 w-12 mb-4" />
                                 <p className="text-lg font-medium">No hay alumnos en este grupo</p>
@@ -1588,10 +1584,10 @@ export default function MaestroAsignaturas() {
                               <TableCell>
                                 <input
                                   type="checkbox"
-                                  checked={alumno.presente}
+                                  checked={alumno.attend === 1}
                                   onChange={(e) => {
                                     const updatedAlumnos = asistenciaAlumnos.map((a) =>
-                                      a.id === alumno.id ? { ...a, presente: e.target.checked } : a
+                                      a.id === alumno.id ? { ...a, attend: e.target.checked ? 1 : 2 } : a
                                     );
                                     setAsistenciaAlumnos(updatedAlumnos);
                                   }}
@@ -1600,10 +1596,22 @@ export default function MaestroAsignaturas() {
                               <TableCell>
                                 <input
                                   type="checkbox"
-                                  checked={!alumno.presente}
+                                  checked={alumno.attend === 2}
                                   onChange={(e) => {
                                     const updatedAlumnos = asistenciaAlumnos.map((a) =>
-                                      a.id === alumno.id ? { ...a, presente: !e.target.checked } : a
+                                      a.id === alumno.id ? { ...a, attend: e.target.checked ? 2 : 1 } : a
+                                    );
+                                    setAsistenciaAlumnos(updatedAlumnos);
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={alumno.attend === 3}
+                                  onChange={(e) => {
+                                    const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                      a.id === alumno.id ? { ...a, attend: e.target.checked ? 3 : 1 } : a
                                     );
                                     setAsistenciaAlumnos(updatedAlumnos);
                                   }}
