@@ -1,13 +1,13 @@
 "use client"
 
-import { Course, User, Group } from '@/lib/mock-data';
+import { Course, User, Group, Student } from '@/lib/mock-data';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, Edit, Trash, ChevronLeft, ChevronRight, Users, UserPlus } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCourse } from '@/lib/hooks/useCourse';
@@ -15,6 +15,7 @@ import { useTeacher } from '@/lib/hooks/useTeacher';
 import { Switch } from '@/components/ui/switch';
 import { useRouter } from 'next/navigation';
 import { useGroup } from '@/lib/hooks/useGroup';
+import { useStudent } from '@/lib/hooks/useStudent';
 import { toast } from 'react-toastify';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CourseService } from '@/lib/services/course.service';
@@ -24,6 +25,7 @@ export default function AsignaturasPage() {
   const { loading: courseLoading, error: courseError, totalItems: courseTotalItems, handleGetCourses, handleCreateCourse, handleUpdateCourse, handleDeleteCourse } = useCourse();
   const { loading: teacherLoading, error: teacherError, totalItems: teacherTotalItems, handleGetTeachers, handleCreateTeacher, handleUpdateTeacher, handleDeleteTeacher } = useTeacher();
   const { handleGetGroups } = useGroup();
+  const { loading: studentLoading, error: studentError, totalItems: studentTotalItems, handleGetStudents } = useStudent();
   const [asignaturas, setAsignaturas] = useState<Course[]>([]);
   const [maestros, setMaestros] = useState<User[]>([]);
   const [nombre, setNombre] = useState("");
@@ -40,12 +42,16 @@ export default function AsignaturasPage() {
   const [grupos, setGrupos] = useState<Group[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<User | null>(null);
-  const [currentStep, setCurrentStep] = useState<'groups' | 'teachers'>('groups');
+  const [currentStep, setCurrentStep] = useState<'groups' | 'teachers' | 'students'>('groups');
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([]);
   const [filteredTeachers, setFilteredTeachers] = useState<User[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [currentTeacherPage, setCurrentTeacherPage] = useState(1);
   const [currentGroupPage, setCurrentGroupPage] = useState(1);
+  const [currentStudentPage, setCurrentStudentPage] = useState(1);
+  const [alumnos, setAlumnos] = useState<Student[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [openViewAssignmentsModal, setOpenViewAssignmentsModal] = useState(false);
   const [selectedCourseAssignments, setSelectedCourseAssignments] = useState<any[]>([]);
   const [currentAssignmentPage, setCurrentAssignmentPage] = useState(1);
@@ -67,18 +73,21 @@ export default function AsignaturasPage() {
     if (openAssignModal) {
       if (currentStep === 'teachers') {
         loadTeachers();
+      } else if (currentStep === 'students') {
+        loadStudents();
       } else {
         loadGroups();
       }
     }
-  }, [currentTeacherPage, currentGroupPage, currentStep]);
+  }, [currentTeacherPage, currentGroupPage, currentStudentPage, currentStep]);
 
   useEffect(() => {
     if (openAssignModal) {
       filterGroups();
       filterTeachers();
+      filterStudents();
     }
-  }, [searchTerm, grupos, maestros]);
+  }, [searchTerm, grupos, maestros, alumnos]);
 
   useEffect(() => {
     if (openViewAssignmentsModal && selectedCourse?.id) {
@@ -221,6 +230,7 @@ export default function AsignaturasPage() {
     setCurrentStep('groups');
     loadGroups();
     loadTeachers();
+    loadStudents();
   };
 
   const loadTeachers = async () => {
@@ -233,6 +243,16 @@ export default function AsignaturasPage() {
     }
   };
 
+  const loadStudents = async () => {
+    try {
+      const offset = (currentStudentPage - 1) * itemsPerPage;
+      const data = await handleGetStudents(itemsPerPage, offset);
+      setAlumnos(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error al cargar los alumnos:', err);
+    }
+  };
+
   const handleGroupSelect = (group: Group) => {
     setSelectedGroup(group);
     setCurrentStep('teachers');
@@ -240,6 +260,7 @@ export default function AsignaturasPage() {
 
   const handleTeacherSelect = (teacher: User) => {
     setSelectedTeacher(teacher);
+    setCurrentStep('students');
   };
 
   const validateSchedule = (value: string) => {
@@ -283,6 +304,15 @@ export default function AsignaturasPage() {
 
     try {
       await CourseService.assignGroup(assignmentData);
+      
+      // Asignar estudiantes si se seleccionaron
+      if (selectedStudents.size > 0) {
+        const studentIds = Array.from(selectedStudents);
+        // Aquí necesitarías implementar la lógica para asignar estudiantes al grupo
+        // Por ahora solo mostramos un mensaje
+        console.log('Estudiantes seleccionados:', studentIds);
+      }
+      
       toast.success('Asignación realizada correctamente');
       setOpenAssignModal(false);
       resetAssignmentModal();
@@ -296,6 +326,7 @@ export default function AsignaturasPage() {
     setSelectedCourse(null);
     setSelectedGroup(null);
     setSelectedTeacher(null);
+    setSelectedStudents(new Set());
     setCurrentStep('groups');
     setSchedule("");
     setScheduleError("");
@@ -329,12 +360,43 @@ export default function AsignaturasPage() {
     setFilteredTeachers(filtered);
   };
 
+  const filterStudents = () => {
+    if (!searchTerm) {
+      setFilteredStudents(alumnos);
+      return;
+    }
+
+    const searchLower = searchTerm.toLowerCase();
+    const filtered = alumnos.filter(alumno => 
+      alumno.fullName.toLowerCase().includes(searchLower) ||
+      alumno.registrationNumber.toLowerCase().includes(searchLower)
+    );
+    setFilteredStudents(filtered);
+  };
+
   const handleGroupPageChange = (newPage: number) => {
     setCurrentGroupPage(newPage);
   };
 
   const handleTeacherPageChange = (newPage: number) => {
     setCurrentTeacherPage(newPage);
+  };
+
+  const handleStudentPageChange = (newPage: number) => {
+    setCurrentStudentPage(newPage);
+  };
+
+  const handleStudentSelect = (student: Student) => {
+    const studentId = student.id?.toString() || '';
+    setSelectedStudents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(studentId)) {
+        newSet.delete(studentId);
+      } else {
+        newSet.add(studentId);
+      }
+      return newSet;
+    });
   };
 
   const handleViewAssignments = async (course: Course) => {
@@ -661,14 +723,36 @@ export default function AsignaturasPage() {
         }}>
           <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
             <DialogHeader>
-              <DialogTitle>Asignar Grupo y Maestro a {selectedCourse?.name}</DialogTitle>
+              <DialogTitle>Asignar Grupo, Maestro y Alumnos a {selectedCourse?.name}</DialogTitle>
               <DialogDescription>
-                Selecciona un grupo y un maestro para esta asignatura
+                Selecciona un grupo, un maestro y opcionalmente alumnos para esta asignatura
               </DialogDescription>
+              <div className="flex items-center justify-center space-x-4 mt-4">
+                <div className={`flex items-center space-x-2 ${currentStep === 'groups' ? 'text-blue-600' : 'text-gray-400'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${currentStep === 'groups' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                    1
+                  </div>
+                  <span className="text-sm">Grupo</span>
+                </div>
+                <div className={`w-8 h-0.5 ${currentStep === 'teachers' || currentStep === 'students' ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+                <div className={`flex items-center space-x-2 ${currentStep === 'teachers' ? 'text-blue-600' : currentStep === 'students' ? 'text-blue-600' : 'text-gray-400'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${currentStep === 'teachers' || currentStep === 'students' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                    2
+                  </div>
+                  <span className="text-sm">Maestro</span>
+                </div>
+                <div className={`w-8 h-0.5 ${currentStep === 'students' ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+                <div className={`flex items-center space-x-2 ${currentStep === 'students' ? 'text-blue-600' : 'text-gray-400'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${currentStep === 'students' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                    3
+                  </div>
+                  <span className="text-sm">Alumnos</span>
+                </div>
+              </div>
             </DialogHeader>
 
             <div className="relative flex-1 overflow-hidden">
-              <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'teachers' ? '-translate-x-full' : 'translate-x-0'}`}>
+              <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'groups' ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="h-full flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold">Selecciona un Grupo</h3>
@@ -738,7 +822,7 @@ export default function AsignaturasPage() {
                 </div>
               </div>
 
-              <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'teachers' ? 'translate-x-0' : 'translate-x-full'}`}>
+              <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'teachers' ? 'translate-x-0' : currentStep === 'groups' ? 'translate-x-full' : '-translate-x-full'}`}>
                 <div className="h-full flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
@@ -817,10 +901,97 @@ export default function AsignaturasPage() {
                   </div>
                 </div>
               </div>
+
+              <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'students' ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className="h-full flex flex-col">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentStep('teachers')}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-2" />
+                        Volver
+                      </Button>
+                      <h3 className="text-lg font-semibold">
+                        Selecciona Alumnos (Opcional)
+                        {selectedStudents.size > 0 && (
+                          <span className="ml-2 text-sm text-blue-600 font-normal">
+                            ({selectedStudents.size} seleccionado{selectedStudents.size !== 1 ? 's' : ''})
+                          </span>
+                        )}
+                      </h3>
+                    </div>
+                    <div className="w-64">
+                      <Input
+                        placeholder="Buscar por nombre o matrícula..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="border rounded-lg flex-1 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12"></TableHead>
+                          <TableHead>Nombre Completo</TableHead>
+                          <TableHead>Matrícula</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredStudents.map((alumno) => (
+                          <TableRow 
+                            key={alumno.id}
+                            className={`cursor-pointer hover:bg-gray-50 ${selectedStudents.has(alumno.id?.toString() || '') ? 'bg-gray-50' : ''}`}
+                            onClick={() => handleStudentSelect(alumno)}
+                          >
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedStudents.has(alumno.id?.toString() || '')}
+                                onCheckedChange={() => handleStudentSelect(alumno)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{alumno.fullName}</TableCell>
+                            <TableCell>{alumno.registrationNumber}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-gray-600">
+                      Mostrando {filteredStudents.length} alumnos
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStudentPageChange(currentStudentPage - 1)}
+                        disabled={currentStudentPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm font-medium">
+                        Página {currentStudentPage}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleStudentPageChange(currentStudentPage + 1)}
+                        disabled={filteredStudents.length < itemsPerPage}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <DialogFooter className="flex flex-col gap-4">
-              {currentStep === 'teachers' && (
+              {(currentStep === 'teachers' || currentStep === 'students') && (
                 <div className="w-full space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="schedule">Horario de la clase</Label>
@@ -841,13 +1012,18 @@ export default function AsignaturasPage() {
                 <Button variant="outline" onClick={() => setOpenAssignModal(false)}>
                   Cancelar
                 </Button>
-                {currentStep === 'teachers' && (
+                {(currentStep === 'teachers' || currentStep === 'students') && (
                   <Button 
                     onClick={handleConfirmAssignment}
                     className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
                     disabled={!selectedTeacher || !!scheduleError}
                   >
                     Confirmar Asignación
+                    {currentStep === 'students' && selectedStudents.size > 0 && (
+                      <span className="ml-2 text-xs">
+                        ({selectedStudents.size} alumno{selectedStudents.size !== 1 ? 's' : ''})
+                      </span>
+                    )}
                   </Button>
                 )}
               </div>
