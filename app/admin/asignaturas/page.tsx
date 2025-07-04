@@ -64,6 +64,11 @@ export default function AsignaturasPage() {
   const teacherAssignmentsPerPage = 5;
   const [openDeleteAssignmentModal, setOpenDeleteAssignmentModal] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState<any>(null);
+  const [openViewStudentsModal, setOpenViewStudentsModal] = useState(false);
+  const [selectedCourseGroupStudents, setSelectedCourseGroupStudents] = useState<Student[]>([]);
+  const [selectedCourseGroupForStudents, setSelectedCourseGroupForStudents] = useState<any>(null);
+  const [currentStudentsPage, setCurrentStudentsPage] = useState(1);
+  const studentsPerPage = 10;
 
   useEffect(() => {
     loadItems();
@@ -531,6 +536,32 @@ export default function AsignaturasPage() {
   const confirmDeleteAssignment = (assignment: any) => {
     setAssignmentToDelete(assignment);
     setOpenDeleteAssignmentModal(true);
+  };
+
+  const handleViewStudents = async (assignment: any) => {
+    if (!assignment.id) {
+      toast.error('Error: ID de asignación no válido');
+      return;
+    }
+
+    setSelectedCourseGroupForStudents(assignment);
+    setOpenViewStudentsModal(true);
+    setCurrentStudentsPage(1);
+    
+    try {
+      const offset = (currentStudentsPage - 1) * studentsPerPage;
+      const response = await CourseService.getStudentsByCourseGroup(assignment.id, studentsPerPage, offset);
+      const students = Array.isArray(response) ? response : [];
+      setSelectedCourseGroupStudents(students);
+    } catch (err) {
+      console.error('Error al cargar los estudiantes:', err);
+      toast.error('Error al cargar los estudiantes');
+      setSelectedCourseGroupStudents([]);
+    }
+  };
+
+  const handleStudentsPageChange = (newPage: number) => {
+    setCurrentStudentsPage(newPage);
   };
 
   return (
@@ -1130,14 +1161,24 @@ export default function AsignaturasPage() {
                         <TableCell>{assignment.user?.email || 'N/A'}</TableCell>
                         <TableCell>{assignment.schedule || 'No asignado'}</TableCell>
                         <TableCell className="text-center">
-                          <Button
-                            variant="destructive"
-                            size="icon"
-                            title="Eliminar asignación"
-                            onClick={() => confirmDeleteAssignment(assignment)}
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-2 justify-center">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              title="Ver alumnos asignados"
+                              onClick={() => handleViewStudents(assignment)}
+                            >
+                              <Users className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              title="Eliminar asignación"
+                              onClick={() => confirmDeleteAssignment(assignment)}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -1288,6 +1329,92 @@ export default function AsignaturasPage() {
                 onClick={() => handleDeleteAssignment(assignmentToDelete?.id)}
               >
                 Eliminar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={openViewStudentsModal} onOpenChange={setOpenViewStudentsModal}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Alumnos asignados a {selectedCourseGroupForStudents?.group?.name}</DialogTitle>
+              <DialogDescription>
+                Lista de alumnos asignados al grupo {selectedCourseGroupForStudents?.group?.name} en la asignatura {selectedCourse?.name}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre Completo</TableHead>
+                    <TableHead>Matrícula</TableHead>
+                    <TableHead>Estado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedCourseGroupStudents.length > 0 ? (
+                    selectedCourseGroupStudents.map((studentObj: any, index: number) => {
+                      // Si viene anidado en student
+                      const alumno = (typeof studentObj === 'object' && studentObj !== null && (studentObj as any).student) ? (studentObj as any).student : studentObj;
+                      return (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{alumno.fullName}</TableCell>
+                          <TableCell>{alumno.registrationNumber}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              Asignado
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-gray-500">
+                        No hay alumnos asignados a este grupo
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-gray-600">
+                Mostrando {selectedCourseGroupStudents.length} alumnos
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleStudentsPageChange(currentStudentsPage - 1)}
+                  disabled={currentStudentsPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-medium">
+                  Página {currentStudentsPage}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleStudentsPageChange(currentStudentsPage + 1)}
+                  disabled={selectedCourseGroupStudents.length < studentsPerPage}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setOpenViewStudentsModal(false);
+                setCurrentStudentsPage(1);
+                setSelectedCourseGroupStudents([]);
+                setSelectedCourseGroupForStudents(null);
+              }}>
+                Cerrar
               </Button>
             </DialogFooter>
           </DialogContent>
