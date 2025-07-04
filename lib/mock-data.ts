@@ -41,6 +41,7 @@ export interface Course {
     group?: {
       id?: number
       name: string
+      semester: number
       period: {
         id: number
         name: string
@@ -59,9 +60,10 @@ export interface Course {
 }
 
 export interface Student {
-  id?: number
-  fullName: string
-  registrationNumber: string
+  id?: number;
+  fullName: string;
+  registrationNumber: string;
+  courseGroupStudent?: CourseGroupStudent;
 }
 
 export interface CourseGroup {
@@ -73,6 +75,7 @@ export interface CourseGroup {
   group?: {
     id?: number;
     name: string;
+    semester: number;
   };
   user?: {
     id?: number;
@@ -85,6 +88,12 @@ export interface CourseGroup {
     student: Student;
   };
   coursesGroupsGradingschemes?: GradingScheme[];
+}
+
+export interface CourseGroupStudent {
+  id?: number;
+  courseGroup: CourseGroup;
+  student: Student;
 }
 
 export interface GradingScheme {

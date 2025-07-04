@@ -170,7 +170,24 @@ export default function MaestroAsignaturas() {
       console.log('CourseGroup:', courseGroup)
       const response = await handleGetStudentsByCourseGroup(courseGroup.id!, alumnosPerPage, 0)
       console.log('Respuesta del servidor:', response)
-      const students = Array.isArray(response) ? response : response.items || []
+      
+      // Extraer estudiantes de la estructura anidada
+      let students = []
+      if (Array.isArray(response)) {
+        // Si es un array directo de courseGroupStudents
+        students = response
+      } else if (response && response.items) {
+        // Si tiene estructura { items: [...] }
+        students = response.items
+      } else if (response && response.coursesGroupsStudents) {
+        // Si tiene estructura anidada con coursesGroupsStudents
+        students = response.coursesGroupsStudents
+      } else {
+        students = []
+      }
+      
+      console.log('Estudiantes extraídos:', students)
+      
       const mappedStudents = students.map((item: any) => ({
         id: item.student.id,
         fullName: item.student.fullName,
@@ -194,7 +211,19 @@ export default function MaestroAsignaturas() {
     try {
       const offset = (page - 1) * alumnosPerPage
       const response = await handleGetStudentsByCourseGroup(selectedCourseGroup.id, alumnosPerPage, offset)
-      const students = Array.isArray(response) ? response : response.items || []
+      
+      // Extraer estudiantes de la estructura anidada
+      let students = []
+      if (Array.isArray(response)) {
+        students = response
+      } else if (response && response.items) {
+        students = response.items
+      } else if (response && response.coursesGroupsStudents) {
+        students = response.coursesGroupsStudents
+      } else {
+        students = []
+      }
+      
       const mappedStudents = students.map((item: any) => ({
         id: item.student.id,
         fullName: item.student.fullName,
@@ -222,7 +251,19 @@ export default function MaestroAsignaturas() {
       if (selectedCourseGroup?.id) {
         const offset = (currentAlumnosPage - 1) * alumnosPerPage
         const response = await handleGetStudentsByCourseGroup(selectedCourseGroup.id, alumnosPerPage, offset)
-        const students = Array.isArray(response) ? response : response.items || []
+        
+        // Extraer estudiantes de la estructura anidada
+        let students = []
+        if (Array.isArray(response)) {
+          students = response
+        } else if (response && response.items) {
+          students = response.items
+        } else if (response && response.coursesGroupsStudents) {
+          students = response.coursesGroupsStudents
+        } else {
+          students = []
+        }
+        
         const mappedStudents = students.map((item: any) => ({
           id: item.student.id,
           fullName: item.student.fullName,
@@ -285,7 +326,19 @@ export default function MaestroAsignaturas() {
       if (selectedCourseGroup?.id) {
         const offset = (currentAlumnosPage - 1) * alumnosPerPage
         const response = await handleGetStudentsByCourseGroup(selectedCourseGroup.id, alumnosPerPage, offset)
-        const students = Array.isArray(response) ? response : response.items || []
+        
+        // Extraer estudiantes de la estructura anidada
+        let students = []
+        if (Array.isArray(response)) {
+          students = response
+        } else if (response && response.items) {
+          students = response.items
+        } else if (response && response.coursesGroupsStudents) {
+          students = response.coursesGroupsStudents
+        } else {
+          students = []
+        }
+        
         const mappedStudents = students.map((item: any) => ({
           id: item.student.id,
           fullName: item.student.fullName,
@@ -362,7 +415,19 @@ export default function MaestroAsignaturas() {
       // Recargar la lista de estudiantes
       const offset = (currentAlumnosPage - 1) * alumnosPerPage
       const response = await handleGetStudentsByCourseGroup(selectedCourseGroup.id, alumnosPerPage, offset)
-      const students = Array.isArray(response) ? response : response.items || []
+      
+      // Extraer estudiantes de la estructura anidada
+      let students = []
+      if (Array.isArray(response)) {
+        students = response
+      } else if (response && response.items) {
+        students = response.items
+      } else if (response && response.coursesGroupsStudents) {
+        students = response.coursesGroupsStudents
+      } else {
+        students = []
+      }
+      
       const mappedStudents = students.map((item: any) => ({
         id: item.student.id,
         fullName: item.student.fullName,
@@ -912,7 +977,8 @@ export default function MaestroAsignaturas() {
                                       },
                                       group: {
                                         id: courseGroup.group!.id,
-                                        name: courseGroup.group!.name
+                                        name: courseGroup.group!.name,
+                                        semester: courseGroup.group!.semester,
                                       },
                                       user: {
                                         id: courseGroup.user.id,
@@ -1020,7 +1086,7 @@ export default function MaestroAsignaturas() {
                           alumnos.map((alumno) => (
                             <TableRow key={alumno.id}>
                               <TableCell className="font-medium">{alumno.fullName}</TableCell>
-                              <TableCell>{alumno.semester}</TableCell>
+                              <TableCell>{selectedCourseGroup?.group?.semester || 'N/A'}</TableCell>
                               <TableCell>{alumno.registrationNumber}</TableCell>
                               <TableCell className="text-right">
                                 <Button
@@ -1196,24 +1262,33 @@ export default function MaestroAsignaturas() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          filteredStudents.map((alumno) => (
-                            <TableRow key={alumno.id}>
-                              <TableCell className="font-medium">{alumno.fullName}</TableCell>
-                              <TableCell>{alumno.semester}</TableCell>
-                              <TableCell>{alumno.registrationNumber}</TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => handleAddStudentToGroup(alumno)}
-                                  className="bg-green-600 hover:bg-green-700"
-                                >
-                                  <UserPlus className="h-4 w-4 mr-2" />
-                                  Agregar
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))
+                          filteredStudents.map((alumno) => {
+                            console.log('=== DEBUG ALUMNO ===');
+                            console.log('Alumno completo:', alumno);
+                            console.log('courseGroupStudent:', alumno.courseGroupStudent);
+                            console.log('courseGroup:', alumno.courseGroupStudent?.courseGroup);
+                            console.log('group:', alumno.courseGroupStudent?.courseGroup?.group);
+                            console.log('semester:', alumno.courseGroupStudent?.courseGroup?.group?.semester);
+                            console.log('========================');
+                            return (
+                              <TableRow key={alumno.id}>
+                                <TableCell className="font-medium">{alumno.fullName}</TableCell>
+                                <TableCell>{alumno.courseGroupStudent?.courseGroup?.group?.semester || 'N/A'}</TableCell>
+                                <TableCell>{alumno.registrationNumber}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    onClick={() => handleAddStudentToGroup(alumno)}
+                                    className="bg-green-600 hover:bg-green-700"
+                                  >
+                                    <UserPlus className="h-4 w-4 mr-2" />
+                                    Agregar
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         )}
                       </TableBody>
                     </Table>
@@ -1259,7 +1334,7 @@ export default function MaestroAsignaturas() {
                     ¿Estás seguro de que quieres eliminar a <strong>{studentToDelete?.fullName}</strong> del grupo?
                     <br />
                     <span className="text-sm text-gray-500">
-                      Matrícula: {studentToDelete?.registrationNumber} | Semestre: {studentToDelete?.semester}
+                      Matrícula: {studentToDelete?.registrationNumber} | Semestre: {studentToDelete?.courseGroupStudent?.courseGroup.group?.semester}
                     </span>
                   </DialogDescription>
                 </DialogHeader>
