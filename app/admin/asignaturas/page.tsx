@@ -303,17 +303,85 @@ export default function AsignaturasPage() {
     console.log('Datos de asignación:', assignmentData);
 
     try {
-      await CourseService.assignGroup(assignmentData);
+      // Crear el CourseGroup
+      const courseGroupResponse = await CourseService.assignGroup(assignmentData);
+      console.log('CourseGroup creado:', courseGroupResponse);
       
       // Asignar estudiantes si se seleccionaron
       if (selectedStudents.size > 0) {
         const studentIds = Array.from(selectedStudents);
-        // Aquí necesitarías implementar la lógica para asignar estudiantes al grupo
-        // Por ahora solo mostramos un mensaje
         console.log('Estudiantes seleccionados:', studentIds);
+        
+        // Obtener el ID del CourseGroup creado
+        let courseGroupId = null;
+        
+        // Intentar diferentes estructuras posibles de la respuesta
+        if (courseGroupResponse.id) {
+          courseGroupId = courseGroupResponse.id;
+        } else if (courseGroupResponse.courseGroup?.id) {
+          courseGroupId = courseGroupResponse.courseGroup.id;
+        } else if (courseGroupResponse.data?.id) {
+          courseGroupId = courseGroupResponse.data.id;
+        } else if (typeof courseGroupResponse === 'object' && courseGroupResponse !== null) {
+          // Buscar recursivamente el ID en la respuesta
+          const findId = (obj: any): number | null => {
+            if (obj && typeof obj === 'object') {
+              if (obj.id && typeof obj.id === 'number') {
+                return obj.id;
+              }
+              for (const key in obj) {
+                const result = findId(obj[key]);
+                if (result !== null) {
+                  return result;
+                }
+              }
+            }
+            return null;
+          };
+          courseGroupId = findId(courseGroupResponse);
+        }
+        
+        console.log('CourseGroup ID encontrado:', courseGroupId);
+        console.log('Respuesta completa:', courseGroupResponse);
+        
+        if (courseGroupId) {
+          // Asignar cada estudiante al CourseGroup
+          let assignedCount = 0;
+          let errorCount = 0;
+          
+          for (const studentId of studentIds) {
+            try {
+              await CourseService.assignStudentToCourseGroup(courseGroupId, parseInt(studentId));
+              console.log(`Estudiante ${studentId} asignado al CourseGroup ${courseGroupId}`);
+              assignedCount++;
+            } catch (studentError) {
+              console.error(`Error al asignar estudiante ${studentId}:`, studentError);
+              errorCount++;
+            }
+          }
+          
+          // Mostrar mensajes de resultado
+          if (assignedCount > 0) {
+            toast.success(`${assignedCount} estudiante${assignedCount !== 1 ? 's' : ''} asignado${assignedCount !== 1 ? 's' : ''} correctamente`);
+          }
+          
+          if (errorCount > 0) {
+            toast.error(`${errorCount} estudiante${errorCount !== 1 ? 's' : ''} no se pudo${errorCount !== 1 ? 'n' : ''} asignar`);
+          }
+        } else {
+          console.error('No se pudo obtener el ID del CourseGroup creado');
+          console.error('Respuesta completa:', courseGroupResponse);
+          toast.error('Error: No se pudo obtener el ID del grupo creado');
+        }
       }
       
-      toast.success('Asignación realizada correctamente');
+      let successMessage = 'Asignación realizada correctamente';
+      
+      if (selectedStudents.size > 0) {
+        successMessage += ` con ${selectedStudents.size} estudiante${selectedStudents.size !== 1 ? 's' : ''} asignado${selectedStudents.size !== 1 ? 's' : ''}`;
+      }
+      
+      toast.success(successMessage);
       setOpenAssignModal(false);
       resetAssignmentModal();
     } catch (err) {
