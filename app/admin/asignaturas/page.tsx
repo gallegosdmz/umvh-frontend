@@ -18,7 +18,6 @@ import { useGroup } from '@/lib/hooks/useGroup';
 import { toast } from 'react-toastify';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CourseService } from '@/lib/services/course.service';
-import { usePeriod } from '@/lib/hooks/usePeriod';
 
 export default function AsignaturasPage() {
   const router = useRouter();

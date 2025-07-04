@@ -1025,25 +1025,9 @@ export default function MaestroAsignaturas() {
                         Alumnos inscritos en el grupo seleccionado
                       </DialogDescription>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="default" 
-                          className="bg-[#bc4b26] hover:bg-[#d05f27]"
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Nuevo Alumno
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={handleOpenCreateModal}>
-                          Registrar Alumno
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleOpenSelectModal}>
-                          Seleccionar Alumno
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                      Cerrar
+                    </Button>
                   </div>
                 </DialogHeader>
                 <div className="mt-4">
@@ -1054,13 +1038,12 @@ export default function MaestroAsignaturas() {
                           <TableHead>Nombre Completo</TableHead>
                           <TableHead>Semestre</TableHead>
                           <TableHead>Matricula</TableHead>
-                          <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {isLoadingAlumnos ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8">
+                            <TableCell colSpan={3} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
                                 <p>Cargando alumnos...</p>
@@ -1069,7 +1052,7 @@ export default function MaestroAsignaturas() {
                           </TableRow>
                         ) : alumnos.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8">
+                            <TableCell colSpan={3} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <Users className="h-12 w-12 mb-4" />
                                 <p className="text-lg font-medium">No hay alumnos inscritos</p>
@@ -1083,19 +1066,6 @@ export default function MaestroAsignaturas() {
                               <TableCell className="font-medium">{alumno.fullName}</TableCell>
                               <TableCell>{selectedCourseGroup?.group?.semester || 'N/A'}</TableCell>
                               <TableCell>{alumno.registrationNumber}</TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => {
-                                    setIsDeleteModalOpen(true)
-                                    setStudentToDelete(alumno)
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Eliminar
-                                </Button>
-                              </TableCell>
                             </TableRow>
                           ))
                         )}
@@ -1126,11 +1096,6 @@ export default function MaestroAsignaturas() {
                     </div>
                   </div>
                 </div>
-                <DialogFooter className="flex justify-end gap-2 mt-4">
-                  <Button variant="outline" onClick={() => setIsModalOpen(false)}>
-                    Cerrar
-                  </Button>
-                </DialogFooter>
               </DialogContent>
             </Dialog>
 
