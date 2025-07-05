@@ -331,40 +331,41 @@ export default function AsignaturasPage() {
         const studentIds = Array.from(selectedStudents);
         console.log('Estudiantes seleccionados:', studentIds);
         
-        // Obtener el ID del CourseGroup creado
         let courseGroupId = null;
-        
-        // Intentar diferentes estructuras posibles de la respuesta
-        if (courseGroupResponse.id) {
-          courseGroupId = courseGroupResponse.id;
-        } else if (courseGroupResponse.courseGroup?.id) {
-          courseGroupId = courseGroupResponse.courseGroup.id;
-        } else if (courseGroupResponse.data?.id) {
-          courseGroupId = courseGroupResponse.data.id;
-        } else if (typeof courseGroupResponse === 'object' && courseGroupResponse !== null) {
-          // Buscar recursivamente el ID en la respuesta
-          const findId = (obj: any): number | null => {
-            if (obj && typeof obj === 'object') {
-              if (obj.id && typeof obj.id === 'number') {
-                return obj.id;
-              }
-              for (const key in obj) {
-                const result = findId(obj[key]);
-                if (result !== null) {
-                  return result;
+
+        if (typeof courseGroupResponse === 'number') {
+          courseGroupId = courseGroupResponse;
+        } else if (courseGroupResponse && typeof courseGroupResponse === 'object') {
+          if (courseGroupResponse.id) {
+            courseGroupId = courseGroupResponse.id;
+          } else if (courseGroupResponse.courseGroup?.id) {
+            courseGroupId = courseGroupResponse.courseGroup.id;
+          } else if (courseGroupResponse.data?.id) {
+            courseGroupId = courseGroupResponse.data.id;
+          } else {
+            // Buscar recursivamente el ID en la respuesta
+            const findId = (obj: any): number | null => {
+              if (obj && typeof obj === 'object') {
+                if (obj.id && typeof obj.id === 'number') {
+                  return obj.id;
+                }
+                for (const key in obj) {
+                  const result = findId(obj[key]);
+                  if (result !== null) {
+                    return result;
+                  }
                 }
               }
-            }
-            return null;
-          };
-          courseGroupId = findId(courseGroupResponse);
+              return null;
+            };
+            courseGroupId = findId(courseGroupResponse);
+          }
         }
         
         console.log('CourseGroup ID encontrado:', courseGroupId);
         console.log('Respuesta completa:', courseGroupResponse);
         
         if (courseGroupId) {
-          // Asignar cada estudiante al CourseGroup
           let assignedCount = 0;
           let errorCount = 0;
           
