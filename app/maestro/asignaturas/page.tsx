@@ -112,6 +112,14 @@ export default function MaestroAsignaturas() {
   const [isLoadingAsistencia, setIsLoadingAsistencia] = useState(false)
   const [isSavingAttendance, setIsSavingAttendance] = useState(false)
   const [isLoadingDateChange, setIsLoadingDateChange] = useState(false)
+  const [isEvaluacionesModalOpen, setIsEvaluacionesModalOpen] = useState(false)
+  const [alumnoEvaluacion, setAlumnoEvaluacion] = useState<any | null>(null)
+  const [evaluaciones, setEvaluaciones] = useState({
+    actividades: Array(18).fill(0),
+    evidencias: Array(18).fill(0),
+    producto: 0,
+    examen: 0,
+  })
 
   // Debug: Monitorear cambios en asistenciaAlumnos
   useEffect(() => {
@@ -1038,12 +1046,13 @@ export default function MaestroAsignaturas() {
                           <TableHead>Nombre Completo</TableHead>
                           <TableHead>Semestre</TableHead>
                           <TableHead>Matricula</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {isLoadingAlumnos ? (
                           <TableRow>
-                            <TableCell colSpan={3} className="text-center py-8">
+                            <TableCell colSpan={4} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
                                 <p>Cargando alumnos...</p>
@@ -1052,7 +1061,7 @@ export default function MaestroAsignaturas() {
                           </TableRow>
                         ) : alumnos.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={3} className="text-center py-8">
+                            <TableCell colSpan={4} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <Users className="h-12 w-12 mb-4" />
                                 <p className="text-lg font-medium">No hay alumnos inscritos</p>
@@ -1066,6 +1075,19 @@ export default function MaestroAsignaturas() {
                               <TableCell className="font-medium">{alumno.fullName}</TableCell>
                               <TableCell>{selectedCourseGroup?.group?.semester || 'N/A'}</TableCell>
                               <TableCell>{alumno.registrationNumber}</TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setAlumnoEvaluacion(alumno)
+                                    setIsEvaluacionesModalOpen(true)
+                                  }}
+                                >
+                                  <BarChart3 className="h-4 w-4 mr-2" />
+                                  Evaluaciones
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))
                         )}
@@ -1606,6 +1628,68 @@ export default function MaestroAsignaturas() {
                     </Button>
                   </div>
                 </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Modal de Evaluaciones */}
+            <Dialog open={isEvaluacionesModalOpen} onOpenChange={setIsEvaluacionesModalOpen}>
+              <DialogContent className="max-w-[90vw]">
+                <DialogHeader>
+                  <DialogTitle>Evaluaciones de {alumnoEvaluacion?.fullName}</DialogTitle>
+                  <DialogDescription>
+                    Asigna las calificaciones de las evaluaciones para el alumno seleccionado.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="w-full overflow-x-auto">
+                  <table className="min-w-[2200px] border border-gray-300 text-center">
+                    <thead>
+                      <tr>
+                        <th colSpan={18} className="bg-blue-100 font-semibold border-r border-gray-300">Actividades de Aprendizaje</th>
+                        <th colSpan={18} className="bg-green-100 font-semibold border-r border-gray-300">Evidencias de Aprendizaje</th>
+                        <th className="bg-pink-200 font-semibold border-r border-gray-300">Producto del Parcial</th>
+                        <th className="bg-gray-400 font-semibold text-white">Examen Parcial</th>
+                      </tr>
+                      <tr>
+                        {[...Array(18)].map((_, i) => (
+                          <th key={"act"+i} className="bg-blue-50 border-r border-gray-200">A{i+1}</th>
+                        ))}
+                        {[...Array(18)].map((_, i) => (
+                          <th key={"ev"+i} className="bg-green-50 border-r border-gray-200">E{i+1}</th>
+                        ))}
+                        <th className="bg-pink-50 border-r border-gray-200">Producto</th>
+                        <th className="bg-gray-100">Examen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        {evaluaciones.actividades.map((val, i) => (
+                          <td key={"actv"+i} className="px-2 py-1 border-r border-gray-100">
+                            <input type="number" min={0} max={10} value={val} className="w-14 text-center border rounded px-2 py-1 mx-1" readOnly />
+                          </td>
+                        ))}
+                        {evaluaciones.evidencias.map((val, i) => (
+                          <td key={"evv"+i} className="px-2 py-1 border-r border-gray-100">
+                            <input type="number" min={0} max={10} value={val} className="w-14 text-center border rounded px-2 py-1 mx-1" readOnly />
+                          </td>
+                        ))}
+                        <td className="px-2 py-1 border-r border-gray-100">
+                          <input type="number" min={0} max={10} value={evaluaciones.producto} className="w-14 text-center border rounded px-2 py-1 mx-1" readOnly />
+                        </td>
+                        <td className="px-2 py-1">
+                          <input type="number" min={0} max={10} value={evaluaciones.examen} className="w-14 text-center border rounded px-2 py-1 mx-1" readOnly />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <DialogFooter className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" onClick={() => setIsEvaluacionesModalOpen(false)}>
+                    Cerrar
+                  </Button>
+                  <Button disabled className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold">
+                    Guardar
+                  </Button>
+                </DialogFooter>
               </DialogContent>
             </Dialog>
 
