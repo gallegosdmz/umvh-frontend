@@ -948,6 +948,46 @@ export default function MaestroAsignaturas() {
     }
   };
 
+  useEffect(() => {
+    const loadPartialEvaluations = async () => {
+      if (!isEvaluacionesModalOpen || !alumnoEvaluacion?.courseGroupStudentId) return;
+      try {
+        const data = await CourseService.getPartialEvaluationsByCourseGroupStudentId(alumnoEvaluacion.courseGroupStudentId);
+        // Inicializar arrays vacíos
+        const actividades = Array(18).fill({ name: '', grade: 0, id: null });
+        const evidencias = Array(18).fill({ name: '', grade: 0, id: null });
+        let producto = { grade: 0, id: null };
+        let examen = { grade: 0, id: null };
+        // Mapear los datos recibidos
+        data.forEach((item: any, idx: number) => {
+          if (item.type === 'Actividades') {
+            // Busca el primer slot vacío o con el mismo id
+            const i = actividades.findIndex(a => a.id === item.id || a.id === null);
+            if (i !== -1) actividades[i] = { name: item.name, grade: item.grade, id: item.id };
+          } else if (item.type === 'Evidencias') {
+            const i = evidencias.findIndex(a => a.id === item.id || a.id === null);
+            if (i !== -1) evidencias[i] = { name: item.name, grade: item.grade, id: item.id };
+          } else if (item.type === 'Producto') {
+            producto = { grade: item.grade, id: item.id };
+          } else if (item.type === 'Examen') {
+            examen = { grade: item.grade, id: item.id };
+          }
+        });
+        setEvaluacionesParciales({ actividades, evidencias, producto, examen });
+      } catch (error) {
+        console.log(error);
+        // Si hay error, inicializa vacío
+        setEvaluacionesParciales({
+          actividades: Array(18).fill({ name: '', grade: 0, id: null }),
+          evidencias: Array(18).fill({ name: '', grade: 0, id: null }),
+          producto: { grade: 0, id: null },
+          examen: { grade: 0, id: null },
+        });
+      }
+    };
+    loadPartialEvaluations();
+  }, [isEvaluacionesModalOpen, alumnoEvaluacion?.courseGroupStudentId]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -1852,7 +1892,7 @@ export default function MaestroAsignaturas() {
                               max={10}
                               value={evaluacionesParciales.producto.grade}
                               onChange={e => setEvaluacionesParciales(prev => ({ ...prev, producto: { ...prev.producto, grade: Number(e.target.value) } }))}
-                              onKeyDown={e => { if (e.key === 'Enter') handlePartialEvaluationButtonClick('producto', 0) }}
+                              onKeyDown={e => handlePartialEvaluationKeyPress('producto', 0, e)}
                               className="w-14 text-center border rounded px-2 py-1 mx-1"
                             />
                             <Button
@@ -1875,7 +1915,7 @@ export default function MaestroAsignaturas() {
                               max={10}
                               value={evaluacionesParciales.examen.grade}
                               onChange={e => setEvaluacionesParciales(prev => ({ ...prev, examen: { ...prev.examen, grade: Number(e.target.value) } }))}
-                              onKeyDown={e => { if (e.key === 'Enter') handlePartialEvaluationButtonClick('examen', 0) }}
+                              onKeyDown={e => handlePartialEvaluationKeyPress('examen', 0, e)}
                               className="w-14 text-center border rounded px-2 py-1 mx-1"
                             />
                             <Button

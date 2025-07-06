@@ -292,5 +292,14 @@ export const CourseService = {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Error al editar evaluación');
         return data;
+    },
+
+    async getPartialEvaluationsByCourseGroupStudentId(courseGroupStudentId: number) {
+        const response = await fetch(`${API_URL}/partial-evaluations/${courseGroupStudentId}`, {
+            headers: getAuthHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Error al obtener evaluaciones parciales');
+        return data;
     }
 }; 
