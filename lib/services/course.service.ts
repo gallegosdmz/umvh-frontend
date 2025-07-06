@@ -269,5 +269,28 @@ export const CourseService = {
         }
 
         return data;
+    },
+
+    async createPartialEvaluation(dto: any) {
+        const response = await fetch(`${API_URL}/partial-evaluations`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(dto)
+        });
+        const data = await response.json();
+        console.log(data)
+        if (!response.ok) throw new Error(data.message || 'Error al crear evaluación');
+        return data;
+    },
+
+    async updatePartialEvaluation(id: number, dto: any) {
+        const response = await fetch(`${API_URL}/partial-evaluations/${id}`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(dto)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Error al editar evaluación');
+        return data;
     }
 }; 

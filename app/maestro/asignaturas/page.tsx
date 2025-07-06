@@ -52,6 +52,8 @@ interface AttendanceData {
   attend: number; // 1=Presente, 2=Ausente, 3=Retardo
 }
 
+type EvalType = "actividades" | "evidencias";
+
 export default function MaestroAsignaturas() {
   const { user } = useAuth()
   const { handleGetCourses, handleGetCourseGroupWithStudents, handleGetStudentsByCourseGroup } = useCourse()
@@ -120,6 +122,13 @@ export default function MaestroAsignaturas() {
     producto: 0,
     examen: 0,
   })
+  const [evaluacionesParciales, setEvaluacionesParciales] = useState({
+    actividades: Array(18).fill({ name: '', grade: 0, id: null }),
+    evidencias: Array(18).fill({ name: '', grade: 0, id: null }),
+    producto: { grade: 0, id: null },
+    examen: { grade: 0, id: null },
+  })
+  const [isSavingPartial, setIsSavingPartial] = useState(false)
 
   // Debug: Monitorear cambios en asistenciaAlumnos
   useEffect(() => {
@@ -151,6 +160,15 @@ export default function MaestroAsignaturas() {
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages) return
     loadAsignaturas(page)
+  }
+
+  // Helper para headers autenticados
+  function getAuthHeaders() {
+    const token = (user as any)?.token || "";
+    return {
+      "Content-Type": "application/json",
+      Authorization: token ? `Bearer ${token}` : "",
+    };
   }
 
   useEffect(() => {
@@ -844,6 +862,91 @@ export default function MaestroAsignaturas() {
     
     loadAttendancesForDate()
   }
+
+  const handlePartialEvaluationNameChange = (type: EvalType, idx: number, value: string) => {
+    setEvaluacionesParciales(prev => ({
+      ...prev,
+      [type]: prev[type].map((item: any, i: number) => i === idx ? { ...item, name: value } : item)
+    }))
+  }
+
+  const handlePartialEvaluationChange = (type: EvalType, idx: number, value: number) => {
+    setEvaluacionesParciales(prev => ({
+      ...prev,
+      [type]: prev[type].map((item: any, i: number) => i === idx ? { ...item, grade: value } : item)
+    }))
+  }
+
+  const handlePartialEvaluationKeyPress = async (
+    type: "actividades" | "evidencias" | "producto" | "examen",
+    idx: number,
+    event: React.KeyboardEvent
+  ) => {
+    if (event.key !== 'Enter') return
+    await handlePartialEvaluationButtonClick(type, idx)
+  }
+
+  const handlePartialEvaluationButtonClick = async (
+    type: "actividades" | "evidencias" | "producto" | "examen",
+    idx: number
+  ) => {
+    setIsSavingPartial(true);
+
+    let data;
+    if (type === "actividades" || type === "evidencias") {
+      data = evaluacionesParciales[type][idx];
+    } else {
+      data = evaluacionesParciales[type];
+    }
+
+    const dto: any = {
+      grade: data.grade,
+      type:
+        type === "actividades"
+          ? "Actividades"
+          : type === "evidencias"
+          ? "Evidencias"
+          : type === "producto"
+          ? "Producto"
+          : "Examen",
+      courseGroupStudentId: alumnoEvaluacion?.courseGroupStudentId,
+    };
+    if (type === "actividades" || type === "evidencias") {
+      dto.name = data.name || "";
+    }
+
+    try {
+      if (data.id) {
+        // PATCH
+        console.log("PATCH via CourseService.updatePartialEvaluation", data.id, dto);
+        await CourseService.updatePartialEvaluation(data.id, dto);
+        toast.success("Evaluación editada correctamente");
+      } else {
+        // POST
+        console.log("POST via CourseService.createPartialEvaluation", dto);
+        const result = await CourseService.createPartialEvaluation(dto);
+        if (type === "actividades" || type === "evidencias") {
+          setEvaluacionesParciales(prev => ({
+            ...prev,
+            [type]: prev[type].map((item, i) =>
+              i === idx ? { ...item, id: result.id } : item
+            ),
+          }));
+        } else {
+          setEvaluacionesParciales(prev => ({
+            ...prev,
+            [type]: { ...prev[type], id: result.id },
+          }));
+        }
+        toast.success("Evaluación guardada correctamente");
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error("Error al guardar la evaluación");
+    } finally {
+      setIsSavingPartial(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
@@ -1659,24 +1762,132 @@ export default function MaestroAsignaturas() {
                         <th className="bg-pink-50 border-r border-gray-200">Producto</th>
                         <th className="bg-gray-100">Examen</th>
                       </tr>
+                      <tr>
+                        {/* Inputs de nombre para Actividades */}
+                        {[...Array(18)].map((_, i) => (
+                          <th key={"actname"+i} className="bg-blue-50 border-r border-gray-200">
+                            <input
+                              type="text"
+                              placeholder="Nombre"
+                              value={evaluacionesParciales.actividades[i]?.name || ''}
+                              onChange={e => handlePartialEvaluationNameChange('actividades', i, e.target.value)}
+                              className="w-20 text-center border rounded px-2 py-1 mx-1 mb-1"
+                            />
+                          </th>
+                        ))}
+                        {/* Inputs de nombre para Evidencias */}
+                        {[...Array(18)].map((_, i) => (
+                          <th key={"evname"+i} className="bg-green-50 border-r border-gray-200">
+                            <input
+                              type="text"
+                              placeholder="Nombre"
+                              value={evaluacionesParciales.evidencias[i]?.name || ''}
+                              onChange={e => handlePartialEvaluationNameChange('evidencias', i, e.target.value)}
+                              className="w-20 text-center border rounded px-2 py-1 mx-1 mb-1"
+                            />
+                          </th>
+                        ))}
+                        <th></th>
+                        <th></th>
+                      </tr>
                     </thead>
                     <tbody>
                       <tr>
-                        {evaluaciones.actividades.map((val, i) => (
+                        {/* Inputs de calificación y botón para Actividades */}
+                        {evaluacionesParciales.actividades.map((item, i) => (
                           <td key={"actv"+i} className="px-2 py-1 border-r border-gray-100">
-                            <input type="number" min={0} max={10} value={val} className="w-14 text-center border rounded px-2 py-1 mx-1" readOnly />
+                            <div className="flex flex-col items-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={10}
+                                value={item.grade}
+                                onChange={e => handlePartialEvaluationChange('actividades', i, Number(e.target.value))}
+                                onKeyDown={e => handlePartialEvaluationKeyPress('actividades', i, e)}
+                                className="w-14 text-center border rounded px-2 py-1 mx-1"
+                              />
+                              <Button
+                                size="sm"
+                                variant={item.id ? "outline" : "default"}
+                                className={`h-6 px-2 text-xs ${item.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                                onClick={() => handlePartialEvaluationButtonClick('actividades', i)}
+                                disabled={isSavingPartial}
+                              >
+                                {item.id ? '✏️ Editar' : '➕ Agregar'}
+                              </Button>
+                            </div>
                           </td>
                         ))}
-                        {evaluaciones.evidencias.map((val, i) => (
+                        {/* Inputs de calificación y botón para Evidencias */}
+                        {evaluacionesParciales.evidencias.map((item, i) => (
                           <td key={"evv"+i} className="px-2 py-1 border-r border-gray-100">
-                            <input type="number" min={0} max={10} value={val} className="w-14 text-center border rounded px-2 py-1 mx-1" readOnly />
+                            <div className="flex flex-col items-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                max={10}
+                                value={item.grade}
+                                onChange={e => handlePartialEvaluationChange('evidencias', i, Number(e.target.value))}
+                                onKeyDown={e => handlePartialEvaluationKeyPress('evidencias', i, e)}
+                                className="w-14 text-center border rounded px-2 py-1 mx-1"
+                              />
+                              <Button
+                                size="sm"
+                                variant={item.id ? "outline" : "default"}
+                                className={`h-6 px-2 text-xs ${item.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                                onClick={() => handlePartialEvaluationButtonClick('evidencias', i)}
+                                disabled={isSavingPartial}
+                              >
+                                {item.id ? '✏️ Editar' : '➕ Agregar'}
+                              </Button>
+                            </div>
                           </td>
                         ))}
+                        {/* Producto */}
                         <td className="px-2 py-1 border-r border-gray-100">
-                          <input type="number" min={0} max={10} value={evaluaciones.producto} className="w-14 text-center border rounded px-2 py-1 mx-1" readOnly />
+                          <div className="flex flex-col items-center gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              max={10}
+                              value={evaluacionesParciales.producto.grade}
+                              onChange={e => setEvaluacionesParciales(prev => ({ ...prev, producto: { ...prev.producto, grade: Number(e.target.value) } }))}
+                              onKeyDown={e => { if (e.key === 'Enter') handlePartialEvaluationButtonClick('producto', 0) }}
+                              className="w-14 text-center border rounded px-2 py-1 mx-1"
+                            />
+                            <Button
+                              size="sm"
+                              variant={evaluacionesParciales.producto.id ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${evaluacionesParciales.producto.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handlePartialEvaluationButtonClick('producto', 0)}
+                              disabled={isSavingPartial}
+                            >
+                              {evaluacionesParciales.producto.id ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
                         </td>
+                        {/* Examen */}
                         <td className="px-2 py-1">
-                          <input type="number" min={0} max={10} value={evaluaciones.examen} className="w-14 text-center border rounded px-2 py-1 mx-1" readOnly />
+                          <div className="flex flex-col items-center gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              max={10}
+                              value={evaluacionesParciales.examen.grade}
+                              onChange={e => setEvaluacionesParciales(prev => ({ ...prev, examen: { ...prev.examen, grade: Number(e.target.value) } }))}
+                              onKeyDown={e => { if (e.key === 'Enter') handlePartialEvaluationButtonClick('examen', 0) }}
+                              className="w-14 text-center border rounded px-2 py-1 mx-1"
+                            />
+                            <Button
+                              size="sm"
+                              variant={evaluacionesParciales.examen.id ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${evaluacionesParciales.examen.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handlePartialEvaluationButtonClick('examen', 0)}
+                              disabled={isSavingPartial}
+                            >
+                              {evaluacionesParciales.examen.id ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     </tbody>
@@ -1685,9 +1896,6 @@ export default function MaestroAsignaturas() {
                 <DialogFooter className="flex justify-end gap-2 mt-4">
                   <Button variant="outline" onClick={() => setIsEvaluacionesModalOpen(false)}>
                     Cerrar
-                  </Button>
-                  <Button disabled className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold">
-                    Guardar
                   </Button>
                 </DialogFooter>
               </DialogContent>
