@@ -129,6 +129,7 @@ export default function MaestroAsignaturas() {
     examen: { grade: 0, id: null },
   })
   const [isSavingPartial, setIsSavingPartial] = useState(false)
+  const [selectedPartial, setSelectedPartial] = useState(1)
 
   // Debug: Monitorear cambios en asistenciaAlumnos
   useEffect(() => {
@@ -910,6 +911,8 @@ export default function MaestroAsignaturas() {
           ? "Producto"
           : "Examen",
       courseGroupStudentId: alumnoEvaluacion?.courseGroupStudentId,
+      partial: selectedPartial,
+      slot: idx, // NUEVO: slot exacto
     };
     if (type === "actividades" || type === "evidencias") {
       dto.name = data.name || "";
@@ -953,20 +956,19 @@ export default function MaestroAsignaturas() {
       if (!isEvaluacionesModalOpen || !alumnoEvaluacion?.courseGroupStudentId) return;
       try {
         const data = await CourseService.getPartialEvaluationsByCourseGroupStudentId(alumnoEvaluacion.courseGroupStudentId);
+        // Filtrar por parcial seleccionado
+        const filtered = data.filter((item: any) => item.partial === selectedPartial);
         // Inicializar arrays vacíos
         const actividades = Array(18).fill({ name: '', grade: 0, id: null });
         const evidencias = Array(18).fill({ name: '', grade: 0, id: null });
         let producto = { grade: 0, id: null };
         let examen = { grade: 0, id: null };
-        // Mapear los datos recibidos
-        data.forEach((item: any, idx: number) => {
-          if (item.type === 'Actividades') {
-            // Busca el primer slot vacío o con el mismo id
-            const i = actividades.findIndex(a => a.id === item.id || a.id === null);
-            if (i !== -1) actividades[i] = { name: item.name, grade: item.grade, id: item.id };
-          } else if (item.type === 'Evidencias') {
-            const i = evidencias.findIndex(a => a.id === item.id || a.id === null);
-            if (i !== -1) evidencias[i] = { name: item.name, grade: item.grade, id: item.id };
+        // Mapear los datos recibidos por slot exacto
+        filtered.forEach((item: any) => {
+          if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 18) {
+            actividades[item.slot] = { name: item.name, grade: item.grade, id: item.id };
+          } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 18) {
+            evidencias[item.slot] = { name: item.name, grade: item.grade, id: item.id };
           } else if (item.type === 'Producto') {
             producto = { grade: item.grade, id: item.id };
           } else if (item.type === 'Examen') {
@@ -976,7 +978,6 @@ export default function MaestroAsignaturas() {
         setEvaluacionesParciales({ actividades, evidencias, producto, examen });
       } catch (error) {
         console.log(error);
-        // Si hay error, inicializa vacío
         setEvaluacionesParciales({
           actividades: Array(18).fill({ name: '', grade: 0, id: null }),
           evidencias: Array(18).fill({ name: '', grade: 0, id: null }),
@@ -986,7 +987,7 @@ export default function MaestroAsignaturas() {
       }
     };
     loadPartialEvaluations();
-  }, [isEvaluacionesModalOpen, alumnoEvaluacion?.courseGroupStudentId]);
+  }, [isEvaluacionesModalOpen, alumnoEvaluacion?.courseGroupStudentId, selectedPartial]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
@@ -1938,6 +1939,19 @@ export default function MaestroAsignaturas() {
                     Cerrar
                   </Button>
                 </DialogFooter>
+                <div className="flex items-center gap-2 mt-4 justify-start">
+                  <label htmlFor="parcial-select" className="font-medium">Parcial:</label>
+                  <select
+                    id="parcial-select"
+                    value={selectedPartial}
+                    onChange={e => setSelectedPartial(Number(e.target.value))}
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value={1}>Primer Parcial</option>
+                    <option value={2}>Segundo Parcial</option>
+                    <option value={3}>Tercer Parcial</option>
+                  </select>
+                </div>
               </DialogContent>
             </Dialog>
 
