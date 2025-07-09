@@ -1870,13 +1870,14 @@ export default function MaestroAsignaturas() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="w-full overflow-x-auto">
-                  <table className="min-w-[2200px] border border-gray-300 text-center">
+                  <table className="min-w-[2400px] border border-gray-300 text-center">
                     <thead>
                       <tr>
                         <th colSpan={18} className="bg-blue-100 font-semibold border-r border-gray-300">Actividades de Aprendizaje</th>
                         <th colSpan={18} className="bg-green-100 font-semibold border-r border-gray-300">Evidencias de Aprendizaje</th>
                         <th className="bg-pink-200 font-semibold border-r border-gray-300">Producto del Parcial</th>
-                        <th className="bg-gray-400 font-semibold text-white">Examen Parcial</th>
+                        <th className="bg-gray-400 font-semibold text-white border-r border-gray-300">Examen Parcial</th>
+                        <th className="bg-purple-500 font-semibold text-white">Calificación Parcial</th>
                       </tr>
                       <tr>
                         {[...Array(18)].map((_, i) => (
@@ -1886,7 +1887,8 @@ export default function MaestroAsignaturas() {
                           <th key={"ev"+i} className="bg-green-50 border-r border-gray-200">E{i+1}</th>
                         ))}
                         <th className="bg-pink-50 border-r border-gray-200">Producto</th>
-                        <th className="bg-gray-100">Examen</th>
+                        <th className="bg-gray-100 border-r border-gray-200">Examen</th>
+                        <th className="bg-purple-100">Calificación</th>
                       </tr>
                       <tr>
                         {/* Inputs de nombre para Actividades */}
@@ -1913,6 +1915,7 @@ export default function MaestroAsignaturas() {
                             />
                           </th>
                         ))}
+                        <th></th>
                         <th></th>
                         <th></th>
                       </tr>
@@ -1993,7 +1996,7 @@ export default function MaestroAsignaturas() {
                           </div>
                         </td>
                         {/* Examen */}
-                        <td className="px-2 py-1">
+                        <td className="px-2 py-1 border-r border-gray-100">
                           <div className="flex flex-col items-center gap-1">
                             <input
                               type="number"
@@ -2013,6 +2016,17 @@ export default function MaestroAsignaturas() {
                             >
                               {evaluacionesParciales.examen.id ? '✏️ Editar' : '➕ Agregar'}
                             </Button>
+                          </div>
+                        </td>
+                        {/* Calificación del Parcial */}
+                        <td className="px-2 py-1">
+                          <div className="flex flex-col items-center gap-1">
+                            <div className="w-14 h-8 flex items-center justify-center bg-purple-50 border border-purple-200 rounded font-semibold text-purple-700">
+                              --.-
+                            </div>
+                            <div className="text-xs text-purple-600 font-medium">
+                              Calificación
+                            </div>
                           </div>
                         </td>
                       </tr>
