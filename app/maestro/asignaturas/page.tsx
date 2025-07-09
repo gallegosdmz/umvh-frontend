@@ -132,6 +132,7 @@ export default function MaestroAsignaturas() {
   })
   const [isSavingPartial, setIsSavingPartial] = useState(false)
   const [selectedPartial, setSelectedPartial] = useState(1)
+  const [calificacionParcial, setCalificacionParcial] = useState<number | null>(null)
 
   // Debug: Monitorear cambios en asistenciaAlumnos
   useEffect(() => {
@@ -956,6 +957,137 @@ export default function MaestroAsignaturas() {
     await handlePartialEvaluationButtonClick(type, idx)
   }
 
+  const calcularCalificacionParcial = () => {
+    console.log('=== INICIANDO CÁLCULO DE CALIFICACIÓN PARCIAL ===')
+    console.log('Ponderaciones actuales:', ponderacionesCurso)
+    console.log('Evaluaciones parciales:', evaluacionesParciales)
+    
+    if (!ponderacionesCurso) {
+      console.log('❌ No hay ponderaciones disponibles')
+      return
+    }
+    
+    let calificacionFinal = 0
+    let totalPonderacion = 0
+    
+    // 1. Cálculo de Asistencia
+    console.log('\n--- CÁLCULO DE ASISTENCIA ---')
+    console.log('Ponderación de Asistencia:', ponderacionesCurso.asistencia, '%')
+    
+    // TODO: Aquí se calculará la asistencia cuando tengamos acceso a esos datos
+    const asistenciaPromedio = 0 // Por ahora 0, se implementará después
+    const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100
+    console.log('Promedio de Asistencia:', asistenciaPromedio)
+    console.log('Calificación de Asistencia:', calificacionAsistencia)
+    
+    if (ponderacionesCurso.asistencia > 0) {
+      calificacionFinal += calificacionAsistencia
+      totalPonderacion += ponderacionesCurso.asistencia
+    }
+    
+    // 2. Cálculo de Actividades
+    console.log('\n--- CÁLCULO DE ACTIVIDADES ---')
+    console.log('Ponderación de Actividades:', ponderacionesCurso.actividades, '%')
+    
+    const actividadesValores = evaluacionesParciales.actividades
+      .filter(item => item.grade > 0)
+      .map(item => item.grade)
+    
+    console.log('Valores de actividades (solo > 0):', actividadesValores)
+    
+    if (actividadesValores.length > 0) {
+      const promedioActividades = actividadesValores.reduce((sum, grade) => sum + grade, 0) / actividadesValores.length
+      const calificacionActividades = (promedioActividades * ponderacionesCurso.actividades) / 100
+      
+      console.log('Cantidad de actividades con calificación:', actividadesValores.length)
+      console.log('Promedio de Actividades:', promedioActividades)
+      console.log('Calificación de Actividades:', calificacionActividades)
+      
+      if (ponderacionesCurso.actividades > 0) {
+        calificacionFinal += calificacionActividades
+        totalPonderacion += ponderacionesCurso.actividades
+      }
+    } else {
+      console.log('No hay actividades con calificación > 0')
+    }
+    
+    // 3. Cálculo de Evidencias
+    console.log('\n--- CÁLCULO DE EVIDENCIAS ---')
+    console.log('Ponderación de Evidencias:', ponderacionesCurso.evidencias, '%')
+    
+    const evidenciasValores = evaluacionesParciales.evidencias
+      .filter(item => item.grade > 0)
+      .map(item => item.grade)
+    
+    console.log('Valores de evidencias (solo > 0):', evidenciasValores)
+    
+    if (evidenciasValores.length > 0) {
+      const promedioEvidencias = evidenciasValores.reduce((sum, grade) => sum + grade, 0) / evidenciasValores.length
+      const calificacionEvidencias = (promedioEvidencias * ponderacionesCurso.evidencias) / 100
+      
+      console.log('Cantidad de evidencias con calificación:', evidenciasValores.length)
+      console.log('Promedio de Evidencias:', promedioEvidencias)
+      console.log('Calificación de Evidencias:', calificacionEvidencias)
+      
+      if (ponderacionesCurso.evidencias > 0) {
+        calificacionFinal += calificacionEvidencias
+        totalPonderacion += ponderacionesCurso.evidencias
+      }
+    } else {
+      console.log('No hay evidencias con calificación > 0')
+    }
+    
+    // 4. Cálculo de Producto
+    console.log('\n--- CÁLCULO DE PRODUCTO ---')
+    console.log('Ponderación de Producto:', ponderacionesCurso.producto, '%')
+    console.log('Calificación de Producto:', evaluacionesParciales.producto.grade)
+    
+    if (evaluacionesParciales.producto.grade > 0) {
+      const calificacionProducto = (evaluacionesParciales.producto.grade * ponderacionesCurso.producto) / 100
+      console.log('Calificación calculada de Producto:', calificacionProducto)
+      
+      if (ponderacionesCurso.producto > 0) {
+        calificacionFinal += calificacionProducto
+        totalPonderacion += ponderacionesCurso.producto
+      }
+    } else {
+      console.log('No hay calificación de Producto > 0')
+    }
+    
+    // 5. Cálculo de Examen
+    console.log('\n--- CÁLCULO DE EXAMEN ---')
+    console.log('Ponderación de Examen:', ponderacionesCurso.examen, '%')
+    console.log('Calificación de Examen:', evaluacionesParciales.examen.grade)
+    
+    if (evaluacionesParciales.examen.grade > 0) {
+      const calificacionExamen = (evaluacionesParciales.examen.grade * ponderacionesCurso.examen) / 100
+      console.log('Calificación calculada de Examen:', calificacionExamen)
+      
+      if (ponderacionesCurso.examen > 0) {
+        calificacionFinal += calificacionExamen
+        totalPonderacion += ponderacionesCurso.examen
+      }
+    } else {
+      console.log('No hay calificación de Examen > 0')
+    }
+    
+    // Resultado final
+    console.log('\n--- RESULTADO FINAL ---')
+    console.log('Calificación acumulada:', calificacionFinal)
+    console.log('Total de ponderación utilizada:', totalPonderacion, '%')
+    
+    if (totalPonderacion > 0) {
+      const calificacionFinalCalculada = calificacionFinal
+      console.log('Calificación Final del Parcial:', calificacionFinalCalculada)
+      setCalificacionParcial(calificacionFinalCalculada)
+    } else {
+      console.log('❌ No hay ponderaciones configuradas o calificaciones válidas')
+      setCalificacionParcial(null)
+    }
+    
+    console.log('=== FINALIZADO CÁLCULO DE CALIFICACIÓN PARCIAL ===\n')
+  }
+
   const handlePartialEvaluationButtonClick = async (
     type: "actividades" | "evidencias" | "producto" | "examen",
     idx: number
@@ -1057,6 +1189,13 @@ export default function MaestroAsignaturas() {
     };
     loadPartialEvaluations();
   }, [isEvaluacionesModalOpen, alumnoEvaluacion?.courseGroupStudentId, selectedPartial]);
+
+  // Calcular calificación del parcial cuando cambien las evaluaciones o ponderaciones
+  useEffect(() => {
+    if (isEvaluacionesModalOpen && ponderacionesCurso) {
+      calcularCalificacionParcial();
+    }
+  }, [evaluacionesParciales, ponderacionesCurso, selectedPartial]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
@@ -1292,9 +1431,58 @@ export default function MaestroAsignaturas() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setAlumnoEvaluacion(alumno)
                                     setIsEvaluacionesModalOpen(true)
+                                    
+                                    // Cargar las ponderaciones del curso si no están cargadas
+                                    if (!ponderacionesCurso && selectedCourseGroup) {
+                                      try {
+                                        const courseGroupWithPonderaciones = await CourseService.getCourseGroupIndividual(selectedCourseGroup.id)
+                                        const gradingschemes = courseGroupWithPonderaciones.coursesGroupsGradingschemes || []
+                                        
+                                        const ponderaciones = {
+                                          asistencia: 0,
+                                          actividades: 0,
+                                          evidencias: 0,
+                                          producto: 0,
+                                          examen: 0
+                                        }
+                                        
+                                        const ids: {
+                                          asistencia?: number,
+                                          actividades?: number,
+                                          evidencias?: number,
+                                          producto?: number,
+                                          examen?: number
+                                        } = {}
+                                        
+                                        gradingschemes.forEach((scheme: any) => {
+                                          const type = scheme.type.toLowerCase()
+                                          if (type === 'asistencia') {
+                                            ponderaciones.asistencia = scheme.percentage
+                                            ids.asistencia = scheme.id
+                                          } else if (type === 'actividades') {
+                                            ponderaciones.actividades = scheme.percentage
+                                            ids.actividades = scheme.id
+                                          } else if (type === 'evidencias') {
+                                            ponderaciones.evidencias = scheme.percentage
+                                            ids.evidencias = scheme.id
+                                          } else if (type === 'producto') {
+                                            ponderaciones.producto = scheme.percentage
+                                            ids.producto = scheme.id
+                                          } else if (type === 'examen') {
+                                            ponderaciones.examen = scheme.percentage
+                                            ids.examen = scheme.id
+                                          }
+                                        })
+                                        
+                                        setPonderacionesCurso(ponderaciones)
+                                        setPonderacionesIds(ids)
+                                      } catch (error) {
+                                        console.error('Error al cargar las ponderaciones:', error)
+                                      }
+                                    }
                                   }}
                                 >
                                   <BarChart3 className="h-4 w-4 mr-2" />
@@ -2022,7 +2210,7 @@ export default function MaestroAsignaturas() {
                         <td className="px-2 py-1">
                           <div className="flex flex-col items-center gap-1">
                             <div className="w-14 h-8 flex items-center justify-center bg-purple-50 border border-purple-200 rounded font-semibold text-purple-700">
-                              --.-
+                              {calificacionParcial !== null ? calificacionParcial.toFixed(1) : '--.-'}
                             </div>
                             <div className="text-xs text-purple-600 font-medium">
                               Calificación
