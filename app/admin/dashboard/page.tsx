@@ -7,6 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Users, BookOpen, Calendar, GraduationCap, TrendingUp, Award, Clock, Settings } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
+import { useTeacher } from "@/lib/hooks/useTeacher"
+import { useCourse } from "@/lib/hooks/useCourse"
+import { useGroup } from "@/lib/hooks/useGroup"
+import { useStudent } from "@/lib/hooks/useStudent"
+import { usePeriod } from "@/lib/hooks/usePeriod"
 
 interface DashboardStats {
   totalMaestros: number
@@ -19,6 +24,12 @@ interface DashboardStats {
 
 export default function AdminDashboard() {
   const { user } = useAuth()
+  const { handleGetTeachers } = useTeacher()
+  const { handleGetCourses } = useCourse()
+  const { handleGetGroups } = useGroup()
+  const { handleGetStudents } = useStudent()
+  const { handleGetPeriods } = usePeriod()
+  
   const [stats, setStats] = useState<DashboardStats>({
     totalMaestros: 0,
     totalAsignaturas: 0,
@@ -27,24 +38,67 @@ export default function AdminDashboard() {
     periodosActivos: 0,
     gruposActivos: 0,
   })
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Calcular estadísticas desde los datos mock
-    //const maestros = mockUsuarios.filter((u) => u.rol === "maestro")
-    //const asignaturas = mockAsignaturas
-    //const grupos = mockGrupos.filter((g) => g.activo)
-    //const alumnos = mockAlumnos.filter((a) => a.activo)
-    //const periodosActivos = mockPeriodos.filter((p) => p.activo)
-
-    setStats({
-      totalMaestros: 2,
-      totalAsignaturas: 4,
-      totalGrupos: 4,
-      totalAlumnos: 1000,
-      periodosActivos: 1,
-      gruposActivos: 20,
-    })
+    loadDashboardStats()
   }, [])
+
+  const loadDashboardStats = async () => {
+    try {
+      setLoading(true)
+      
+      // Cargar datos en paralelo para mejor rendimiento
+      const [
+        maestrosData,
+        asignaturasData,
+        gruposData,
+        alumnosData,
+        periodosData
+      ] = await Promise.all([
+        handleGetTeachers(1000, 0), // Obtener todos los maestros
+        handleGetCourses(1000, 0),  // Obtener todas las asignaturas
+        handleGetGroups(1000, 0),   // Obtener todos los grupos
+        handleGetStudents(1000, 0), // Obtener todos los alumnos
+        handleGetPeriods(1000, 0)   // Obtener todos los periodos
+      ])
+
+      // Procesar datos de maestros
+      const totalMaestros = Array.isArray(maestrosData) ? maestrosData.length : 0
+      
+      // Procesar datos de asignaturas
+      const totalAsignaturas = Array.isArray(asignaturasData) ? asignaturasData.length : 0
+      
+      // Procesar datos de grupos
+      const totalGrupos = Array.isArray(gruposData) ? gruposData.length : 0
+      
+      // Procesar datos de alumnos
+      const totalAlumnos = Array.isArray(alumnosData) ? alumnosData.length : 0
+      
+      // Procesar datos de periodos activos
+      const periodosActivos = Array.isArray(periodosData) 
+        ? periodosData.filter((periodo: any) => periodo.isActive !== false).length 
+        : 0
+      
+      // Grupos activos (asumiendo que todos los grupos están activos por defecto)
+      const gruposActivos = totalGrupos
+
+      setStats({
+        totalMaestros,
+        totalAsignaturas,
+        totalGrupos,
+        totalAlumnos,
+        periodosActivos,
+        gruposActivos,
+      })
+      
+    } catch (error) {
+      console.error('Error al cargar las estadísticas del dashboard:', error)
+      // En caso de error, mantener los valores por defecto
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const quickActions = [
     {
@@ -85,40 +139,7 @@ export default function AdminDashboard() {
     },
   ]
 
-  const recentActivity = [
-    {
-      id: 1,
-      action: "Nuevo maestro registrado",
-      description: "Ana Rodríguez Silva se unió al sistema",
-      time: "Hace 2 horas",
-      type: "user",
-      color: "bg-green-100 text-green-800",
-    },
-    {
-      id: 2,
-      action: "Periodo académico creado",
-      description: "Primavera 2025 configurado correctamente",
-      time: "Hace 1 día",
-      type: "period",
-      color: "bg-blue-100 text-blue-800",
-    },
-    {
-      id: 3,
-      action: "Asignatura actualizada",
-      description: "Cálculo Diferencial - Créditos modificados",
-      time: "Hace 2 días",
-      type: "subject",
-      color: "bg-purple-100 text-purple-800",
-    },
-    {
-      id: 4,
-      action: "Grupo asignado",
-      description: "Matemáticas I asignada al Grupo A",
-      time: "Hace 3 días",
-      type: "assignment",
-      color: "bg-orange-100 text-orange-800",
-    },
-  ]
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-orange-50 p-6">
@@ -154,7 +175,13 @@ export default function AdminDashboard() {
               <Users className="h-4 w-4 opacity-90" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{stats.totalMaestros}</div>
+              <div className="text-3xl font-bold">
+                {loading ? (
+                  <div className="animate-pulse bg-white/20 rounded h-8 w-16"></div>
+                ) : (
+                  stats.totalMaestros
+                )}
+              </div>
               <p className="text-xs opacity-90 mt-1">Activos en el sistema</p>
             </CardContent>
           </Card>
@@ -165,7 +192,13 @@ export default function AdminDashboard() {
               <BookOpen className="h-4 w-4 opacity-90" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{stats.totalAsignaturas}</div>
+              <div className="text-3xl font-bold">
+                {loading ? (
+                  <div className="animate-pulse bg-white/20 rounded h-8 w-16"></div>
+                ) : (
+                  stats.totalAsignaturas
+                )}
+              </div>
               <p className="text-xs opacity-90 mt-1">Disponibles</p>
             </CardContent>
           </Card>
@@ -176,7 +209,13 @@ export default function AdminDashboard() {
               <GraduationCap className="h-4 w-4 opacity-90" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{stats.totalGrupos}</div>
+              <div className="text-3xl font-bold">
+                {loading ? (
+                  <div className="animate-pulse bg-white/20 rounded h-8 w-16"></div>
+                ) : (
+                  stats.totalGrupos
+                )}
+              </div>
               <p className="text-xs opacity-90 mt-1">Activos</p>
             </CardContent>
           </Card>
@@ -187,7 +226,13 @@ export default function AdminDashboard() {
               <Users className="h-4 w-4 opacity-90" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{stats.totalAlumnos}</div>
+              <div className="text-3xl font-bold">
+                {loading ? (
+                  <div className="animate-pulse bg-white/20 rounded h-8 w-16"></div>
+                ) : (
+                  stats.totalAlumnos
+                )}
+              </div>
               <p className="text-xs opacity-90 mt-1">Registrados</p>
             </CardContent>
           </Card>
@@ -198,7 +243,13 @@ export default function AdminDashboard() {
               <Calendar className="h-4 w-4 opacity-90" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{stats.periodosActivos}</div>
+              <div className="text-3xl font-bold">
+                {loading ? (
+                  <div className="animate-pulse bg-white/20 rounded h-8 w-16"></div>
+                ) : (
+                  stats.periodosActivos
+                )}
+              </div>
               <p className="text-xs opacity-90 mt-1">Activos</p>
             </CardContent>
           </Card>
@@ -209,7 +260,13 @@ export default function AdminDashboard() {
               <Award className="h-4 w-4 opacity-90" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{10}</div>
+              <div className="text-3xl font-bold">
+                {loading ? (
+                  <div className="animate-pulse bg-white/20 rounded h-8 w-16"></div>
+                ) : (
+                  stats.gruposActivos
+                )}
+              </div>
               <p className="text-xs opacity-90 mt-1">Configuradas</p>
             </CardContent>
           </Card>
@@ -241,34 +298,42 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Activity */}
+        {/* Accesos Directos y Reportes */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <Card className="border-0 shadow-lg bg-white">
             <CardHeader>
               <CardTitle className="flex items-center text-xl font-bold text-gray-900">
                 <TrendingUp className="h-5 w-5 mr-2 text-[#bc4b26]" />
-                Actividad Reciente
+                Accesos Directos
               </CardTitle>
-              <CardDescription>Últimas acciones realizadas en el sistema</CardDescription>
+              <CardDescription>Funciones administrativas principales</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentActivity.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-start space-x-4 p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="w-2 h-2 rounded-full bg-[#bc4b26] mt-2 flex-shrink-0"></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                      <p className="text-sm text-gray-600">{activity.description}</p>
-                      <p className="text-xs text-gray-400 mt-1">{activity.time}</p>
-                    </div>
-                    <Badge className={activity.color} variant="secondary">
-                      {activity.type}
-                    </Badge>
-                  </div>
-                ))}
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Button variant="outline" className="h-16 flex flex-col items-center justify-center p-4 hover:bg-orange-50 hover:border-orange-300 transition-colors" asChild>
+                  <Link href="/admin/maestros">
+                    <Users className="h-6 w-6 mb-2 text-orange-600" />
+                    <span className="text-sm font-medium">Gestionar Maestros</span>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="h-16 flex flex-col items-center justify-center p-4 hover:bg-blue-50 hover:border-blue-300 transition-colors" asChild>
+                  <Link href="/admin/alumnos">
+                    <GraduationCap className="h-6 w-6 mb-2 text-blue-600" />
+                    <span className="text-sm font-medium">Gestionar Alumnos</span>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="h-16 flex flex-col items-center justify-center p-4 hover:bg-green-50 hover:border-green-300 transition-colors" asChild>
+                  <Link href="/admin/asignaturas">
+                    <BookOpen className="h-6 w-6 mb-2 text-green-600" />
+                    <span className="text-sm font-medium">Asignaturas</span>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="h-16 flex flex-col items-center justify-center p-4 hover:bg-purple-50 hover:border-purple-300 transition-colors" asChild>
+                  <Link href="/admin/periodos">
+                    <Calendar className="h-6 w-6 mb-2 text-purple-600" />
+                    <span className="text-sm font-medium">Periodos</span>
+                  </Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -277,35 +342,37 @@ export default function AdminDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center text-xl font-bold text-gray-900">
                 <Settings className="h-5 w-5 mr-2 text-[#003d5c]" />
-                Configuración Rápida
+                Reportes Rápidos
               </CardTitle>
-              <CardDescription>Accesos directos a configuraciones importantes</CardDescription>
+              <CardDescription>Informes y estadísticas del sistema</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button variant="outline" className="w-full justify-start h-12" asChild>
-                <Link href="/admin/usuarios">
-                  <Users className="h-4 w-4 mr-3" />
-                  Gestionar Usuarios
-                </Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start h-12" asChild>
-                <Link href="/admin/periodos">
-                  <Calendar className="h-4 w-4 mr-3" />
-                  Configurar Periodos
-                </Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start h-12" asChild>
-                <Link href="/admin/reportes">
-                  <TrendingUp className="h-4 w-4 mr-3" />
-                  Ver Reportes Generales
-                </Link>
-              </Button>
-              <Button variant="outline" className="w-full justify-start h-12" asChild>
-                <Link href="/admin/configuracion">
-                  <Settings className="h-4 w-4 mr-3" />
-                  Configuración del Sistema
-                </Link>
-              </Button>
+              <div className="grid grid-cols-1 gap-3">
+                <Button variant="outline" className="w-full justify-start h-12 hover:bg-red-50 hover:border-red-300 transition-colors" asChild>
+                  <Link href="/admin/reportes/asistencia">
+                    <div className="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
+                    Reporte de Asistencia General
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start h-12 hover:bg-yellow-50 hover:border-yellow-300 transition-colors" asChild>
+                  <Link href="/admin/reportes/calificaciones">
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full mr-3"></div>
+                    Reporte de Calificaciones
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start h-12 hover:bg-blue-50 hover:border-blue-300 transition-colors" asChild>
+                  <Link href="/admin/reportes/maestros">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                    Rendimiento de Maestros
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start h-12 hover:bg-green-50 hover:border-green-300 transition-colors" asChild>
+                  <Link href="/admin/reportes/grupos">
+                    <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                    Estado de Grupos
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
