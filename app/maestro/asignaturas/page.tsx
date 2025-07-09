@@ -50,6 +50,7 @@ interface AttendanceData {
   };
   date: string;
   attend: number; // 1=Presente, 2=Ausente, 3=Retardo
+  partial: number; // 1=Primer Parcial, 2=Segundo Parcial, 3=Tercer Parcial
 }
 
 type EvalType = "actividades" | "evidencias";
@@ -111,6 +112,7 @@ export default function MaestroAsignaturas() {
   const [asistenciaAlumnos, setAsistenciaAlumnos] = useState<(Student & { courseGroupStudentId?: number, attendanceId?: number | null, attend?: number })[]>([])
   const [asistenciaGrupo, setAsistenciaGrupo] = useState<{ asignatura: any, courseGroup: any } | null>(null)
   const [asistenciaFecha, setAsistenciaFecha] = useState<string>("")
+  const [asistenciaParcial, setAsistenciaParcial] = useState<number>(1)
   const [isLoadingAsistencia, setIsLoadingAsistencia] = useState(false)
   const [isSavingAttendance, setIsSavingAttendance] = useState(false)
   const [isLoadingDateChange, setIsLoadingDateChange] = useState(false)
@@ -648,20 +650,24 @@ export default function MaestroAsignaturas() {
     // Fecha actual por defecto
     const currentDate = new Date().toISOString().slice(0, 10)
     setAsistenciaFecha(currentDate)
+    // Parcial por defecto
+    setAsistenciaParcial(1)
     
     // Cargar los alumnos del grupo
     try {
       const response = await handleGetStudentsByCourseGroup(courseGroup.id, 100, 0) // Cargar todos los alumnos
       const students = Array.isArray(response) ? response : response.items || []
       
-      // Obtener las asistencias existentes para la fecha actual desde el backend
+      // Obtener las asistencias existentes para la fecha actual y parcial desde el backend
       let existingAttendances: AttendanceData[] = []
       try {
         const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(courseGroup.id, currentDate)
         existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
-        console.log('Asistencias existentes:', existingAttendances)
+        // Filtrar por parcial
+        existingAttendances = existingAttendances.filter((att: AttendanceData) => att.partial === 1)
+        console.log('Asistencias existentes para parcial 1:', existingAttendances)
       } catch (attendanceError) {
-        console.log('No se encontraron asistencias para esta fecha, se crearán nuevas')
+        console.log('No se encontraron asistencias para esta fecha y parcial, se crearán nuevas')
         existingAttendances = []
       }
       
@@ -714,6 +720,7 @@ export default function MaestroAsignaturas() {
     setAsistenciaGrupo(null)
     setAsistenciaAlumnos([])
     setAsistenciaFecha("")
+    setAsistenciaParcial(1)
     setIsLoadingAsistencia(false)
     setIsSavingAttendance(false)
     setIsLoadingDateChange(false)
@@ -721,7 +728,7 @@ export default function MaestroAsignaturas() {
 
   const handleSaveAttendance = async () => {
     if (!asistenciaFecha || asistenciaAlumnos.length === 0) {
-      toast.error('Por favor selecciona una fecha y verifica que hay alumnos')
+      toast.error('Por favor selecciona una fecha, un parcial y verifica que hay alumnos')
       return
     }
 
@@ -742,7 +749,8 @@ export default function MaestroAsignaturas() {
         const attendanceData = {
           courseGroupStudentId: alumno.courseGroupStudentId as number,
           date: asistenciaFecha,
-          attend: alumno.attend || 1 // Enviar el valor numérico (1=Presente, 2=Ausente, 3=Retardo)
+          attend: alumno.attend || 1, // Enviar el valor numérico (1=Presente, 2=Ausente, 3=Retardo)
+          partial: asistenciaParcial // Agregar el parcial seleccionado
         }
         
         
@@ -807,6 +815,65 @@ export default function MaestroAsignaturas() {
     }
   }
 
+  const handleParcialChange = (newParcial: number) => {
+    setAsistenciaParcial(newParcial)
+    
+    if (!asistenciaGrupo?.courseGroup || !asistenciaFecha) return
+    
+    setIsLoadingDateChange(true)
+    
+    // Obtener las asistencias existentes para la nueva fecha y parcial desde el backend
+    const loadAttendancesForParcial = async () => {
+      try {
+        const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(asistenciaGrupo.courseGroup.id, asistenciaFecha)
+        const existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
+        // Filtrar por parcial
+        const filteredAttendances = existingAttendances.filter((att: AttendanceData) => att.partial === newParcial)
+        console.log('Asistencias para nueva fecha y parcial:', filteredAttendances)
+        
+        // Crear un mapa de asistencias por courseGroupStudentId
+        const dateAttendanceMap = new Map()
+        const dateAttendanceIdMap = new Map()
+        
+        filteredAttendances.forEach((att: AttendanceData) => {
+          const courseGroupStudentId = att.courseGroupStudent?.id || att.courseGroupStudentId
+          if (courseGroupStudentId) {
+            dateAttendanceMap.set(courseGroupStudentId, att.attend)
+            dateAttendanceIdMap.set(courseGroupStudentId, att.id)
+          }
+        })
+        
+        // Actualizar las asistencias de los alumnos
+        const updatedAlumnos = asistenciaAlumnos.map(alumno => {
+          const attendValue = dateAttendanceMap.has(alumno.courseGroupStudentId) ? dateAttendanceMap.get(alumno.courseGroupStudentId) : 1 // 1 = Presente por defecto
+          const attendanceId = dateAttendanceIdMap.has(alumno.courseGroupStudentId) ? dateAttendanceIdMap.get(alumno.courseGroupStudentId) : null
+          
+          return {
+            ...alumno,
+            attend: attendValue, // 1=Presente, 2=Ausente, 3=Retardo
+            attendanceId: attendanceId
+          }
+        })
+        
+        console.log('Alumnos actualizados para nuevo parcial:', updatedAlumnos)
+        setAsistenciaAlumnos(updatedAlumnos)
+      } catch (error) {
+        console.log('No se encontraron asistencias para esta fecha y parcial, se crearán nuevas')
+        // Si no hay asistencias, resetear todos los attendanceId a null y attend a 1 (Presente)
+        const updatedAlumnos = asistenciaAlumnos.map(alumno => ({
+          ...alumno,
+          attend: 1, // 1 = Presente por defecto
+          attendanceId: null
+        }))
+        setAsistenciaAlumnos(updatedAlumnos)
+      } finally {
+        setIsLoadingDateChange(false)
+      }
+    }
+    
+    loadAttendancesForParcial()
+  }
+
   const handleDateChange = (newDate: string) => {
     setAsistenciaFecha(newDate)
     
@@ -819,13 +886,15 @@ export default function MaestroAsignaturas() {
       try {
         const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(asistenciaGrupo.courseGroup.id, newDate)
         const existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
-        console.log('Asistencias para nueva fecha:', existingAttendances)
+        // Filtrar por parcial
+        const filteredAttendances = existingAttendances.filter((att: AttendanceData) => att.partial === asistenciaParcial)
+        console.log('Asistencias para nueva fecha y parcial:', filteredAttendances)
         
         // Crear un mapa de asistencias por courseGroupStudentId
         const dateAttendanceMap = new Map()
         const dateAttendanceIdMap = new Map()
         
-        existingAttendances.forEach((att: AttendanceData) => {
+        filteredAttendances.forEach((att: AttendanceData) => {
           const courseGroupStudentId = att.courseGroupStudent?.id || att.courseGroupStudentId
           if (courseGroupStudentId) {
             dateAttendanceMap.set(courseGroupStudentId, att.attend)
@@ -1647,21 +1716,37 @@ export default function MaestroAsignaturas() {
             <Dialog open={isAsistenciaModalOpen} onOpenChange={setIsAsistenciaModalOpen}>
               <DialogContent className="max-w-4xl">
                 <DialogHeader>
-                  <DialogTitle>Asistencia</DialogTitle>
+                  <DialogTitle>Asistencia - {asistenciaParcial === 1 ? 'Primer' : asistenciaParcial === 2 ? 'Segundo' : 'Tercer'} Parcial</DialogTitle>
                   <DialogDescription>
-                    Selecciona los alumnos presentes y ausentes
+                    Selecciona los alumnos presentes y ausentes para el parcial seleccionado
                   </DialogDescription>
                 </DialogHeader>
-                <div className="mb-4 flex items-center gap-2">
-                  <label htmlFor="asistenciaFecha" className="font-medium">Fecha:</label>
-                  <input
-                    id="asistenciaFecha"
-                    type="date"
-                    value={asistenciaFecha}
-                    onChange={e => handleDateChange(e.target.value)}
-                    className="border rounded px-2 py-1"
-                    disabled={isLoadingDateChange}
-                  />
+                <div className="mb-4 flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="asistenciaFecha" className="font-medium">Fecha:</label>
+                    <input
+                      id="asistenciaFecha"
+                      type="date"
+                      value={asistenciaFecha}
+                      onChange={e => handleDateChange(e.target.value)}
+                      className="border rounded px-2 py-1"
+                      disabled={isLoadingDateChange}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="asistenciaParcial" className="font-medium">Parcial:</label>
+                    <select
+                      id="asistenciaParcial"
+                      value={asistenciaParcial}
+                      onChange={e => handleParcialChange(Number(e.target.value))}
+                      className="border rounded px-2 py-1"
+                      disabled={isLoadingDateChange}
+                    >
+                      <option value={1}>Primer Parcial</option>
+                      <option value={2}>Segundo Parcial</option>
+                      <option value={3}>Tercer Parcial</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="mt-4">
                   <div className="rounded-md border">
