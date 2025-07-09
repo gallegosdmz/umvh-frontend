@@ -34,7 +34,7 @@ export default function SignIn() {
         if (user.role === "administrador") {
           router.push("/admin/dashboard")
         } else {
-          router.push("/maestro/dashboard")
+          router.push("/maestro/asignaturas")
         }
       } else {
         setError("Credenciales inválidas. Verifica tu email y contraseña.")

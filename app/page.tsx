@@ -11,10 +11,10 @@ export default function Home() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        if (user.rol === "administrador") {
+        if (user.role === "administrador") {
           router.push("/admin/dashboard")
         } else {
-          router.push("/maestro/dashboard")
+          router.push("/maestro/asignaturas")
         }
       } else {
         router.push("/auth/signin")
