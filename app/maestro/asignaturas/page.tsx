@@ -1497,7 +1497,7 @@ export default function MaestroAsignaturas() {
 
             {/* Modal de Alumnos */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogContent className="max-w-4xl [&>button]:hidden">
+              <DialogContent className="max-w-5xl [&>button]:hidden">
                 <DialogHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -1549,73 +1549,77 @@ export default function MaestroAsignaturas() {
                               <TableCell>{selectedCourseGroup?.group?.semester || 'N/A'}</TableCell>
                               <TableCell>{alumno.registrationNumber}</TableCell>
                               <TableCell className="text-right">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={async () => {
-                                    setAlumnoEvaluacion(alumno)
-                                    setIsEvaluacionesModalOpen(true)
-                                    
-                                    // Cargar las ponderaciones del curso si no están cargadas
-                                    if (!ponderacionesCurso && selectedCourseGroup) {
-                                      try {
-                                        const courseGroupWithPonderaciones = await CourseService.getCourseGroupIndividual(selectedCourseGroup.id)
-                                        const gradingschemes = courseGroupWithPonderaciones.coursesGroupsGradingschemes || []
-                                        
-                                        const ponderaciones = {
-                                          asistencia: 0,
-                                          actividades: 0,
-                                          evidencias: 0,
-                                          producto: 0,
-                                          examen: 0
-                                        }
-                                        
-                                        const ids: {
-                                          asistencia?: number,
-                                          actividades?: number,
-                                          evidencias?: number,
-                                          producto?: number,
-                                          examen?: number
-                                        } = {}
-                                        
-                                        gradingschemes.forEach((scheme: any) => {
-                                          const type = scheme.type.toLowerCase()
-                                          if (type === 'asistencia') {
-                                            ponderaciones.asistencia = scheme.percentage
-                                            ids.asistencia = scheme.id
-                                          } else if (type === 'actividades') {
-                                            ponderaciones.actividades = scheme.percentage
-                                            ids.actividades = scheme.id
-                                          } else if (type === 'evidencias') {
-                                            ponderaciones.evidencias = scheme.percentage
-                                            ids.evidencias = scheme.id
-                                          } else if (type === 'producto') {
-                                            ponderaciones.producto = scheme.percentage
-                                            ids.producto = scheme.id
-                                          } else if (type === 'examen') {
-                                            ponderaciones.examen = scheme.percentage
-                                            ids.examen = scheme.id
+                                <div className="flex gap-2 justify-end">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-36 flex items-center justify-center"
+                                    onClick={async () => {
+                                      setAlumnoEvaluacion(alumno)
+                                      setIsEvaluacionesModalOpen(true)
+                                      
+                                      // Cargar las ponderaciones del curso si no están cargadas
+                                      if (!ponderacionesCurso && selectedCourseGroup) {
+                                        try {
+                                          const courseGroupWithPonderaciones = await CourseService.getCourseGroupIndividual(selectedCourseGroup.id)
+                                          const gradingschemes = courseGroupWithPonderaciones.coursesGroupsGradingschemes || []
+                                          
+                                          const ponderaciones = {
+                                            asistencia: 0,
+                                            actividades: 0,
+                                            evidencias: 0,
+                                            producto: 0,
+                                            examen: 0
                                           }
-                                        })
-                                        
-                                        setPonderacionesCurso(ponderaciones)
-                                        setPonderacionesIds(ids)
-                                      } catch (error) {
-                                        console.error('Error al cargar las ponderaciones:', error)
+                                          
+                                          const ids: {
+                                            asistencia?: number,
+                                            actividades?: number,
+                                            evidencias?: number,
+                                            producto?: number,
+                                            examen?: number
+                                          } = {}
+                                          
+                                          gradingschemes.forEach((scheme: any) => {
+                                            const type = scheme.type.toLowerCase()
+                                            if (type === 'asistencia') {
+                                              ponderaciones.asistencia = scheme.percentage
+                                              ids.asistencia = scheme.id
+                                            } else if (type === 'actividades') {
+                                              ponderaciones.actividades = scheme.percentage
+                                              ids.actividades = scheme.id
+                                            } else if (type === 'evidencias') {
+                                              ponderaciones.evidencias = scheme.percentage
+                                              ids.evidencias = scheme.id
+                                            } else if (type === 'producto') {
+                                              ponderaciones.producto = scheme.percentage
+                                              ids.producto = scheme.id
+                                            } else if (type === 'examen') {
+                                              ponderaciones.examen = scheme.percentage
+                                              ids.examen = scheme.id
+                                            }
+                                          })
+                                          
+                                          setPonderacionesCurso(ponderaciones)
+                                          setPonderacionesIds(ids)
+                                        } catch (error) {
+                                          console.error('Error al cargar las ponderaciones:', error)
+                                        }
                                       }
-                                    }
-                                  }}
-                                >
-                                  <BarChart3 className="h-4 w-4 mr-2" />
-                                  Evaluaciones
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleVerCalificacionFinal(alumno)}
-                                >
-                                  Promedio
-                                </Button>
+                                    }}
+                                  >
+                                    <BarChart3 className="h-4 w-4 mr-2" />
+                                    Evaluaciones
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-36 flex items-center justify-center"
+                                    onClick={() => handleVerCalificacionFinal(alumno)}
+                                  >
+                                    Promedio
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))
