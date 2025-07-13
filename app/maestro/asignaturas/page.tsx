@@ -2246,7 +2246,7 @@ export default function MaestroAsignaturas() {
                         <td className="px-2 py-1">
                           <div className="flex flex-col items-center gap-1">
                             <div className="w-14 h-8 flex items-center justify-center bg-purple-50 border border-purple-200 rounded font-semibold text-purple-700">
-                              {calificacionParcial !== null ? calificacionParcial.toFixed(1) : '--.-'}
+                              {calificacionParcial !== null ? (Math.floor(calificacionParcial * 100) / 100).toFixed(2) : '--.--'}
                             </div>
                             <div className="text-xs text-purple-600 font-medium">
                               Calificación
