@@ -1938,14 +1938,14 @@ export default function MaestroAsignaturas() {
 
             {/* Modal de Asistencia */}
             <Dialog open={isAsistenciaModalOpen} onOpenChange={setIsAsistenciaModalOpen}>
-              <DialogContent className="max-w-4xl">
+              <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Asistencia - {asistenciaParcial === 1 ? 'Primer' : asistenciaParcial === 2 ? 'Segundo' : 'Tercer'} Parcial</DialogTitle>
                   <DialogDescription>
                     Selecciona los alumnos presentes y ausentes para el parcial seleccionado
                   </DialogDescription>
                 </DialogHeader>
-                <div className="mb-4 flex items-center gap-4">
+                <div className="mb-4 flex items-center gap-4 flex-shrink-0">
                   <div className="flex items-center gap-2">
                     <label htmlFor="asistenciaFecha" className="font-medium">Fecha:</label>
                     <input
@@ -1972,45 +1972,45 @@ export default function MaestroAsignaturas() {
                     </select>
                   </div>
                 </div>
-                <div className="mt-4">
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Nombre Completo</TableHead>
-                          <TableHead>Matrícula</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead>Presente</TableHead>
-                          <TableHead>Ausente</TableHead>
-                          <TableHead>Retardo</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                <div className="flex-1 overflow-hidden">
+                  <div className="rounded-md border h-full flex flex-col">
+                    <table className="min-w-full w-full border-separate" style={{ borderSpacing: 0, tableLayout: 'fixed' }}>
+                      <thead className="bg-white sticky top-0 z-10" style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+                        <tr>
+                          <th className="px-4 py-2 text-left" style={{ width: '30%' }}>Nombre Completo</th>
+                          <th className="px-4 py-2 text-left" style={{ width: '18%' }}>Matrícula</th>
+                          <th className="px-4 py-2 text-left" style={{ width: '18%' }}>Estado</th>
+                          <th className="px-4 py-2 text-center" style={{ width: '11%' }}>Presente</th>
+                          <th className="px-4 py-2 text-center" style={{ width: '11%' }}>Ausente</th>
+                          <th className="px-4 py-2 text-center" style={{ width: '12%' }}>Retardo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="block max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" style={{ display: 'block', width: '100%' }}>
                         {isLoadingAsistencia || isLoadingDateChange ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8">
+                          <tr style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+                            <td colSpan={6} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
                                 <p>{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
                               </div>
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         ) : asistenciaAlumnos.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8">
+                          <tr style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+                            <td colSpan={6} className="text-center py-8">
                               <div className="flex flex-col items-center justify-center text-gray-500">
                                 <Users className="h-12 w-12 mb-4" />
                                 <p className="text-lg font-medium">No hay alumnos en este grupo</p>
                                 <p className="text-sm">Agrega alumnos al grupo para tomar asistencia</p>
                               </div>
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         ) : (
                           asistenciaAlumnos.map((alumno) => (
-                            <TableRow key={alumno.id}>
-                              <TableCell className="font-medium">{alumno.fullName}</TableCell>
-                              <TableCell>{alumno.registrationNumber}</TableCell>
-                              <TableCell>
+                            <tr key={alumno.id} style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
+                              <td className="font-medium px-4 py-2" style={{ width: '30%' }}>{alumno.fullName}</td>
+                              <td className="px-4 py-2" style={{ width: '18%' }}>{alumno.registrationNumber}</td>
+                              <td className="px-4 py-2" style={{ width: '18%' }}>
                                 {alumno.attendanceId ? (
                                   <Badge variant="secondary" className="bg-green-100 text-green-800">
                                     ✓ Creada
@@ -2020,8 +2020,8 @@ export default function MaestroAsignaturas() {
                                     ⚠ Nueva
                                   </Badge>
                                 )}
-                              </TableCell>
-                              <TableCell>
+                              </td>
+                              <td className="px-4 py-2 text-center" style={{ width: '11%' }}>
                                 <input
                                   type="checkbox"
                                   checked={alumno.attend === 1}
@@ -2032,8 +2032,8 @@ export default function MaestroAsignaturas() {
                                     setAsistenciaAlumnos(updatedAlumnos);
                                   }}
                                 />
-                              </TableCell>
-                              <TableCell>
+                              </td>
+                              <td className="px-4 py-2 text-center" style={{ width: '11%' }}>
                                 <input
                                   type="checkbox"
                                   checked={alumno.attend === 2}
@@ -2044,8 +2044,8 @@ export default function MaestroAsignaturas() {
                                     setAsistenciaAlumnos(updatedAlumnos);
                                   }}
                                 />
-                              </TableCell>
-                              <TableCell>
+                              </td>
+                              <td className="px-4 py-2 text-center" style={{ width: '12%' }}>
                                 <input
                                   type="checkbox"
                                   checked={alumno.attend === 3}
@@ -2056,30 +2056,30 @@ export default function MaestroAsignaturas() {
                                     setAsistenciaAlumnos(updatedAlumnos);
                                   }}
                                 />
-                              </TableCell>
-                            </TableRow>
+                              </td>
+                            </tr>
                           ))
                         )}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="flex items-center justify-between mt-4">
-                    <Button
-                      variant="outline"
-                      onClick={handleCloseAsistenciaModal}
-                      disabled={isSavingAttendance}
-                    >
-                      Cerrar
-                    </Button>
-                    <Button
-                      variant="default"
-                      onClick={handleSaveAttendance}
-                      disabled={isSavingAttendance || asistenciaAlumnos.length === 0}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      {isSavingAttendance ? 'Guardando...' : 'Guardar'}
-                    </Button>
-                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-4 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    onClick={handleCloseAsistenciaModal}
+                    disabled={isSavingAttendance}
+                  >
+                    Cerrar
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={handleSaveAttendance}
+                    disabled={isSavingAttendance || asistenciaAlumnos.length === 0}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {isSavingAttendance ? 'Guardando...' : 'Guardar'}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
