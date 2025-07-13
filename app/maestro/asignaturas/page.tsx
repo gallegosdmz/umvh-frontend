@@ -2425,6 +2425,8 @@ export default function MaestroAsignaturas() {
                     <th className="px-2 py-1">Promedio</th>
                     <th className="px-2 py-1">Asistencia</th>
                     <th className="px-2 py-1">Exentos</th>
+                    <th className="px-2 py-1">Ordinario</th>
+                    <th className="px-2 py-1">Extraordinario</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2437,6 +2439,8 @@ export default function MaestroAsignaturas() {
                     <td className="px-2 py-1 font-bold">{calificacionesFinales.promedio !== null ? calificacionesFinales.promedio.toFixed(2) : '--'}</td>
                     <td className="px-2 py-1">{calificacionesFinales.asistencia !== null ? calificacionesFinales.asistencia + '%' : '--'}</td>
                     <td className="px-2 py-1 font-bold">{calificacionesFinales.exentos !== null ? calificacionesFinales.exentos.toFixed(2) : '--'}</td>
+                    <td className="px-2 py-1">--</td>
+                    <td className="px-2 py-1">--</td>
                   </tr>
                 </tbody>
               </table>
