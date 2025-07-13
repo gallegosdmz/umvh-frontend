@@ -36,7 +36,9 @@ export default function PeriodosPage() {
   const itemsPerPage = 20;
   const [openFinishPeriod, setOpenFinishPeriod] = useState(false);
   const [periodToFinish, setPeriodToFinish] = useState<PeriodWithPartials | null>(null);
-  const [activePartial, setActivePartial] = useState<'first' | 'second' | 'third' | null>(null);
+  const [firstPartialActive, setFirstPartialActive] = useState(false);
+  const [secondPartialActive, setSecondPartialActive] = useState(false);
+  const [thirdPartialActive, setThirdPartialActive] = useState(false);
 
   useEffect(() => {
     loadPeriods();
@@ -72,9 +74,9 @@ export default function PeriodosPage() {
       name: nombre,
       startDate: formatDateToISO(fechaInicio),
       endDate: formatDateToISO(fechaFin),
-      firstPartialActive: activePartial === 'first',
-      secondPartialActive: activePartial === 'second',
-      thirdPartialActive: activePartial === 'third'
+      firstPartialActive: firstPartialActive,
+      secondPartialActive: secondPartialActive,
+      thirdPartialActive: thirdPartialActive
     };
 
     try {
@@ -97,16 +99,10 @@ export default function PeriodosPage() {
     setFechaInicio(parseDateFromISO(period.startDate));
     setFechaFin(parseDateFromISO(period.endDate));
     
-    // Determinar cuál parcial está activo
-    if (period.firstPartialActive) {
-      setActivePartial('first');
-    } else if (period.secondPartialActive) {
-      setActivePartial('second');
-    } else if (period.thirdPartialActive) {
-      setActivePartial('third');
-    } else {
-      setActivePartial(null);
-    }
+    // Establecer el estado de cada parcial
+    setFirstPartialActive(period.firstPartialActive || false);
+    setSecondPartialActive(period.secondPartialActive || false);
+    setThirdPartialActive(period.thirdPartialActive || false);
     
     setOpen(true);
   };
@@ -134,7 +130,9 @@ export default function PeriodosPage() {
     setFechaInicio(undefined);
     setFechaFin(undefined);
     setEditingPeriod(null);
-    setActivePartial(null);
+    setFirstPartialActive(false);
+    setSecondPartialActive(false);
+    setThirdPartialActive(false);
   };
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -250,37 +248,34 @@ export default function PeriodosPage() {
                   <div className="flex-1 flex items-center gap-2">
                     <input
                       id="firstPartialActive"
-                      type="radio"
-                      name="activePartial"
-                      checked={activePartial === 'first'}
-                      onChange={() => setActivePartial('first')}
+                      type="checkbox"
+                      checked={firstPartialActive}
+                      onChange={(e) => setFirstPartialActive(e.target.checked)}
                     />
                     <Label htmlFor="firstPartialActive">
-                      Primer Parcial: {activePartial === 'first' ? 'Abierto' : 'Cerrado'}
+                      Primer Parcial: {firstPartialActive ? 'Abierto' : 'Cerrado'}
                     </Label>
                   </div>
                   <div className="flex-1 flex items-center gap-2">
                     <input
                       id="secondPartialActive"
-                      type="radio"
-                      name="activePartial"
-                      checked={activePartial === 'second'}
-                      onChange={() => setActivePartial('second')}
+                      type="checkbox"
+                      checked={secondPartialActive}
+                      onChange={(e) => setSecondPartialActive(e.target.checked)}
                     />
                     <Label htmlFor="secondPartialActive">
-                      Segundo Parcial: {activePartial === 'second' ? 'Abierto' : 'Cerrado'}
+                      Segundo Parcial: {secondPartialActive ? 'Abierto' : 'Cerrado'}
                     </Label>
                   </div>
                   <div className="flex-1 flex items-center gap-2">
                     <input
                       id="thirdPartialActive"
-                      type="radio"
-                      name="activePartial"
-                      checked={activePartial === 'third'}
-                      onChange={() => setActivePartial('third')}
+                      type="checkbox"
+                      checked={thirdPartialActive}
+                      onChange={(e) => setThirdPartialActive(e.target.checked)}
                     />
                     <Label htmlFor="thirdPartialActive">
-                      Tercer Parcial: {activePartial === 'third' ? 'Abierto' : 'Cerrado'}
+                      Tercer Parcial: {thirdPartialActive ? 'Abierto' : 'Cerrado'}
                     </Label>
                   </div>
                 </div>
