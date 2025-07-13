@@ -16,20 +16,27 @@ import { usePeriod } from '@/lib/hooks/usePeriod';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+type PeriodWithPartials = Period & {
+  firstPartialActive?: boolean;
+  secondPartialActive?: boolean;
+  thirdPartialActive?: boolean;
+};
+
 export default function PeriodosPage() {
   const { loading, error, totalItems, handleGetPeriods, handleCreatePeriod, handleUpdatePeriod, handleDeletePeriod } = usePeriod();
-  const [periodos, setPeriodos] = useState<Period[]>([]);
+  const [periodos, setPeriodos] = useState<PeriodWithPartials[]>([]);
   const [nombre, setNombre] = useState("");
   const [fechaInicio, setFechaInicio] = useState<Date | undefined>();
   const [fechaFin, setFechaFin] = useState<Date | undefined>();
   const [open, setOpen] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
-  const [periodToDelete, setPeriodToDelete] = useState<Period | null>(null);
-  const [editingPeriod, setEditingPeriod] = useState<Period | null>(null);
+  const [periodToDelete, setPeriodToDelete] = useState<PeriodWithPartials | null>(null);
+  const [editingPeriod, setEditingPeriod] = useState<PeriodWithPartials | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
   const [openFinishPeriod, setOpenFinishPeriod] = useState(false);
-  const [periodToFinish, setPeriodToFinish] = useState<Period | null>(null);
+  const [periodToFinish, setPeriodToFinish] = useState<PeriodWithPartials | null>(null);
+  const [activePartial, setActivePartial] = useState<'first' | 'second' | 'third' | null>(null);
 
   useEffect(() => {
     loadPeriods();
@@ -61,10 +68,13 @@ export default function PeriodosPage() {
       return;
     }
 
-    const periodData: Period = {
+    const periodData: PeriodWithPartials = {
       name: nombre,
       startDate: formatDateToISO(fechaInicio),
-      endDate: formatDateToISO(fechaFin)
+      endDate: formatDateToISO(fechaFin),
+      firstPartialActive: activePartial === 'first',
+      secondPartialActive: activePartial === 'second',
+      thirdPartialActive: activePartial === 'third'
     };
 
     try {
@@ -81,15 +91,27 @@ export default function PeriodosPage() {
     }
   };
 
-  const handleEdit = (period: Period) => {
+  const handleEdit = (period: PeriodWithPartials) => {
     setEditingPeriod(period);
     setNombre(period.name);
     setFechaInicio(parseDateFromISO(period.startDate));
     setFechaFin(parseDateFromISO(period.endDate));
+    
+    // Determinar cuál parcial está activo
+    if (period.firstPartialActive) {
+      setActivePartial('first');
+    } else if (period.secondPartialActive) {
+      setActivePartial('second');
+    } else if (period.thirdPartialActive) {
+      setActivePartial('third');
+    } else {
+      setActivePartial(null);
+    }
+    
     setOpen(true);
   };
 
-  const handleDelete = async (period: Period) => {
+  const handleDelete = async (period: PeriodWithPartials) => {
     setPeriodToDelete(period);
     setOpenDelete(true);
   };
@@ -112,6 +134,7 @@ export default function PeriodosPage() {
     setFechaInicio(undefined);
     setFechaFin(undefined);
     setEditingPeriod(null);
+    setActivePartial(null);
   };
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -122,7 +145,7 @@ export default function PeriodosPage() {
     }
   };
 
-  const handleFinishPeriod = async (period: Period) => {
+  const handleFinishPeriod = async (period: PeriodWithPartials) => {
     setPeriodToFinish(period);
     setOpenFinishPeriod(true);
   };
@@ -221,6 +244,44 @@ export default function PeriodosPage() {
                         />
                       </PopoverContent>
                     </Popover>
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      id="firstPartialActive"
+                      type="radio"
+                      name="activePartial"
+                      checked={activePartial === 'first'}
+                      onChange={() => setActivePartial('first')}
+                    />
+                    <Label htmlFor="firstPartialActive">
+                      Primer Parcial: {activePartial === 'first' ? 'Abierto' : 'Cerrado'}
+                    </Label>
+                  </div>
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      id="secondPartialActive"
+                      type="radio"
+                      name="activePartial"
+                      checked={activePartial === 'second'}
+                      onChange={() => setActivePartial('second')}
+                    />
+                    <Label htmlFor="secondPartialActive">
+                      Segundo Parcial: {activePartial === 'second' ? 'Abierto' : 'Cerrado'}
+                    </Label>
+                  </div>
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      id="thirdPartialActive"
+                      type="radio"
+                      name="activePartial"
+                      checked={activePartial === 'third'}
+                      onChange={() => setActivePartial('third')}
+                    />
+                    <Label htmlFor="thirdPartialActive">
+                      Tercer Parcial: {activePartial === 'third' ? 'Abierto' : 'Cerrado'}
+                    </Label>
                   </div>
                 </div>
                 <DialogFooter>
