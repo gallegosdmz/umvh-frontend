@@ -133,6 +133,17 @@ export default function MaestroAsignaturas() {
   const [isSavingPartial, setIsSavingPartial] = useState(false)
   const [selectedPartial, setSelectedPartial] = useState(1)
   const [calificacionParcial, setCalificacionParcial] = useState<number | null>(null)
+  // 1. Agregar estados para el modal de calificación final
+  const [isCalificacionFinalModalOpen, setIsCalificacionFinalModalOpen] = useState(false);
+  const [alumnoCalificacionFinal, setAlumnoCalificacionFinal] = useState<any | null>(null);
+  const [calificacionesFinales, setCalificacionesFinales] = useState<{
+    parcial1: number|null,
+    parcial2: number|null,
+    parcial3: number|null,
+    promedio: number|null,
+    asistencia: number|null,
+    exentos: number|null
+  } | null>(null);
 
   // Debug: Monitorear cambios en asistenciaAlumnos
   useEffect(() => {
@@ -1233,6 +1244,80 @@ export default function MaestroAsignaturas() {
     }
   }, [evaluacionesParciales, ponderacionesCurso, selectedPartial]);
 
+  // 2. Función para calcular la calificación final y asistencia
+  const handleVerCalificacionFinal = async (alumno: any) => {
+    if (!selectedCourseGroup) return;
+    setAlumnoCalificacionFinal(alumno);
+    setIsCalificacionFinalModalOpen(true);
+    try {
+      // Calcular calificaciones de los 3 parciales
+      let parciales: number[] = [];
+      for (let parcial = 1; parcial <= 3; parcial++) {
+        // Obtener evaluaciones parciales
+        const data = await CourseService.getPartialEvaluationsByCourseGroupStudentId(alumno.courseGroupStudentId);
+        const filtered = data.filter((item: any) => item.partial === parcial);
+        // Obtener ponderaciones
+        const cg = await CourseService.getCourseGroupIndividual(selectedCourseGroup.id);
+        const gradingschemes = cg.coursesGroupsGradingschemes || [];
+        const ponderaciones = { asistencia: 0, actividades: 0, evidencias: 0, producto: 0, examen: 0 };
+        gradingschemes.forEach((scheme: any) => {
+          const type = scheme.type.toLowerCase();
+          if (type === 'asistencia') ponderaciones.asistencia = scheme.percentage;
+          if (type === 'actividades') ponderaciones.actividades = scheme.percentage;
+          if (type === 'evidencias') ponderaciones.evidencias = scheme.percentage;
+          if (type === 'producto') ponderaciones.producto = scheme.percentage;
+          if (type === 'examen') ponderaciones.examen = scheme.percentage;
+        });
+        // Calcular asistencia
+        let asistenciaPromedio = 0;
+        if (ponderaciones.asistencia > 0) {
+          const asistencias = await CourseService.getAttendancesByCourseGroupStudentAndPartial(alumno.courseGroupStudentId, parcial);
+          if (Array.isArray(asistencias) && asistencias.length > 0) {
+            const presentes = asistencias.filter((att: any) => att.attend === 1).length;
+            asistenciaPromedio = (presentes / asistencias.length) * 10;
+          }
+        }
+        // Calcular actividades
+        const actividades = filtered.filter((item: any) => item.type === 'Actividades' && item.grade > 0).map((item: any) => item.grade);
+        const promedioActividades = actividades.length > 0 ? actividades.reduce((a: number, b: number) => a + b, 0) / actividades.length : 0;
+        // Calcular evidencias
+        const evidencias = filtered.filter((item: any) => item.type === 'Evidencias' && item.grade > 0).map((item: any) => item.grade);
+        const promedioEvidencias = evidencias.length > 0 ? evidencias.reduce((a: number, b: number) => a + b, 0) / evidencias.length : 0;
+        // Producto
+        const producto = filtered.find((item: any) => item.type === 'Producto')?.grade || 0;
+        // Examen
+        const examen = filtered.find((item: any) => item.type === 'Examen')?.grade || 0;
+        // Calcular calificación parcial
+        let calif = 0;
+        calif += (asistenciaPromedio * ponderaciones.asistencia) / 100;
+        calif += (promedioActividades * ponderaciones.actividades) / 100;
+        calif += (promedioEvidencias * ponderaciones.evidencias) / 100;
+        calif += (producto * ponderaciones.producto) / 100;
+        calif += (examen * ponderaciones.examen) / 100;
+        parciales.push(calif);
+      }
+      // Calcular promedio
+      const parcialesValidos = parciales.filter(p => typeof p === 'number' && !isNaN(p));
+      const promedio = parcialesValidos.length > 0 ? (parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) : null;
+      // Calcular asistencia total
+      let asistenciasTotales = await CourseService.getAttendancesByCourseGroupStudentAndPartial(alumno.courseGroupStudentId, 0); // 0 = todas
+      if (!Array.isArray(asistenciasTotales)) asistenciasTotales = [];
+      const presentesTotales = asistenciasTotales.filter((att: any) => att.attend === 1).length;
+      const asistenciaPorcentaje = asistenciasTotales.length > 0 ? Math.round((presentesTotales / asistenciasTotales.length) * 100) : 0;
+      // Exentos = promedio redondeado a 2 decimales
+      setCalificacionesFinales({
+        parcial1: parciales[0] ?? null,
+        parcial2: parciales[1] ?? null,
+        parcial3: parciales[2] ?? null,
+        promedio: promedio !== null ? Math.round(promedio * 100) / 100 : null,
+        asistencia: asistenciaPorcentaje,
+        exentos: promedio !== null ? Math.round(promedio * 100) / 100 : null
+      });
+    } catch (error) {
+      setCalificacionesFinales(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -1523,6 +1608,13 @@ export default function MaestroAsignaturas() {
                                 >
                                   <BarChart3 className="h-4 w-4 mr-2" />
                                   Evaluaciones
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleVerCalificacionFinal(alumno)}
+                                >
+                                  Promedio
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -2307,6 +2399,54 @@ export default function MaestroAsignaturas() {
           </CardContent>
         </Card>
       </div>
+      {/* Modal de Calificación Final */}
+      <Dialog open={isCalificacionFinalModalOpen} onOpenChange={setIsCalificacionFinalModalOpen}>
+        <DialogContent className="max-w-[90vw]">
+          <DialogHeader>
+            <DialogTitle>Calificación Final</DialogTitle>
+            <DialogDescription>
+              Resumen de calificaciones del alumno
+            </DialogDescription>
+          </DialogHeader>
+          {alumnoCalificacionFinal && calificacionesFinales ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border border-gray-300 text-center">
+                <thead>
+                  <tr className="bg-yellow-400 text-black">
+                    <th className="px-2 py-1">Matrícula</th>
+                    <th className="px-2 py-1">Nombre</th>
+                    <th className="px-2 py-1">Parcial 1</th>
+                    <th className="px-2 py-1">Parcial 2</th>
+                    <th className="px-2 py-1">Parcial 3</th>
+                    <th className="px-2 py-1">Promedio</th>
+                    <th className="px-2 py-1">Asistencia</th>
+                    <th className="px-2 py-1">Exentos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white">
+                    <td className="px-2 py-1">{alumnoCalificacionFinal.registrationNumber}</td>
+                    <td className="px-2 py-1">{alumnoCalificacionFinal.fullName}</td>
+                    <td className="px-2 py-1">{calificacionesFinales.parcial1 !== null ? calificacionesFinales.parcial1.toFixed(2) : '--'}</td>
+                    <td className="px-2 py-1">{calificacionesFinales.parcial2 !== null ? calificacionesFinales.parcial2.toFixed(2) : '--'}</td>
+                    <td className="px-2 py-1">{calificacionesFinales.parcial3 !== null ? calificacionesFinales.parcial3.toFixed(2) : '--'}</td>
+                    <td className="px-2 py-1 font-bold">{calificacionesFinales.promedio !== null ? calificacionesFinales.promedio.toFixed(2) : '--'}</td>
+                    <td className="px-2 py-1">{calificacionesFinales.asistencia !== null ? calificacionesFinales.asistencia + '%' : '--'}</td>
+                    <td className="px-2 py-1 font-bold">{calificacionesFinales.exentos !== null ? calificacionesFinales.exentos.toFixed(2) : '--'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center text-gray-500 py-4">Cargando calificaciones...</div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCalificacionFinalModalOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
