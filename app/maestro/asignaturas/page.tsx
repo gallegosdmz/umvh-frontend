@@ -957,7 +957,7 @@ export default function MaestroAsignaturas() {
     await handlePartialEvaluationButtonClick(type, idx)
   }
 
-  const calcularCalificacionParcial = () => {
+  const calcularCalificacionParcial = async () => {
     console.log('=== INICIANDO CÁLCULO DE CALIFICACIÓN PARCIAL ===')
     console.log('Ponderaciones actuales:', ponderacionesCurso)
     console.log('Evaluaciones parciales:', evaluacionesParciales)
@@ -974,15 +974,51 @@ export default function MaestroAsignaturas() {
     console.log('\n--- CÁLCULO DE ASISTENCIA ---')
     console.log('Ponderación de Asistencia:', ponderacionesCurso.asistencia, '%')
     
-    // TODO: Aquí se calculará la asistencia cuando tengamos acceso a esos datos
-    const asistenciaPromedio = 0 // Por ahora 0, se implementará después
-    const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100
-    console.log('Promedio de Asistencia:', asistenciaPromedio)
-    console.log('Calificación de Asistencia:', calificacionAsistencia)
-    
-    if (ponderacionesCurso.asistencia > 0) {
-      calificacionFinal += calificacionAsistencia
-      totalPonderacion += ponderacionesCurso.asistencia
+    if (ponderacionesCurso.asistencia > 0 && alumnoEvaluacion?.courseGroupStudentId) {
+      try {
+        // Usar el método correcto para obtener todas las asistencias del alumno en el parcial
+        const asistenciasAlumno = await CourseService.getAttendancesByCourseGroupStudentAndPartial(
+          alumnoEvaluacion.courseGroupStudentId,
+          selectedPartial
+        );
+
+        console.log('Asistencias del alumno en el parcial:', asistenciasAlumno);
+
+        if (Array.isArray(asistenciasAlumno) && asistenciasAlumno.length > 0) {
+          const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
+          const totalAsistencias = asistenciasAlumno.length;
+          const porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
+          const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
+          const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
+
+          console.log('Total de asistencias registradas:', totalAsistencias);
+          console.log('Asistencias presentes:', asistenciasPresentes);
+          console.log('Porcentaje de asistencia:', porcentajeAsistencia.toFixed(2) + '%');
+          console.log('Promedio de Asistencia (0-10):', asistenciaPromedio.toFixed(2));
+          console.log('Calificación de Asistencia:', calificacionAsistencia.toFixed(2));
+
+          calificacionFinal += calificacionAsistencia;
+          totalPonderacion += ponderacionesCurso.asistencia;
+        } else {
+          // No hay asistencias registradas para este alumno en el parcial
+          const asistenciaPromedio = 0;
+          const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
+          console.log('Promedio de Asistencia:', asistenciaPromedio);
+          console.log('Calificación de Asistencia:', calificacionAsistencia);
+        }
+      } catch (error) {
+        console.error('Error al obtener asistencias:', error);
+        const asistenciaPromedio = 0;
+        const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
+        console.log('Promedio de Asistencia:', asistenciaPromedio);
+        console.log('Calificación de Asistencia:', calificacionAsistencia);
+      }
+    } else {
+      console.log('No hay ponderación de asistencia o no hay alumno seleccionado');
+      const asistenciaPromedio = 0;
+      const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
+      console.log('Promedio de Asistencia:', asistenciaPromedio);
+      console.log('Calificación de Asistencia:', calificacionAsistencia);
     }
     
     // 2. Cálculo de Actividades

@@ -301,5 +301,18 @@ export const CourseService = {
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || 'Error al obtener evaluaciones parciales');
         return data;
+    },
+
+    async getAttendancesByCourseGroupStudentAndPartial(courseGroupStudentId: number, partial: number) {
+        const response = await fetch(`${API_URL}/courses-groups-attendances/student/${courseGroupStudentId}?partial=${partial}`, {
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+        console.log('DEBUG SERVICE: ', data);
+        if (!response.ok) {
+            console.error('Error al obtener asistencias del alumno:', data)
+            return []
+        }
+        return data;
     }
 }; 
