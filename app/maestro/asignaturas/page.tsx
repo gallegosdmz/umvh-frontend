@@ -1306,13 +1306,39 @@ export default function MaestroAsignaturas() {
       const presentesTotales = asistenciasTotales.filter((att: any) => att.attend === 1).length;
       const asistenciaPorcentaje = asistenciasTotales.length > 0 ? Math.round((presentesTotales / asistenciasTotales.length) * 100) : 0;
       // Exentos = promedio redondeado a 2 decimales
+      const exentos = promedio !== null ? Math.round(promedio * 100) / 100 : null;
+
+      // --- INTEGRACIÓN FINAL GRADE ---
+      try {
+        // 1. Consultar si ya existe un FinalGrade
+        const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(alumno.courseGroupStudentId);
+        const dto = {
+          grade: promedio !== null ? Math.round(promedio) : 0, // Redondeo a entero
+          gradeOrdinary: 0, // Puedes ajustar según lógica
+          gradeExtraordinary: 0, // Puedes ajustar según lógica
+          date: new Date().toISOString(),
+          type: 'final',
+          courseGroupStudentId: alumno.courseGroupStudentId
+        };
+        if (!finalGrades || finalGrades.length === 0) {
+          // Crear
+          await CourseService.createFinalGrade(dto);
+        } else {
+          // Actualizar
+          await CourseService.updateFinalGrade(finalGrades[0].id, dto);
+        }
+      } catch (err) {
+        console.error('Error registrando FinalGrade:', err);
+      }
+      // --- FIN INTEGRACIÓN FINAL GRADE ---
+
       setCalificacionesFinales({
         parcial1: parciales[0] ?? null,
         parcial2: parciales[1] ?? null,
         parcial3: parciales[2] ?? null,
         promedio: promedio !== null ? Math.round(promedio * 100) / 100 : null,
         asistencia: asistenciaPorcentaje,
-        exentos: promedio !== null ? Math.round(promedio * 100) / 100 : null
+        exentos: exentos
       });
     } catch (error) {
       setCalificacionesFinales(null);

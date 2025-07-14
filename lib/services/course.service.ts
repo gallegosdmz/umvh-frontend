@@ -314,5 +314,37 @@ export const CourseService = {
             return []
         }
         return data;
-    }
+    },
+
+    async getFinalGradesByCourseGroupStudentId(courseGroupStudentId: number) {
+      const response = await fetch(`${API_URL}/final-grades/findAll/${courseGroupStudentId}`, {
+        headers: getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Error al obtener final grades');
+      return data;
+    },
+
+    async createFinalGrade(dto: any) {
+      const response = await fetch(`${API_URL}/final-grades`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(dto),
+      });
+      const data = await response.json();
+      console.log(data)
+      if (!response.ok) throw new Error(data.message || 'Error al crear final grade');
+      return data;
+    },
+
+    async updateFinalGrade(id: number, dto: any) {
+      const response = await fetch(`${API_URL}/final-grades/${id}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(dto),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Error al actualizar final grade');
+      return data;
+    },
 }; 
