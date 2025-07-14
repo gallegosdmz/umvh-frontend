@@ -987,6 +987,7 @@ export default function MaestroAsignaturas() {
     
     if (ponderacionesCurso.asistencia > 0 && alumnoEvaluacion?.courseGroupStudentId) {
       try {
+        console.log('PARCIAL ENVIADO AL ENDPOINT DE ASISTENCIAS:', selectedPartial);
         // Usar el método correcto para obtener todas las asistencias del alumno en el parcial
         const asistenciasAlumno = await CourseService.getAttendancesByCourseGroupStudentAndPartial(
           alumnoEvaluacion.courseGroupStudentId,
@@ -2438,7 +2439,16 @@ export default function MaestroAsignaturas() {
                     <td className="px-2 py-1">{calificacionesFinales.parcial3 !== null ? calificacionesFinales.parcial3.toFixed(2) : '--'}</td>
                     <td className="px-2 py-1 font-bold">{calificacionesFinales.promedio !== null ? calificacionesFinales.promedio.toFixed(2) : '--'}</td>
                     <td className="px-2 py-1">{calificacionesFinales.asistencia !== null ? calificacionesFinales.asistencia + '%' : '--'}</td>
-                    <td className="px-2 py-1 font-bold">{calificacionesFinales.exentos !== null ? calificacionesFinales.exentos.toFixed(2) : '--'}</td>
+                    <td className={
+                      "px-2 py-1 font-bold " +
+                      (calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? "bg-pink-200 text-pink-800" : "")
+                    }>
+                      {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
+                        ? 'Ord A'
+                        : calificacionesFinales.exentos !== null
+                          ? calificacionesFinales.exentos.toFixed(2)
+                          : '--'}
+                    </td>
                     <td className="px-2 py-1">--</td>
                     <td className="px-2 py-1">--</td>
                   </tr>
