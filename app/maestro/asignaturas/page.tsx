@@ -2490,40 +2490,45 @@ export default function MaestroAsignaturas() {
                           ? calificacionesFinales.exentos.toFixed(2)
                           : '--'}
                     </td>
-                    <td className="px-2 py-1">
+                    <td className={
+                      Number(inputOrdinario) < 6 && inputOrdinario !== ""
+                        ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
+                        : "px-2 py-1"
+                    }>
                       {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
-                        <div className="flex items-center gap-2 justify-center">
-                          <input
-                            type="number"
-                            min={0}
-                            max={10}
-                            className="w-20 text-center border rounded px-2 py-1 mx-1"
-                            placeholder="Ordinario"
-                            value={inputOrdinario}
-                            onChange={e => setInputOrdinario(e.target.value)}
-                            disabled={isSavingOrdinario}
-                          />
-                          <button
-                            className={`h-6 px-2 text-xs rounded ${finalGradeId ? 'border-green-500 text-green-600 border bg-green-50 hover:bg-green-100' : 'bg-green-600 text-white'} font-semibold`}
-                            style={{ minWidth: 60 }}
-                            disabled={isSavingOrdinario || !finalGradeId}
-                            onClick={async () => {
-                              if (!finalGradeId) return;
-                              setIsSavingOrdinario(true);
-                              try {
-                                await CourseService.updateFinalGrade(finalGradeId, { gradeOrdinary: Number(inputOrdinario) });
-                                // Opcional: feedback visual
-                                // toast.success('Calificación ordinario guardada');
-                              } catch (err) {
-                                // toast.error('Error al guardar ordinario');
-                              } finally {
-                                setIsSavingOrdinario(false);
-                              }
-                            }}
-                          >
-                            {isSavingOrdinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
-                          </button>
-                        </div>
+                        Number(inputOrdinario) < 6 && inputOrdinario !== "" ? (
+                          'EXT'
+                        ) : (
+                          <div className="flex items-center gap-2 justify-center">
+                            <input
+                              type="number"
+                              min={0}
+                              max={10}
+                              className="w-20 text-center border rounded px-2 py-1 mx-1"
+                              placeholder="Ordinario"
+                              value={inputOrdinario}
+                              onChange={e => setInputOrdinario(e.target.value)}
+                              disabled={isSavingOrdinario}
+                            />
+                            <button
+                              className={`h-6 px-2 text-xs rounded ${finalGradeId ? 'border-green-500 text-green-600 border bg-green-50 hover:bg-green-100' : 'bg-green-600 text-white'} font-semibold`}
+                              style={{ minWidth: 60 }}
+                              disabled={isSavingOrdinario || !finalGradeId}
+                              onClick={async () => {
+                                if (!finalGradeId) return;
+                                setIsSavingOrdinario(true);
+                                try {
+                                  await CourseService.updateFinalGrade(finalGradeId, { gradeOrdinary: Number(inputOrdinario) });
+                                } catch (err) {
+                                } finally {
+                                  setIsSavingOrdinario(false);
+                                }
+                              }}
+                            >
+                              {isSavingOrdinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
+                            </button>
+                          </div>
+                        )
                       ) : '--'}
                     </td>
                     <td className="px-2 py-1">--</td>
