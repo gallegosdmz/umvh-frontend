@@ -147,7 +147,24 @@ export default function MaestroAsignaturas() {
   // 1. Agrega estados para el valor de ordinario y el id de FinalGrade
   const [finalGradeId, setFinalGradeId] = useState<number | null>(null);
   const [inputOrdinario, setInputOrdinario] = useState<string>("");
+  const [inputExtraordinario, setInputExtraordinario] = useState<string>("");
   const [isSavingOrdinario, setIsSavingOrdinario] = useState(false);
+  const [isSavingExtraordinario, setIsSavingExtraordinario] = useState(false);
+
+  // Función para recargar los datos del FinalGrade
+  const reloadFinalGradeData = async (courseGroupStudentId: number) => {
+    try {
+      const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+      if (finalGrades && finalGrades.length > 0) {
+        const finalGrade = finalGrades[0];
+        setFinalGradeId(finalGrade.id);
+        setInputOrdinario(finalGrade.gradeOrdinary?.toString() || "");
+        setInputExtraordinario(finalGrade.gradeExtraordinary?.toString() || "");
+      }
+    } catch (error) {
+      console.error('Error al recargar datos del FinalGrade:', error);
+    }
+  };
 
   // Debug: Monitorear cambios en asistenciaAlumnos
   useEffect(() => {
@@ -1316,29 +1333,42 @@ export default function MaestroAsignaturas() {
       try {
         // 1. Consultar si ya existe un FinalGrade
         const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(alumno.courseGroupStudentId);
-        const dto = {
-          grade: promedio !== null ? Math.round(promedio) : 0, // Redondeo a entero
-          gradeOrdinary: 0, // Puedes ajustar según lógica
-          gradeExtraordinary: 0, // Puedes ajustar según lógica
-          date: new Date().toISOString(),
-          type: 'final',
-          courseGroupStudentId: alumno.courseGroupStudentId
-        };
+        
         if (!finalGrades || finalGrades.length === 0) {
-          // Crear
+          // Crear nuevo FinalGrade
+          const dto = {
+            grade: promedio !== null ? Math.round(promedio) : 0, // Redondeo a entero
+            gradeOrdinary: 0,
+            gradeExtraordinary: 0,
+            date: new Date().toISOString(),
+            type: 'final',
+            courseGroupStudentId: alumno.courseGroupStudentId
+          };
           const created = await CourseService.createFinalGrade(dto);
           setFinalGradeId(created.id);
           setInputOrdinario(created.gradeOrdinary?.toString() || "");
+          setInputExtraordinario(created.gradeExtraordinary?.toString() || "");
         } else {
-          // Actualizar
-          await CourseService.updateFinalGrade(finalGrades[0].id, dto);
-          setFinalGradeId(finalGrades[0].id);
-          setInputOrdinario(finalGrades[0].gradeOrdinary?.toString() || "");
+          // Actualizar solo el promedio, preservando las calificaciones existentes
+          const existingFinalGrade = finalGrades[0];
+          const dto = {
+            grade: promedio !== null ? Math.round(promedio) : 0, // Solo actualizar el promedio
+            gradeOrdinary: existingFinalGrade.gradeOrdinary || 0, // Preservar valor existente
+            gradeExtraordinary: existingFinalGrade.gradeExtraordinary || 0, // Preservar valor existente
+            date: new Date().toISOString(),
+            type: 'final',
+            courseGroupStudentId: alumno.courseGroupStudentId
+          };
+          await CourseService.updateFinalGrade(existingFinalGrade.id, dto);
+          setFinalGradeId(existingFinalGrade.id);
+          setInputOrdinario(existingFinalGrade.gradeOrdinary?.toString() || "");
+          setInputExtraordinario(existingFinalGrade.gradeExtraordinary?.toString() || "");
         }
       } catch (err) {
         console.error('Error registrando FinalGrade:', err);
         setFinalGradeId(null);
         setInputOrdinario("");
+        setInputExtraordinario("");
       }
       // --- FIN INTEGRACIÓN FINAL GRADE ---
 
@@ -2515,11 +2545,16 @@ export default function MaestroAsignaturas() {
                               style={{ minWidth: 60 }}
                               disabled={isSavingOrdinario || !finalGradeId}
                               onClick={async () => {
-                                if (!finalGradeId) return;
+                                if (!finalGradeId || !alumnoCalificacionFinal?.courseGroupStudentId) return;
                                 setIsSavingOrdinario(true);
                                 try {
                                   await CourseService.updateFinalGrade(finalGradeId, { gradeOrdinary: Number(inputOrdinario) });
+                                  toast.success('Calificación ordinaria guardada correctamente');
+                                  // Recargar los datos para asegurar sincronización
+                                  await reloadFinalGradeData(alumnoCalificacionFinal.courseGroupStudentId);
                                 } catch (err) {
+                                  console.error('Error al guardar calificación ordinaria:', err);
+                                  toast.error('Error al guardar calificación ordinaria');
                                 } finally {
                                   setIsSavingOrdinario(false);
                                 }
@@ -2531,7 +2566,48 @@ export default function MaestroAsignaturas() {
                         )
                       ) : '--'}
                     </td>
-                    <td className="px-2 py-1">--</td>
+                    <td className={
+                      Number(inputOrdinario) < 6 && inputOrdinario !== "" && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
+                        ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
+                        : "px-2 py-1"
+                    }>
+                      {Number(inputOrdinario) < 6 && inputOrdinario !== "" && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
+                        <div className="flex items-center gap-2 justify-center">
+                          <input
+                            type="number"
+                            min={0}
+                            max={10}
+                            className="w-20 text-center border rounded px-2 py-1 mx-1"
+                            placeholder="Extraordinario"
+                            value={inputExtraordinario}
+                            onChange={e => setInputExtraordinario(e.target.value)}
+                            disabled={isSavingExtraordinario}
+                          />
+                          <button
+                            className={`h-6 px-2 text-xs rounded ${finalGradeId ? 'border-green-500 text-green-600 border bg-green-50 hover:bg-green-100' : 'bg-green-600 text-white'} font-semibold`}
+                            style={{ minWidth: 60 }}
+                            disabled={isSavingExtraordinario || !finalGradeId}
+                            onClick={async () => {
+                              if (!finalGradeId || !alumnoCalificacionFinal?.courseGroupStudentId) return;
+                              setIsSavingExtraordinario(true);
+                              try {
+                                await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
+                                toast.success('Calificación extraordinaria guardada correctamente');
+                                // Recargar los datos para asegurar sincronización
+                                await reloadFinalGradeData(alumnoCalificacionFinal.courseGroupStudentId);
+                              } catch (err) {
+                                console.error('Error al guardar calificación extraordinaria:', err);
+                                toast.error('Error al guardar calificación extraordinaria');
+                              } finally {
+                                setIsSavingExtraordinario(false);
+                              }
+                            }}
+                          >
+                            {isSavingExtraordinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
+                          </button>
+                        </div>
+                      ) : '--'}
+                    </td>
                   </tr>
                 </tbody>
               </table>
