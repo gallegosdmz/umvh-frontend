@@ -2467,7 +2467,11 @@ export default function MaestroAsignaturas() {
                     <td className="px-2 py-1">{calificacionesFinales.asistencia !== null ? calificacionesFinales.asistencia + '%' : '--'}</td>
                     <td className={
                       "px-2 py-1 font-bold " +
-                      (calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? "bg-pink-200 text-pink-800" : "")
+                      (calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
+                        ? "bg-pink-200 text-pink-800"
+                        : calificacionesFinales.promedio !== null && calificacionesFinales.promedio >= 8
+                          ? "bg-green-100 text-green-800"
+                          : "")
                     }>
                       {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
                         ? 'Ord A'
@@ -2475,7 +2479,18 @@ export default function MaestroAsignaturas() {
                           ? calificacionesFinales.exentos.toFixed(2)
                           : '--'}
                     </td>
-                    <td className="px-2 py-1">--</td>
+                    <td className="px-2 py-1">
+                      {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
+                        <input
+                          type="number"
+                          min={0}
+                          max={10}
+                          className="w-20 text-center border rounded px-2 py-1 mx-1"
+                          placeholder="Ordinario"
+                          // sin funcionalidad aún
+                        />
+                      ) : '--'}
+                    </td>
                     <td className="px-2 py-1">--</td>
                   </tr>
                 </tbody>
