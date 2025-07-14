@@ -144,6 +144,10 @@ export default function MaestroAsignaturas() {
     asistencia: number|null,
     exentos: number|null
   } | null>(null);
+  // 1. Agrega estados para el valor de ordinario y el id de FinalGrade
+  const [finalGradeId, setFinalGradeId] = useState<number | null>(null);
+  const [inputOrdinario, setInputOrdinario] = useState<string>("");
+  const [isSavingOrdinario, setIsSavingOrdinario] = useState(false);
 
   // Debug: Monitorear cambios en asistenciaAlumnos
   useEffect(() => {
@@ -1322,13 +1326,19 @@ export default function MaestroAsignaturas() {
         };
         if (!finalGrades || finalGrades.length === 0) {
           // Crear
-          await CourseService.createFinalGrade(dto);
+          const created = await CourseService.createFinalGrade(dto);
+          setFinalGradeId(created.id);
+          setInputOrdinario(created.gradeOrdinary?.toString() || "");
         } else {
           // Actualizar
           await CourseService.updateFinalGrade(finalGrades[0].id, dto);
+          setFinalGradeId(finalGrades[0].id);
+          setInputOrdinario(finalGrades[0].gradeOrdinary?.toString() || "");
         }
       } catch (err) {
         console.error('Error registrando FinalGrade:', err);
+        setFinalGradeId(null);
+        setInputOrdinario("");
       }
       // --- FIN INTEGRACIÓN FINAL GRADE ---
 
@@ -1340,6 +1350,7 @@ export default function MaestroAsignaturas() {
         asistencia: asistenciaPorcentaje,
         exentos: exentos
       });
+      
     } catch (error) {
       setCalificacionesFinales(null);
     }
@@ -2481,14 +2492,38 @@ export default function MaestroAsignaturas() {
                     </td>
                     <td className="px-2 py-1">
                       {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
-                        <input
-                          type="number"
-                          min={0}
-                          max={10}
-                          className="w-20 text-center border rounded px-2 py-1 mx-1"
-                          placeholder="Ordinario"
-                          // sin funcionalidad aún
-                        />
+                        <div className="flex items-center gap-2 justify-center">
+                          <input
+                            type="number"
+                            min={0}
+                            max={10}
+                            className="w-20 text-center border rounded px-2 py-1 mx-1"
+                            placeholder="Ordinario"
+                            value={inputOrdinario}
+                            onChange={e => setInputOrdinario(e.target.value)}
+                            disabled={isSavingOrdinario}
+                          />
+                          <button
+                            className={`h-6 px-2 text-xs rounded ${finalGradeId ? 'border-green-500 text-green-600 border bg-green-50 hover:bg-green-100' : 'bg-green-600 text-white'} font-semibold`}
+                            style={{ minWidth: 60 }}
+                            disabled={isSavingOrdinario || !finalGradeId}
+                            onClick={async () => {
+                              if (!finalGradeId) return;
+                              setIsSavingOrdinario(true);
+                              try {
+                                await CourseService.updateFinalGrade(finalGradeId, { gradeOrdinary: Number(inputOrdinario) });
+                                // Opcional: feedback visual
+                                // toast.success('Calificación ordinario guardada');
+                              } catch (err) {
+                                // toast.error('Error al guardar ordinario');
+                              } finally {
+                                setIsSavingOrdinario(false);
+                              }
+                            }}
+                          >
+                            {isSavingOrdinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
+                          </button>
+                        </div>
                       ) : '--'}
                     </td>
                     <td className="px-2 py-1">--</td>
