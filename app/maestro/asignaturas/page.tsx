@@ -1351,30 +1351,28 @@ export default function MaestroAsignaturas() {
           console.log('Todas las calificaciones del alumno:', courseGroupStudent?.partialEvaluationGrades);
           console.log('Estructura completa de una calificación:', courseGroupStudent?.partialEvaluationGrades?.[0]);
           
-          // Buscar la calificación para el parcial seleccionado
-          // TEMPORAL: Como el backend no incluye la relación, asigno la calificación a la primera actividad
+          // Buscar la calificación específica para esta actividad y parcial
           const grade = courseGroupStudent?.partialEvaluationGrades?.find(
-            (peg: any) => peg.partial === selectedPartial
+            (peg: any) => {
+              console.log('Evaluando peg:', peg);
+              console.log('peg.partial:', peg?.partial, 'selectedPartial:', selectedPartial);
+              console.log('peg.partialEvaluation?.id:', peg?.partialEvaluation?.id, 'actividadDefinida.id:', actividadDefinida.id);
+              
+              const matchesPartial = peg.partial === selectedPartial;
+              const matchesActivity = peg.partialEvaluation?.id === actividadDefinida.id;
+              
+              console.log('matchesPartial:', matchesPartial, 'matchesActivity:', matchesActivity);
+              return matchesPartial && matchesActivity;
+            }
           );
           
-          console.log('grade encontrada para parcial', selectedPartial, ':', grade);
-          
-          // TEMPORAL: Solo asignar la calificación a la primera actividad de "Actividades"
-          // Esto es temporal hasta que el backend incluya la relación partialEvaluation
-          let shouldAssignGrade = false;
-          if (actividadDefinida.type === 'Actividades' && actividadDefinida.slot === 0) {
-            shouldAssignGrade = true;
-          }
-          
-          // Solo usar la calificación si es la primera actividad de "Actividades"
-          const finalGrade = shouldAssignGrade ? grade : null;
-          console.log('shouldAssignGrade:', shouldAssignGrade, 'finalGrade:', finalGrade);
+          console.log('grade encontrada para actividad', actividadDefinida.id, 'parcial', selectedPartial, ':', grade);
           
           if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
             const actividadData = { 
               name: actividadDefinida.name, 
-              grade: finalGrade?.grade || 0, 
-              id: finalGrade?.id || null, 
+              grade: grade?.grade || 0, 
+              id: grade?.id || null, 
               partialEvaluationId: actividadDefinida.id 
             };
             console.log(`Asignando actividad slot ${actividadDefinida.slot}:`, actividadData);
@@ -1383,8 +1381,8 @@ export default function MaestroAsignaturas() {
           } else if (actividadDefinida.type === 'Evidencias' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
             const evidenciaData = { 
               name: actividadDefinida.name, 
-              grade: finalGrade?.grade || 0, 
-              id: finalGrade?.id || null, 
+              grade: grade?.grade || 0, 
+              id: grade?.id || null, 
               partialEvaluationId: actividadDefinida.id 
             };
             console.log(`Asignando evidencia slot ${actividadDefinida.slot}:`, evidenciaData);
@@ -1393,8 +1391,8 @@ export default function MaestroAsignaturas() {
           } else if (actividadDefinida.type === 'Producto') {
             producto = { 
               name: actividadDefinida.name, 
-              grade: finalGrade?.grade || 0, 
-              id: finalGrade?.id || null, 
+              grade: grade?.grade || 0, 
+              id: grade?.id || null, 
               partialEvaluationId: actividadDefinida.id 
             };
             console.log('Asignando producto:', producto);
@@ -1402,8 +1400,8 @@ export default function MaestroAsignaturas() {
           } else if (actividadDefinida.type === 'Examen') {
             examen = { 
               name: actividadDefinida.name, 
-              grade: finalGrade?.grade || 0, 
-              id: finalGrade?.id || null, 
+              grade: grade?.grade || 0, 
+              id: grade?.id || null, 
               partialEvaluationId: actividadDefinida.id 
             };
             console.log('Asignando examen:', examen);
