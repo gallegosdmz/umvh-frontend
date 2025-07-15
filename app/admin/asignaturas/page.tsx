@@ -85,6 +85,16 @@ export default function AsignaturasPage() {
   const [importedStudents, setImportedStudents] = useState<ImportedStudent[]>([]);
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Variables para el modal de asignación de alumnos a CourseGroup
+  const [openAssignStudentsModal, setOpenAssignStudentsModal] = useState(false);
+  const [selectedCourseGroupForAssignment, setSelectedCourseGroupForAssignment] = useState<any>(null);
+  const [studentsForAssignment, setStudentsForAssignment] = useState<Student[]>([]);
+  const [filteredStudentsForAssignment, setFilteredStudentsForAssignment] = useState<Student[]>([]);
+  const [selectedStudentsForAssignment, setSelectedStudentsForAssignment] = useState<Set<string>>(new Set());
+  const [currentStudentsAssignmentPage, setCurrentStudentsAssignmentPage] = useState(1);
+  const [searchTermForAssignment, setSearchTermForAssignment] = useState("");
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
 
   useEffect(() => {
     loadItems();
@@ -121,6 +131,18 @@ export default function AsignaturasPage() {
       loadStudentsForCourseGroup();
     }
   }, [currentStudentsPage, openViewStudentsModal, selectedCourseGroupForStudents?.id]);
+
+  useEffect(() => {
+    if (openAssignStudentsModal) {
+      loadStudentsForAssignment();
+    }
+  }, [currentStudentsAssignmentPage, openAssignStudentsModal]);
+
+  useEffect(() => {
+    if (openAssignStudentsModal) {
+      filterStudentsForAssignment();
+    }
+  }, [searchTermForAssignment, studentsForAssignment]);
 
   const loadItems = async () => {
     try {
@@ -784,6 +806,122 @@ export default function AsignaturasPage() {
     }
   };
 
+  // Funciones para asignar alumnos a un CourseGroup específico
+  const handleAssignStudentsToCourseGroup = async (assignment: any) => {
+    setSelectedCourseGroupForAssignment(assignment);
+    setOpenAssignStudentsModal(true);
+    setCurrentStudentsAssignmentPage(1);
+    setSearchTermForAssignment("");
+    setSelectedStudentsForAssignment(new Set());
+    await loadStudentsForAssignment();
+  };
+
+  const loadStudentsForAssignment = async () => {
+    try {
+      const offset = (currentStudentsAssignmentPage - 1) * itemsPerPage;
+      const data = await handleGetStudents(itemsPerPage, offset);
+      const students = Array.isArray(data) ? data : [];
+      setStudentsForAssignment(students);
+      setFilteredStudentsForAssignment(students);
+    } catch (err) {
+      console.error('Error al cargar los alumnos para asignación:', err);
+      toast.error('Error al cargar los alumnos');
+    }
+  };
+
+  const filterStudentsForAssignment = () => {
+    if (!searchTermForAssignment) {
+      setFilteredStudentsForAssignment(studentsForAssignment);
+      return;
+    }
+
+    const searchLower = searchTermForAssignment.toLowerCase();
+    const filtered = studentsForAssignment.filter(alumno => 
+      alumno.fullName.toLowerCase().includes(searchLower) ||
+      alumno.registrationNumber.toLowerCase().includes(searchLower)
+    );
+    setFilteredStudentsForAssignment(filtered);
+  };
+
+  const handleStudentAssignmentSelect = (student: Student) => {
+    const studentId = student.id?.toString() || '';
+    setSelectedStudentsForAssignment(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(studentId)) {
+        newSet.delete(studentId);
+      } else {
+        newSet.add(studentId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleStudentsAssignmentPageChange = (newPage: number) => {
+    setCurrentStudentsAssignmentPage(newPage);
+  };
+
+  const handleConfirmStudentsAssignment = async () => {
+    if (!selectedCourseGroupForAssignment?.id) {
+      toast.error('Error: No se pudo obtener el ID del grupo');
+      return;
+    }
+
+    if (selectedStudentsForAssignment.size === 0) {
+      toast.error('Debes seleccionar al menos un alumno');
+      return;
+    }
+
+    setAssignmentLoading(true);
+    try {
+      const studentIds = Array.from(selectedStudentsForAssignment);
+      let assignedCount = 0;
+      let errorCount = 0;
+      
+      for (const studentId of studentIds) {
+        try {
+          await CourseService.assignStudentToCourseGroup(selectedCourseGroupForAssignment.id, parseInt(studentId));
+          console.log(`Estudiante ${studentId} asignado al CourseGroup ${selectedCourseGroupForAssignment.id}`);
+          assignedCount++;
+        } catch (studentError) {
+          console.error(`Error al asignar estudiante ${studentId}:`, studentError);
+          errorCount++;
+        }
+      }
+      
+      // Mostrar mensajes de resultado
+      if (assignedCount > 0) {
+        toast.success(`${assignedCount} estudiante${assignedCount !== 1 ? 's' : ''} asignado${assignedCount !== 1 ? 's' : ''} correctamente`);
+      }
+      
+      if (errorCount > 0) {
+        toast.error(`${errorCount} estudiante${errorCount !== 1 ? 's' : ''} no se pudo${errorCount !== 1 ? 'n' : ''} asignar`);
+      }
+
+      setOpenAssignStudentsModal(false);
+      resetStudentsAssignmentModal();
+      
+      // Recargar las asignaciones si el modal de asignaciones está abierto
+      if (openViewAssignmentsModal && selectedCourse?.id) {
+        await loadAssignmentsForCourse();
+      }
+      
+    } catch (err) {
+      console.error('Error al asignar estudiantes:', err);
+      toast.error('Error al asignar los estudiantes');
+    } finally {
+      setAssignmentLoading(false);
+    }
+  };
+
+  const resetStudentsAssignmentModal = () => {
+    setSelectedCourseGroupForAssignment(null);
+    setSelectedStudentsForAssignment(new Set());
+    setCurrentStudentsAssignmentPage(1);
+    setSearchTermForAssignment("");
+    setStudentsForAssignment([]);
+    setFilteredStudentsForAssignment([]);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
       <div className="max-w-4xl mx-auto">
@@ -1403,6 +1541,14 @@ export default function AsignaturasPage() {
                               <Users className="h-4 w-4" />
                             </Button>
                             <Button
+                              variant="outline"
+                              size="icon"
+                              title="Asignar alumnos"
+                              onClick={() => handleAssignStudentsToCourseGroup(assignment)}
+                            >
+                              <UserPlus className="h-4 w-4" />
+                            </Button>
+                            <Button
                               variant="destructive"
                               size="icon"
                               title="Eliminar asignación"
@@ -1741,6 +1887,113 @@ export default function AsignaturasPage() {
                 className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
               >
                 {importLoading ? 'Importando...' : `Importar ${importedStudents.length} alumnos`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Asignación de Alumnos a CourseGroup */}
+        <Dialog open={openAssignStudentsModal} onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            resetStudentsAssignmentModal();
+          }
+          setOpenAssignStudentsModal(isOpen);
+        }}>
+          <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Asignar Alumnos a {selectedCourseGroupForAssignment?.group?.name}</DialogTitle>
+              <DialogDescription>
+                Selecciona los alumnos que deseas asignar al grupo {selectedCourseGroupForAssignment?.group?.name} en la asignatura {selectedCourse?.name}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex-1 flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">
+                  Selecciona Alumnos
+                  {selectedStudentsForAssignment.size > 0 && (
+                    <span className="ml-2 text-sm text-blue-600 font-normal">
+                      ({selectedStudentsForAssignment.size} seleccionado{selectedStudentsForAssignment.size !== 1 ? 's' : ''})
+                    </span>
+                  )}
+                </h3>
+                <div className="w-64">
+                  <Input
+                    placeholder="Buscar por nombre o matrícula..."
+                    value={searchTermForAssignment}
+                    onChange={(e) => setSearchTermForAssignment(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              <div className="border rounded-lg flex-1 overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>Nombre Completo</TableHead>
+                      <TableHead>Matrícula</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStudentsForAssignment.map((alumno) => (
+                      <TableRow 
+                        key={alumno.id}
+                        className={`cursor-pointer hover:bg-gray-50 ${selectedStudentsForAssignment.has(alumno.id?.toString() || '') ? 'bg-gray-50' : ''}`}
+                        onClick={() => handleStudentAssignmentSelect(alumno)}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedStudentsForAssignment.has(alumno.id?.toString() || '')}
+                            onCheckedChange={() => handleStudentAssignmentSelect(alumno)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{alumno.fullName}</TableCell>
+                        <TableCell>{alumno.registrationNumber}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-gray-600">
+                  Mostrando {filteredStudentsForAssignment.length} alumnos
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleStudentsAssignmentPageChange(currentStudentsAssignmentPage - 1)}
+                    disabled={currentStudentsAssignmentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium">
+                    Página {currentStudentsAssignmentPage}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleStudentsAssignmentPageChange(currentStudentsAssignmentPage + 1)}
+                    disabled={filteredStudentsForAssignment.length < itemsPerPage}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpenAssignStudentsModal(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleConfirmStudentsAssignment}
+                className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
+                disabled={selectedStudentsForAssignment.size === 0 || assignmentLoading}
+              >
+                {assignmentLoading ? 'Asignando...' : `Asignar ${selectedStudentsForAssignment.size} alumno${selectedStudentsForAssignment.size !== 1 ? 's' : ''}`}
               </Button>
             </DialogFooter>
           </DialogContent>
