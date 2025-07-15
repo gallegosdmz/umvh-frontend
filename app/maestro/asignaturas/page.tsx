@@ -1322,10 +1322,7 @@ export default function MaestroAsignaturas() {
     const loadPartialEvaluations = async () => {
       if (!isEvaluacionesModalOpen || !alumnoEvaluacion?.courseGroupStudentId) return;
       try {
-        // Cargar las calificaciones del alumno para el parcial seleccionado
-        const gradesData = await CourseService.getPartialEvaluationGradesByStudentAndPartial(alumnoEvaluacion.courseGroupStudentId, selectedPartial);
-        
-        // Cargar las actividades definidas para el curso
+        // Cargar las actividades definidas para el curso (que incluyen las calificaciones)
         const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup?.id!);
         
         // Inicializar arrays vacíos
@@ -1336,7 +1333,14 @@ export default function MaestroAsignaturas() {
         
         // Mapear las actividades definidas y sus calificaciones
         actividadesDefinidasData.forEach((actividadDefinida: any) => {
-          const grade = gradesData.find((g: any) => g.partialEvaluationId === actividadDefinida.id);
+          // Buscar la calificación del alumno específico en el parcial seleccionado
+          const courseGroupStudent = actividadDefinida.courseGroup?.coursesGroupsStudents?.find(
+            (cgs: any) => cgs.id === alumnoEvaluacion.courseGroupStudentId
+          );
+          
+          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === selectedPartial
+          );
           
           if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
             actividades[actividadDefinida.slot] = { 
@@ -1421,9 +1425,7 @@ export default function MaestroAsignaturas() {
       // Calcular calificaciones de los 3 parciales
       let parciales: number[] = [];
       for (let parcial = 1; parcial <= 3; parcial++) {
-        // Obtener calificaciones del alumno para el parcial
-        const gradesData = await CourseService.getPartialEvaluationGradesByStudentAndPartial(alumno.courseGroupStudentId, parcial);
-        // Obtener actividades definidas para el curso
+        // Obtener actividades definidas para el curso (que incluyen las calificaciones)
         const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup.id);
         // Obtener ponderaciones
         const cg = await CourseService.getCourseGroupIndividual(selectedCourseGroup.id);
@@ -1449,7 +1451,12 @@ export default function MaestroAsignaturas() {
         // Calcular actividades
         const actividadesActividades = actividadesDefinidasData.filter((item: any) => item.type === 'Actividades');
         const actividadesGrades = actividadesActividades.map((actividad: any) => {
-          const grade = gradesData.find((g: any) => g.partialEvaluationId === actividad.id);
+          const courseGroupStudent = actividad.courseGroup?.coursesGroupsStudents?.find(
+            (cgs: any) => cgs.id === alumno.courseGroupStudentId
+          );
+          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === parcial
+          );
           return grade?.grade || 0;
         }).filter((grade: number) => grade > 0);
         const promedioActividades = actividadesGrades.length > 0 ? actividadesGrades.reduce((a: number, b: number) => a + b, 0) / actividadesGrades.length : 0;
@@ -1457,18 +1464,41 @@ export default function MaestroAsignaturas() {
         // Calcular evidencias
         const actividadesEvidencias = actividadesDefinidasData.filter((item: any) => item.type === 'Evidencias');
         const evidenciasGrades = actividadesEvidencias.map((actividad: any) => {
-          const grade = gradesData.find((g: any) => g.partialEvaluationId === actividad.id);
+          const courseGroupStudent = actividad.courseGroup?.coursesGroupsStudents?.find(
+            (cgs: any) => cgs.id === alumno.courseGroupStudentId
+          );
+          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === parcial
+          );
           return grade?.grade || 0;
         }).filter((grade: number) => grade > 0);
         const promedioEvidencias = evidenciasGrades.length > 0 ? evidenciasGrades.reduce((a: number, b: number) => a + b, 0) / evidenciasGrades.length : 0;
         
         // Producto
         const actividadProducto = actividadesDefinidasData.find((item: any) => item.type === 'Producto');
-        const producto = actividadProducto ? (gradesData.find((g: any) => g.partialEvaluationId === actividadProducto.id)?.grade || 0) : 0;
+        let producto = 0;
+        if (actividadProducto) {
+          const courseGroupStudent = actividadProducto.courseGroup?.coursesGroupsStudents?.find(
+            (cgs: any) => cgs.id === alumno.courseGroupStudentId
+          );
+          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === parcial
+          );
+          producto = grade?.grade || 0;
+        }
         
         // Examen
         const actividadExamen = actividadesDefinidasData.find((item: any) => item.type === 'Examen');
-        const examen = actividadExamen ? (gradesData.find((g: any) => g.partialEvaluationId === actividadExamen.id)?.grade || 0) : 0;
+        let examen = 0;
+        if (actividadExamen) {
+          const courseGroupStudent = actividadExamen.courseGroup?.coursesGroupsStudents?.find(
+            (cgs: any) => cgs.id === alumno.courseGroupStudentId
+          );
+          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === parcial
+          );
+          examen = grade?.grade || 0;
+        }
         // Calcular calificación parcial
         let calif = 0;
         calif += (asistenciaPromedio * ponderaciones.asistencia) / 100;
