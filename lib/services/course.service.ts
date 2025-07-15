@@ -388,4 +388,45 @@ export const CourseService = {
       if (!response.ok) throw new Error(data.message || 'Error al actualizar final grade');
       return data;
     },
+
+    // MÉTODO PARA GUARDAR LA CALIFICACIÓN PARCIAL FINAL
+    async createPartialGrade(dto: { partial: number; grade: number; date: string; courseGroupStudentId: number }) {
+      console.log('🔍 DEBUG createPartialGrade - DTO enviado:', dto);
+      
+      const response = await fetch(`${API_URL}/partial-grades`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(dto)
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('🔍 DEBUG createPartialGrade - Error response:', data);
+        throw new Error(data.message || 'Error al crear calificación parcial');
+      }
+      
+      console.log('🔍 DEBUG createPartialGrade - Success, returning:', data);
+      return data;
+    },
+
+    async updatePartialGrade(id: number, dto: { partial: number; grade: number; date: string; courseGroupStudentId: number }) {
+      console.log('🔍 DEBUG updatePartialGrade - ID:', id, 'DTO:', dto);
+      
+      const response = await fetch(`${API_URL}/partial-grades/${id}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(dto)
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('🔍 DEBUG updatePartialGrade - Error response:', data);
+        throw new Error(data.message || 'Error al actualizar calificación parcial');
+      }
+      
+      console.log('🔍 DEBUG updatePartialGrade - Success, returning:', data);
+      return data;
+    },
 }; 

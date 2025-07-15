@@ -1149,6 +1149,31 @@ export default function MaestroAsignaturas() {
       const calificacionFinalCalculada = calificacionFinal
       console.log('Calificación Final del Parcial:', calificacionFinalCalculada)
       setCalificacionParcial(calificacionFinalCalculada)
+      
+      // SOLO GUARDAR SI LA CALIFICACIÓN ES MAYOR A 0
+      if (calificacionFinalCalculada > 0 && alumnoEvaluacion?.courseGroupStudentId) {
+        try {
+          const dto = {
+            partial: selectedPartial,
+            grade: Math.round(calificacionFinalCalculada * 100) / 100, // Redondear a 2 decimales
+            date: new Date().toISOString(),
+            courseGroupStudentId: alumnoEvaluacion.courseGroupStudentId
+          };
+          
+          console.log('🔍 GUARDANDO CALIFICACIÓN PARCIAL:', dto);
+          
+          // Por ahora solo crear, después podemos verificar si ya existe para actualizar
+          const result = await CourseService.createPartialGrade(dto);
+          console.log('✅ Calificación parcial guardada:', result);
+          toast.success(`Calificación parcial ${selectedPartial} guardada: ${dto.grade}`);
+          
+        } catch (error) {
+          console.error('❌ Error al guardar calificación parcial:', error);
+          toast.error('Error al guardar calificación parcial');
+        }
+      } else {
+        console.log('❌ No se guarda calificación parcial porque es 0 o no hay alumno seleccionado')
+      }
     } else {
       console.log('❌ No hay ponderaciones configuradas o calificaciones válidas')
       setCalificacionParcial(null)
