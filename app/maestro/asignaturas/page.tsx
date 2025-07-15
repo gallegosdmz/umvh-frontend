@@ -150,21 +150,10 @@ export default function MaestroAsignaturas() {
   const [inputExtraordinario, setInputExtraordinario] = useState<string>("");
   const [isSavingOrdinario, setIsSavingOrdinario] = useState(false);
   const [isSavingExtraordinario, setIsSavingExtraordinario] = useState(false);
+  const [ordinarioGuardado, setOrdinarioGuardado] = useState<number | null>(null);
+  const [extraordinarioGuardado, setExtraordinarioGuardado] = useState<number | null>(null);
 
-  // Función para recargar los datos del FinalGrade
-  const reloadFinalGradeData = async (courseGroupStudentId: number) => {
-    try {
-      const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
-      if (finalGrades && finalGrades.length > 0) {
-        const finalGrade = finalGrades[0];
-        setFinalGradeId(finalGrade.id);
-        setInputOrdinario(finalGrade.gradeOrdinary?.toString() || "");
-        setInputExtraordinario(finalGrade.gradeExtraordinary?.toString() || "");
-      }
-    } catch (error) {
-      console.error('Error al recargar datos del FinalGrade:', error);
-    }
-  };
+
 
   // Debug: Monitorear cambios en asistenciaAlumnos
   useEffect(() => {
@@ -1348,21 +1337,22 @@ export default function MaestroAsignaturas() {
           setFinalGradeId(created.id);
           setInputOrdinario(created.gradeOrdinary?.toString() || "");
           setInputExtraordinario(created.gradeExtraordinary?.toString() || "");
+          setOrdinarioGuardado(created.gradeOrdinary || null);
+          setExtraordinarioGuardado(created.gradeExtraordinary || null);
         } else {
           // Actualizar solo el promedio, preservando las calificaciones existentes
           const existingFinalGrade = finalGrades[0];
+          // Solo actualizar el campo grade, no tocar los otros campos
           const dto = {
-            grade: promedio !== null ? Math.round(promedio) : 0, // Solo actualizar el promedio
-            gradeOrdinary: existingFinalGrade.gradeOrdinary || 0, // Preservar valor existente
-            gradeExtraordinary: existingFinalGrade.gradeExtraordinary || 0, // Preservar valor existente
-            date: new Date().toISOString(),
-            type: 'final',
-            courseGroupStudentId: alumno.courseGroupStudentId
+            grade: promedio !== null ? Math.round(promedio) : 0
           };
           await CourseService.updateFinalGrade(existingFinalGrade.id, dto);
           setFinalGradeId(existingFinalGrade.id);
+          // IMPORTANTE: Usar los valores existentes del FinalGrade, no recalcular
           setInputOrdinario(existingFinalGrade.gradeOrdinary?.toString() || "");
           setInputExtraordinario(existingFinalGrade.gradeExtraordinary?.toString() || "");
+          setOrdinarioGuardado(existingFinalGrade.gradeOrdinary || null);
+          setExtraordinarioGuardado(existingFinalGrade.gradeExtraordinary || null);
         }
       } catch (err) {
         console.error('Error registrando FinalGrade:', err);
@@ -2521,12 +2511,12 @@ export default function MaestroAsignaturas() {
                           : '--'}
                     </td>
                     <td className={
-                      Number(inputOrdinario) < 6 && inputOrdinario !== ""
+                      ordinarioGuardado !== null && ordinarioGuardado < 6
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
                       {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
-                        Number(inputOrdinario) < 6 && inputOrdinario !== "" ? (
+                        ordinarioGuardado !== null && ordinarioGuardado < 6 ? (
                           'EXT'
                         ) : (
                           <div className="flex items-center gap-2 justify-center">
@@ -2549,9 +2539,9 @@ export default function MaestroAsignaturas() {
                                 setIsSavingOrdinario(true);
                                 try {
                                   await CourseService.updateFinalGrade(finalGradeId, { gradeOrdinary: Number(inputOrdinario) });
+                                  setOrdinarioGuardado(Number(inputOrdinario));
                                   toast.success('Calificación ordinaria guardada correctamente');
-                                  // Recargar los datos para asegurar sincronización
-                                  await reloadFinalGradeData(alumnoCalificacionFinal.courseGroupStudentId);
+                                  // No necesitamos recargar, ya tenemos el valor actualizado en el estado
                                 } catch (err) {
                                   console.error('Error al guardar calificación ordinaria:', err);
                                   toast.error('Error al guardar calificación ordinaria');
@@ -2567,11 +2557,11 @@ export default function MaestroAsignaturas() {
                       ) : '--'}
                     </td>
                     <td className={
-                      Number(inputOrdinario) < 6 && inputOrdinario !== "" && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
+                      ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
-                      {Number(inputOrdinario) < 6 && inputOrdinario !== "" && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
+                      {ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
                         <div className="flex items-center gap-2 justify-center">
                           <input
                             type="number"
@@ -2592,9 +2582,9 @@ export default function MaestroAsignaturas() {
                               setIsSavingExtraordinario(true);
                               try {
                                 await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
+                                setExtraordinarioGuardado(Number(inputExtraordinario));
                                 toast.success('Calificación extraordinaria guardada correctamente');
-                                // Recargar los datos para asegurar sincronización
-                                await reloadFinalGradeData(alumnoCalificacionFinal.courseGroupStudentId);
+                                // No necesitamos recargar, ya tenemos el valor actualizado en el estado
                               } catch (err) {
                                 console.error('Error al guardar calificación extraordinaria:', err);
                                 toast.error('Error al guardar calificación extraordinaria');
@@ -2616,7 +2606,11 @@ export default function MaestroAsignaturas() {
             <div className="text-center text-gray-500 py-4">Cargando calificaciones...</div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCalificacionFinalModalOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsCalificacionFinalModalOpen(false);
+              setOrdinarioGuardado(null);
+              setExtraordinarioGuardado(null);
+            }}>
               Cerrar
             </Button>
           </DialogFooter>
