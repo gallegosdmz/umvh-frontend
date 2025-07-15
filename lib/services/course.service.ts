@@ -429,4 +429,22 @@ export const CourseService = {
       console.log('🔍 DEBUG updatePartialGrade - Success, returning:', data);
       return data;
     },
+
+    async getPartialGradesByStudentAndPartial(courseGroupStudentId: number, partial: number) {
+      console.log('🔍 DEBUG getPartialGradesByStudentAndPartial - courseGroupStudentId:', courseGroupStudentId, 'partial:', partial);
+      
+      const response = await fetch(`${API_URL}/partial-grades/findAll/${courseGroupStudentId}?partial=${partial}`, {
+        headers: getAuthHeaders(),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('🔍 DEBUG getPartialGradesByStudentAndPartial - Error response:', data);
+        throw new Error(data.message || 'Error al obtener calificaciones parciales');
+      }
+      
+      console.log('🔍 DEBUG getPartialGradesByStudentAndPartial - Success, returning:', data);
+      return data;
+    },
 }; 
