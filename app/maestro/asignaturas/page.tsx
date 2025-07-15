@@ -1322,8 +1322,14 @@ export default function MaestroAsignaturas() {
     const loadPartialEvaluations = async () => {
       if (!isEvaluacionesModalOpen || !alumnoEvaluacion?.courseGroupStudentId) return;
       try {
+        console.log('=== DEBUG LOAD PARTIAL EVALUATIONS ===');
+        console.log('alumnoEvaluacion.courseGroupStudentId:', alumnoEvaluacion.courseGroupStudentId);
+        console.log('selectedPartial:', selectedPartial);
+        console.log('selectedCourseGroup?.id:', selectedCourseGroup?.id);
+        
         // Cargar las actividades definidas para el curso (que incluyen las calificaciones)
         const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup?.id!);
+        console.log('actividadesDefinidasData:', actividadesDefinidasData);
         
         // Inicializar arrays vacíos
         const actividades = Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null });
@@ -1331,47 +1337,90 @@ export default function MaestroAsignaturas() {
         let producto = { name: '', grade: 0, id: null, partialEvaluationId: null };
         let examen = { name: '', grade: 0, id: null, partialEvaluationId: null };
         
-        // Mapear las actividades definidas y sus calificaciones
+        // Mapear las actividades definidas y buscar sus calificaciones en coursesGroupsStudents
         actividadesDefinidasData.forEach((actividadDefinida: any) => {
-          // Buscar la calificación del alumno específico en el parcial seleccionado
+          console.log('\n--- Procesando actividad ---');
+          console.log('actividadDefinida:', actividadDefinida);
+          
+          // Buscar el courseGroupStudent específico del alumno
           const courseGroupStudent = actividadDefinida.courseGroup?.coursesGroupsStudents?.find(
             (cgs: any) => cgs.id === alumnoEvaluacion.courseGroupStudentId
           );
           
+          console.log('courseGroupStudent encontrado:', courseGroupStudent);
+          console.log('Todas las calificaciones del alumno:', courseGroupStudent?.partialEvaluationGrades);
+          console.log('Estructura completa de una calificación:', courseGroupStudent?.partialEvaluationGrades?.[0]);
+          
+          // Buscar la calificación para el parcial seleccionado
+          // TEMPORAL: Como el backend no incluye la relación, asigno la calificación a la primera actividad
           const grade = courseGroupStudent?.partialEvaluationGrades?.find(
             (peg: any) => peg.partial === selectedPartial
           );
           
+          console.log('grade encontrada para parcial', selectedPartial, ':', grade);
+          
+          // TEMPORAL: Solo asignar la calificación a la primera actividad del tipo correspondiente
+          let shouldAssignGrade = false;
+          if (actividadDefinida.type === 'Actividades' && actividadDefinida.slot === 0) {
+            shouldAssignGrade = true;
+          } else if (actividadDefinida.type === 'Evidencias' && actividadDefinida.slot === 0) {
+            shouldAssignGrade = true;
+          } else if (actividadDefinida.type === 'Producto') {
+            shouldAssignGrade = true;
+          } else if (actividadDefinida.type === 'Examen') {
+            shouldAssignGrade = true;
+          }
+          
+          // Solo usar la calificación si es la primera actividad del tipo
+          const finalGrade = shouldAssignGrade ? grade : null;
+          console.log('shouldAssignGrade:', shouldAssignGrade, 'finalGrade:', finalGrade);
+          
           if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
-            actividades[actividadDefinida.slot] = { 
+            const actividadData = { 
               name: actividadDefinida.name, 
-              grade: grade?.grade || 0, 
-              id: grade?.id || null, 
+              grade: finalGrade?.grade || 0, 
+              id: finalGrade?.id || null, 
               partialEvaluationId: actividadDefinida.id 
             };
+            console.log(`Asignando actividad slot ${actividadDefinida.slot}:`, actividadData);
+            console.log(`Valor de grade asignado: ${actividadData.grade}`);
+            actividades[actividadDefinida.slot] = actividadData;
           } else if (actividadDefinida.type === 'Evidencias' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
-            evidencias[actividadDefinida.slot] = { 
+            const evidenciaData = { 
               name: actividadDefinida.name, 
-              grade: grade?.grade || 0, 
-              id: grade?.id || null, 
+              grade: finalGrade?.grade || 0, 
+              id: finalGrade?.id || null, 
               partialEvaluationId: actividadDefinida.id 
             };
+            console.log(`Asignando evidencia slot ${actividadDefinida.slot}:`, evidenciaData);
+            console.log(`Valor de grade asignado: ${evidenciaData.grade}`);
+            evidencias[actividadDefinida.slot] = evidenciaData;
           } else if (actividadDefinida.type === 'Producto') {
             producto = { 
               name: actividadDefinida.name, 
-              grade: grade?.grade || 0, 
-              id: grade?.id || null, 
+              grade: finalGrade?.grade || 0, 
+              id: finalGrade?.id || null, 
               partialEvaluationId: actividadDefinida.id 
             };
+            console.log('Asignando producto:', producto);
+            console.log(`Valor de grade asignado: ${producto.grade}`);
           } else if (actividadDefinida.type === 'Examen') {
             examen = { 
               name: actividadDefinida.name, 
-              grade: grade?.grade || 0, 
-              id: grade?.id || null, 
+              grade: finalGrade?.grade || 0, 
+              id: finalGrade?.id || null, 
               partialEvaluationId: actividadDefinida.id 
             };
+            console.log('Asignando examen:', examen);
+            console.log(`Valor de grade asignado: ${examen.grade}`);
           }
         });
+        
+        console.log('\n=== RESULTADO FINAL ===');
+        console.log('actividades:', actividades);
+        console.log('evidencias:', evidencias);
+        console.log('producto:', producto);
+        console.log('examen:', examen);
         
         setEvaluacionesParciales({ actividades, evidencias, producto, examen });
         
@@ -1397,7 +1446,9 @@ export default function MaestroAsignaturas() {
         
         setActividadesDefinidas(actividadesDefinidas);
       } catch (error) {
-        console.log(error);
+        console.log('=== ERROR EN LOAD PARTIAL EVALUATIONS ===');
+        console.log('Error completo:', error);
+        console.log('Error message:', error instanceof Error ? error.message : 'Error desconocido');
         setEvaluacionesParciales({
           actividades: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
           evidencias: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
@@ -1451,11 +1502,8 @@ export default function MaestroAsignaturas() {
         // Calcular actividades
         const actividadesActividades = actividadesDefinidasData.filter((item: any) => item.type === 'Actividades');
         const actividadesGrades = actividadesActividades.map((actividad: any) => {
-          const courseGroupStudent = actividad.courseGroup?.coursesGroupsStudents?.find(
-            (cgs: any) => cgs.id === alumno.courseGroupStudentId
-          );
-          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
-            (peg: any) => peg.partial === parcial
+          const grade = actividad.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === parcial && peg.courseGroupStudent?.id === alumno.courseGroupStudentId
           );
           return grade?.grade || 0;
         }).filter((grade: number) => grade > 0);
@@ -1464,11 +1512,8 @@ export default function MaestroAsignaturas() {
         // Calcular evidencias
         const actividadesEvidencias = actividadesDefinidasData.filter((item: any) => item.type === 'Evidencias');
         const evidenciasGrades = actividadesEvidencias.map((actividad: any) => {
-          const courseGroupStudent = actividad.courseGroup?.coursesGroupsStudents?.find(
-            (cgs: any) => cgs.id === alumno.courseGroupStudentId
-          );
-          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
-            (peg: any) => peg.partial === parcial
+          const grade = actividad.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === parcial && peg.courseGroupStudent?.id === alumno.courseGroupStudentId
           );
           return grade?.grade || 0;
         }).filter((grade: number) => grade > 0);
@@ -1478,11 +1523,8 @@ export default function MaestroAsignaturas() {
         const actividadProducto = actividadesDefinidasData.find((item: any) => item.type === 'Producto');
         let producto = 0;
         if (actividadProducto) {
-          const courseGroupStudent = actividadProducto.courseGroup?.coursesGroupsStudents?.find(
-            (cgs: any) => cgs.id === alumno.courseGroupStudentId
-          );
-          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
-            (peg: any) => peg.partial === parcial
+          const grade = actividadProducto.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === parcial && peg.courseGroupStudent?.id === alumno.courseGroupStudentId
           );
           producto = grade?.grade || 0;
         }
@@ -1491,11 +1533,8 @@ export default function MaestroAsignaturas() {
         const actividadExamen = actividadesDefinidasData.find((item: any) => item.type === 'Examen');
         let examen = 0;
         if (actividadExamen) {
-          const courseGroupStudent = actividadExamen.courseGroup?.coursesGroupsStudents?.find(
-            (cgs: any) => cgs.id === alumno.courseGroupStudentId
-          );
-          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
-            (peg: any) => peg.partial === parcial
+          const grade = actividadExamen.partialEvaluationGrades?.find(
+            (peg: any) => peg.partial === parcial && peg.courseGroupStudent?.id === alumno.courseGroupStudentId
           );
           examen = grade?.grade || 0;
         }
