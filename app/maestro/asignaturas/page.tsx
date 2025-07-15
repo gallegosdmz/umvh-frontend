@@ -1455,14 +1455,18 @@ export default function MaestroAsignaturas() {
         setEvaluacionesParciales({ actividades, evidencias, producto, examen });
         
         // También actualizar las actividades definidas para mostrar en la interfaz
+        // Solo mostrar las actividades del parcial seleccionado
         const actividadesDefinidas = {
-          actividades: Array(18).fill({ name: '', id: null, partial: 1 }),
-          evidencias: Array(18).fill({ name: '', id: null, partial: 1 }),
-          producto: { name: 'Producto del Parcial', id: null, partial: 1 },
-          examen: { name: 'Examen Parcial', id: null, partial: 1 },
+          actividades: Array(18).fill({ name: '', id: null, partial: selectedPartial }),
+          evidencias: Array(18).fill({ name: '', id: null, partial: selectedPartial }),
+          producto: { name: 'Producto del Parcial', id: null, partial: selectedPartial },
+          examen: { name: 'Examen Parcial', id: null, partial: selectedPartial },
         };
         
-        actividadesDefinidasData.forEach((item: any) => {
+        // Filtrar solo las actividades del parcial seleccionado
+        const actividadesDelParcial = actividadesDefinidasData.filter((item: any) => item.partial === selectedPartial);
+        
+        actividadesDelParcial.forEach((item: any) => {
           if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 18) {
             actividadesDefinidas.actividades[item.slot] = { name: item.name, id: item.id, partial: item.partial };
           } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 18) {
