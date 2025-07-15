@@ -1312,7 +1312,6 @@ export default function MaestroAsignaturas() {
 
     const dto: any = {
       grade: data.grade,
-      partial: selectedPartial,
       partialEvaluationId: actividadDefinida.id,
       courseGroupStudentId: alumnoEvaluacion?.courseGroupStudentId,
     };
