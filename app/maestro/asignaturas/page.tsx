@@ -1359,19 +1359,14 @@ export default function MaestroAsignaturas() {
           
           console.log('grade encontrada para parcial', selectedPartial, ':', grade);
           
-          // TEMPORAL: Solo asignar la calificación a la primera actividad del tipo correspondiente
+          // TEMPORAL: Solo asignar la calificación a la primera actividad de "Actividades"
+          // Esto es temporal hasta que el backend incluya la relación partialEvaluation
           let shouldAssignGrade = false;
           if (actividadDefinida.type === 'Actividades' && actividadDefinida.slot === 0) {
             shouldAssignGrade = true;
-          } else if (actividadDefinida.type === 'Evidencias' && actividadDefinida.slot === 0) {
-            shouldAssignGrade = true;
-          } else if (actividadDefinida.type === 'Producto') {
-            shouldAssignGrade = true;
-          } else if (actividadDefinida.type === 'Examen') {
-            shouldAssignGrade = true;
           }
           
-          // Solo usar la calificación si es la primera actividad del tipo
+          // Solo usar la calificación si es la primera actividad de "Actividades"
           const finalGrade = shouldAssignGrade ? grade : null;
           console.log('shouldAssignGrade:', shouldAssignGrade, 'finalGrade:', finalGrade);
           
