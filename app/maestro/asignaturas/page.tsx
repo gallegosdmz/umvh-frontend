@@ -2562,40 +2562,44 @@ export default function MaestroAsignaturas() {
                         : "px-2 py-1"
                     }>
                       {ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
-                        <div className="flex items-center gap-2 justify-center">
-                          <input
-                            type="number"
-                            min={0}
-                            max={10}
-                            className="w-20 text-center border rounded px-2 py-1 mx-1"
-                            placeholder="Extraordinario"
-                            value={inputExtraordinario}
-                            onChange={e => setInputExtraordinario(e.target.value)}
-                            disabled={isSavingExtraordinario}
-                          />
-                          <button
-                            className={`h-6 px-2 text-xs rounded ${finalGradeId ? 'border-green-500 text-green-600 border bg-green-50 hover:bg-green-100' : 'bg-green-600 text-white'} font-semibold`}
-                            style={{ minWidth: 60 }}
-                            disabled={isSavingExtraordinario || !finalGradeId}
-                            onClick={async () => {
-                              if (!finalGradeId || !alumnoCalificacionFinal?.courseGroupStudentId) return;
-                              setIsSavingExtraordinario(true);
-                              try {
-                                await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
-                                setExtraordinarioGuardado(Number(inputExtraordinario));
-                                toast.success('Calificación extraordinaria guardada correctamente');
-                                // No necesitamos recargar, ya tenemos el valor actualizado en el estado
-                              } catch (err) {
-                                console.error('Error al guardar calificación extraordinaria:', err);
-                                toast.error('Error al guardar calificación extraordinaria');
-                              } finally {
-                                setIsSavingExtraordinario(false);
-                              }
-                            }}
-                          >
-                            {isSavingExtraordinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
-                          </button>
-                        </div>
+                        extraordinarioGuardado !== null && extraordinarioGuardado < 6 ? (
+                          'NA'
+                        ) : (
+                          <div className="flex items-center gap-2 justify-center">
+                            <input
+                              type="number"
+                              min={0}
+                              max={10}
+                              className="w-20 text-center border rounded px-2 py-1 mx-1"
+                              placeholder="Extraordinario"
+                              value={inputExtraordinario}
+                              onChange={e => setInputExtraordinario(e.target.value)}
+                              disabled={isSavingExtraordinario}
+                            />
+                            <button
+                              className={`h-6 px-2 text-xs rounded ${finalGradeId ? 'border-green-500 text-green-600 border bg-green-50 hover:bg-green-100' : 'bg-green-600 text-white'} font-semibold`}
+                              style={{ minWidth: 60 }}
+                              disabled={isSavingExtraordinario || !finalGradeId}
+                              onClick={async () => {
+                                if (!finalGradeId || !alumnoCalificacionFinal?.courseGroupStudentId) return;
+                                setIsSavingExtraordinario(true);
+                                try {
+                                  await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
+                                  setExtraordinarioGuardado(Number(inputExtraordinario));
+                                  toast.success('Calificación extraordinaria guardada correctamente');
+                                  // No necesitamos recargar, ya tenemos el valor actualizado en el estado
+                                } catch (err) {
+                                  console.error('Error al guardar calificación extraordinaria:', err);
+                                  toast.error('Error al guardar calificación extraordinaria');
+                                } finally {
+                                  setIsSavingExtraordinario(false);
+                                }
+                              }}
+                            >
+                              {isSavingExtraordinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
+                            </button>
+                          </div>
+                        )
                       ) : '--'}
                     </td>
                   </tr>
