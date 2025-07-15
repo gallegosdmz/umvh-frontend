@@ -117,7 +117,9 @@ export default function MaestroAsignaturas() {
   const [isSavingAttendance, setIsSavingAttendance] = useState(false)
   const [isLoadingDateChange, setIsLoadingDateChange] = useState(false)
   const [isEvaluacionesModalOpen, setIsEvaluacionesModalOpen] = useState(false)
+  const [isActividadesModalOpen, setIsActividadesModalOpen] = useState(false)
   const [alumnoEvaluacion, setAlumnoEvaluacion] = useState<any | null>(null)
+  const [selectedCourseGroupForActividades, setSelectedCourseGroupForActividades] = useState<any | null>(null)
   const [evaluaciones, setEvaluaciones] = useState({
     actividades: Array(18).fill(0),
     evidencias: Array(18).fill(0),
@@ -125,12 +127,19 @@ export default function MaestroAsignaturas() {
     examen: 0,
   })
   const [evaluacionesParciales, setEvaluacionesParciales] = useState({
-    actividades: Array(18).fill({ name: '', grade: 0, id: null }),
-    evidencias: Array(18).fill({ name: '', grade: 0, id: null }),
-    producto: { grade: 0, id: null },
-    examen: { grade: 0, id: null },
+    actividades: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+    evidencias: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+    producto: { name: '', grade: 0, id: null, partialEvaluationId: null },
+    examen: { name: '', grade: 0, id: null, partialEvaluationId: null },
+  })
+  const [actividadesDefinidas, setActividadesDefinidas] = useState({
+    actividades: Array(18).fill({ name: '', id: null }),
+    evidencias: Array(18).fill({ name: '', id: null }),
+    producto: { name: 'Producto del Parcial', id: null },
+    examen: { name: 'Examen Parcial', id: null },
   })
   const [isSavingPartial, setIsSavingPartial] = useState(false)
+  const [isSavingActividad, setIsSavingActividad] = useState(false)
   const [selectedPartial, setSelectedPartial] = useState(1)
   const [calificacionParcial, setCalificacionParcial] = useState<number | null>(null)
   // 1. Agregar estados para el modal de calificación final
@@ -1146,6 +1155,102 @@ export default function MaestroAsignaturas() {
     console.log('=== FINALIZADO CÁLCULO DE CALIFICACIÓN PARCIAL ===\n')
   }
 
+  // Función para abrir el modal de actividades
+  const handleOpenActividadesModal = async (course: Course, courseGroup: any) => {
+    setSelectedCourseGroupForActividades(courseGroup);
+    setIsActividadesModalOpen(true);
+    
+    try {
+      // Cargar las actividades definidas para este curso
+      const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(courseGroup.id);
+      
+      // Inicializar arrays vacíos
+      const actividades = Array(18).fill({ name: '', id: null });
+      const evidencias = Array(18).fill({ name: '', id: null });
+      let producto = { name: 'Producto del Parcial', id: null };
+      let examen = { name: 'Examen Parcial', id: null };
+      
+      // Mapear las actividades definidas por slot
+      actividadesDefinidasData.forEach((item: any) => {
+        if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 18) {
+          actividades[item.slot] = { name: item.name, id: item.id };
+        } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 18) {
+          evidencias[item.slot] = { name: item.name, id: item.id };
+        } else if (item.type === 'Producto') {
+          producto = { name: item.name || 'Producto del Parcial', id: item.id };
+        } else if (item.type === 'Examen') {
+          examen = { name: item.name || 'Examen Parcial', id: item.id };
+        }
+      });
+      
+      setActividadesDefinidas({ actividades, evidencias, producto, examen });
+    } catch (error) {
+      console.error('Error al cargar las actividades definidas:', error);
+      toast.error('Error al cargar las actividades');
+    }
+  };
+
+  // Función para crear/actualizar actividades definidas
+  const handleActividadButtonClick = async (
+    type: "actividades" | "evidencias" | "producto" | "examen",
+    idx: number
+  ) => {
+    if (!selectedCourseGroupForActividades?.id) return;
+    
+    setIsSavingActividad(true);
+    
+    let data;
+    if (type === "actividades" || type === "evidencias") {
+      data = actividadesDefinidas[type][idx];
+    } else {
+      data = actividadesDefinidas[type];
+    }
+
+    const dto: any = {
+      name: data.name || "",
+      type:
+        type === "actividades"
+          ? "Actividades"
+          : type === "evidencias"
+          ? "Evidencias"
+          : type === "producto"
+          ? "Producto"
+          : "Examen",
+      courseGroupId: selectedCourseGroupForActividades.id,
+      slot: type === "actividades" || type === "evidencias" ? idx : 0,
+    };
+
+    try {
+      if (data.id) {
+        // PATCH
+        await CourseService.updatePartialEvaluation(data.id, dto);
+        toast.success("Actividad editada correctamente");
+      } else {
+        // POST
+        const result = await CourseService.createPartialEvaluation(dto);
+        if (type === "actividades" || type === "evidencias") {
+          setActividadesDefinidas(prev => ({
+            ...prev,
+            [type]: prev[type].map((item, i) =>
+              i === idx ? { ...item, id: result.id } : item
+            ),
+          }));
+        } else {
+          setActividadesDefinidas(prev => ({
+            ...prev,
+            [type]: { ...prev[type], id: result.id },
+          }));
+        }
+        toast.success("Actividad creada correctamente");
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error("Error al guardar la actividad");
+    } finally {
+      setIsSavingActividad(false);
+    }
+  };
+
   const handlePartialEvaluationButtonClick = async (
     type: "actividades" | "evidencias" | "producto" | "examen",
     idx: number
@@ -1159,52 +1264,55 @@ export default function MaestroAsignaturas() {
       data = evaluacionesParciales[type];
     }
 
+    // Verificar que existe la actividad definida
+    let actividadDefinida;
+    if (type === "actividades" || type === "evidencias") {
+      actividadDefinida = actividadesDefinidas[type][idx];
+    } else {
+      actividadDefinida = actividadesDefinidas[type];
+    }
+
+    if (!actividadDefinida?.id) {
+      toast.error("Primero debes crear la actividad en el botón 'Actividades'");
+      setIsSavingPartial(false);
+      return;
+    }
+
     const dto: any = {
       grade: data.grade,
-      type:
-        type === "actividades"
-          ? "Actividades"
-          : type === "evidencias"
-          ? "Evidencias"
-          : type === "producto"
-          ? "Producto"
-          : "Examen",
-      courseGroupStudentId: alumnoEvaluacion?.courseGroupStudentId,
       partial: selectedPartial,
-      slot: idx, // NUEVO: slot exacto
+      partialEvaluationId: actividadDefinida.id,
+      courseGroupStudentId: alumnoEvaluacion?.courseGroupStudentId,
     };
-    if (type === "actividades" || type === "evidencias") {
-      dto.name = data.name || "";
-    }
 
     try {
       if (data.id) {
         // PATCH
-        console.log("PATCH via CourseService.updatePartialEvaluation", data.id, dto);
-        await CourseService.updatePartialEvaluation(data.id, dto);
-        toast.success("Evaluación editada correctamente");
+        console.log("PATCH via CourseService.updatePartialEvaluationGrade", data.id, dto);
+        await CourseService.updatePartialEvaluationGrade(data.id, dto);
+        toast.success("Calificación editada correctamente");
       } else {
         // POST
-        console.log("POST via CourseService.createPartialEvaluation", dto);
-        const result = await CourseService.createPartialEvaluation(dto);
+        console.log("POST via CourseService.createPartialEvaluationGrade", dto);
+        const result = await CourseService.createPartialEvaluationGrade(dto);
         if (type === "actividades" || type === "evidencias") {
           setEvaluacionesParciales(prev => ({
             ...prev,
             [type]: prev[type].map((item, i) =>
-              i === idx ? { ...item, id: result.id } : item
+              i === idx ? { ...item, id: result.id, partialEvaluationId: actividadDefinida.id } : item
             ),
           }));
         } else {
           setEvaluacionesParciales(prev => ({
             ...prev,
-            [type]: { ...prev[type], id: result.id },
+            [type]: { ...prev[type], id: result.id, partialEvaluationId: actividadDefinida.id },
           }));
         }
-        toast.success("Evaluación guardada correctamente");
+        toast.success("Calificación guardada correctamente");
       }
     } catch (error) {
       console.log(error);
-      toast.error("Error al guardar la evaluación");
+      toast.error("Error al guardar la calificación");
     } finally {
       setIsSavingPartial(false);
     }
@@ -1214,39 +1322,88 @@ export default function MaestroAsignaturas() {
     const loadPartialEvaluations = async () => {
       if (!isEvaluacionesModalOpen || !alumnoEvaluacion?.courseGroupStudentId) return;
       try {
-        const data = await CourseService.getPartialEvaluationsByCourseGroupStudentId(alumnoEvaluacion.courseGroupStudentId);
-        // Filtrar por parcial seleccionado
-        const filtered = data.filter((item: any) => item.partial === selectedPartial);
+        // Cargar las calificaciones del alumno para el parcial seleccionado
+        const gradesData = await CourseService.getPartialEvaluationGradesByStudentAndPartial(alumnoEvaluacion.courseGroupStudentId, selectedPartial);
+        
+        // Cargar las actividades definidas para el curso
+        const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup?.id!);
+        
         // Inicializar arrays vacíos
-        const actividades = Array(18).fill({ name: '', grade: 0, id: null });
-        const evidencias = Array(18).fill({ name: '', grade: 0, id: null });
-        let producto = { grade: 0, id: null };
-        let examen = { grade: 0, id: null };
-        // Mapear los datos recibidos por slot exacto
-        filtered.forEach((item: any) => {
-          if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 18) {
-            actividades[item.slot] = { name: item.name, grade: item.grade, id: item.id };
-          } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 18) {
-            evidencias[item.slot] = { name: item.name, grade: item.grade, id: item.id };
-          } else if (item.type === 'Producto') {
-            producto = { grade: item.grade, id: item.id };
-          } else if (item.type === 'Examen') {
-            examen = { grade: item.grade, id: item.id };
+        const actividades = Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null });
+        const evidencias = Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null });
+        let producto = { name: '', grade: 0, id: null, partialEvaluationId: null };
+        let examen = { name: '', grade: 0, id: null, partialEvaluationId: null };
+        
+        // Mapear las actividades definidas y sus calificaciones
+        actividadesDefinidasData.forEach((actividadDefinida: any) => {
+          const grade = gradesData.find((g: any) => g.partialEvaluationId === actividadDefinida.id);
+          
+          if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
+            actividades[actividadDefinida.slot] = { 
+              name: actividadDefinida.name, 
+              grade: grade?.grade || 0, 
+              id: grade?.id || null, 
+              partialEvaluationId: actividadDefinida.id 
+            };
+          } else if (actividadDefinida.type === 'Evidencias' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
+            evidencias[actividadDefinida.slot] = { 
+              name: actividadDefinida.name, 
+              grade: grade?.grade || 0, 
+              id: grade?.id || null, 
+              partialEvaluationId: actividadDefinida.id 
+            };
+          } else if (actividadDefinida.type === 'Producto') {
+            producto = { 
+              name: actividadDefinida.name, 
+              grade: grade?.grade || 0, 
+              id: grade?.id || null, 
+              partialEvaluationId: actividadDefinida.id 
+            };
+          } else if (actividadDefinida.type === 'Examen') {
+            examen = { 
+              name: actividadDefinida.name, 
+              grade: grade?.grade || 0, 
+              id: grade?.id || null, 
+              partialEvaluationId: actividadDefinida.id 
+            };
           }
         });
+        
         setEvaluacionesParciales({ actividades, evidencias, producto, examen });
+        
+        // También actualizar las actividades definidas para mostrar en la interfaz
+        const actividadesDefinidas = {
+          actividades: Array(18).fill({ name: '', id: null }),
+          evidencias: Array(18).fill({ name: '', id: null }),
+          producto: { name: 'Producto del Parcial', id: null },
+          examen: { name: 'Examen Parcial', id: null },
+        };
+        
+        actividadesDefinidasData.forEach((item: any) => {
+          if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 18) {
+            actividadesDefinidas.actividades[item.slot] = { name: item.name, id: item.id };
+          } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 18) {
+            actividadesDefinidas.evidencias[item.slot] = { name: item.name, id: item.id };
+          } else if (item.type === 'Producto') {
+            actividadesDefinidas.producto = { name: item.name || 'Producto del Parcial', id: item.id };
+          } else if (item.type === 'Examen') {
+            actividadesDefinidas.examen = { name: item.name || 'Examen Parcial', id: item.id };
+          }
+        });
+        
+        setActividadesDefinidas(actividadesDefinidas);
       } catch (error) {
         console.log(error);
         setEvaluacionesParciales({
-          actividades: Array(18).fill({ name: '', grade: 0, id: null }),
-          evidencias: Array(18).fill({ name: '', grade: 0, id: null }),
-          producto: { grade: 0, id: null },
-          examen: { grade: 0, id: null },
+          actividades: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+          evidencias: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+          producto: { name: '', grade: 0, id: null, partialEvaluationId: null },
+          examen: { name: '', grade: 0, id: null, partialEvaluationId: null },
         });
       }
     };
     loadPartialEvaluations();
-  }, [isEvaluacionesModalOpen, alumnoEvaluacion?.courseGroupStudentId, selectedPartial]);
+  }, [isEvaluacionesModalOpen, alumnoEvaluacion?.courseGroupStudentId, selectedPartial, selectedCourseGroup?.id]);
 
   // Calcular calificación del parcial cuando cambien las evaluaciones o ponderaciones
   useEffect(() => {
@@ -1264,9 +1421,10 @@ export default function MaestroAsignaturas() {
       // Calcular calificaciones de los 3 parciales
       let parciales: number[] = [];
       for (let parcial = 1; parcial <= 3; parcial++) {
-        // Obtener evaluaciones parciales
-        const data = await CourseService.getPartialEvaluationsByCourseGroupStudentId(alumno.courseGroupStudentId);
-        const filtered = data.filter((item: any) => item.partial === parcial);
+        // Obtener calificaciones del alumno para el parcial
+        const gradesData = await CourseService.getPartialEvaluationGradesByStudentAndPartial(alumno.courseGroupStudentId, parcial);
+        // Obtener actividades definidas para el curso
+        const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup.id);
         // Obtener ponderaciones
         const cg = await CourseService.getCourseGroupIndividual(selectedCourseGroup.id);
         const gradingschemes = cg.coursesGroupsGradingschemes || [];
@@ -1289,15 +1447,28 @@ export default function MaestroAsignaturas() {
           }
         }
         // Calcular actividades
-        const actividades = filtered.filter((item: any) => item.type === 'Actividades' && item.grade > 0).map((item: any) => item.grade);
-        const promedioActividades = actividades.length > 0 ? actividades.reduce((a: number, b: number) => a + b, 0) / actividades.length : 0;
+        const actividadesActividades = actividadesDefinidasData.filter((item: any) => item.type === 'Actividades');
+        const actividadesGrades = actividadesActividades.map((actividad: any) => {
+          const grade = gradesData.find((g: any) => g.partialEvaluationId === actividad.id);
+          return grade?.grade || 0;
+        }).filter((grade: number) => grade > 0);
+        const promedioActividades = actividadesGrades.length > 0 ? actividadesGrades.reduce((a: number, b: number) => a + b, 0) / actividadesGrades.length : 0;
+        
         // Calcular evidencias
-        const evidencias = filtered.filter((item: any) => item.type === 'Evidencias' && item.grade > 0).map((item: any) => item.grade);
-        const promedioEvidencias = evidencias.length > 0 ? evidencias.reduce((a: number, b: number) => a + b, 0) / evidencias.length : 0;
+        const actividadesEvidencias = actividadesDefinidasData.filter((item: any) => item.type === 'Evidencias');
+        const evidenciasGrades = actividadesEvidencias.map((actividad: any) => {
+          const grade = gradesData.find((g: any) => g.partialEvaluationId === actividad.id);
+          return grade?.grade || 0;
+        }).filter((grade: number) => grade > 0);
+        const promedioEvidencias = evidenciasGrades.length > 0 ? evidenciasGrades.reduce((a: number, b: number) => a + b, 0) / evidenciasGrades.length : 0;
+        
         // Producto
-        const producto = filtered.find((item: any) => item.type === 'Producto')?.grade || 0;
+        const actividadProducto = actividadesDefinidasData.find((item: any) => item.type === 'Producto');
+        const producto = actividadProducto ? (gradesData.find((g: any) => g.partialEvaluationId === actividadProducto.id)?.grade || 0) : 0;
+        
         // Examen
-        const examen = filtered.find((item: any) => item.type === 'Examen')?.grade || 0;
+        const actividadExamen = actividadesDefinidasData.find((item: any) => item.type === 'Examen');
+        const examen = actividadExamen ? (gradesData.find((g: any) => g.partialEvaluationId === actividadExamen.id)?.grade || 0) : 0;
         // Calcular calificación parcial
         let calif = 0;
         calif += (asistenciaPromedio * ponderaciones.asistencia) / 100;
@@ -1535,6 +1706,14 @@ export default function MaestroAsignaturas() {
                               >
                                 <BarChart3 className="h-4 w-4 mr-2" />
                                 Ponderaciones
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenActividadesModal(asignatura, courseGroup)}
+                              >
+                                <BookOpen className="h-4 w-4 mr-2" />
+                                Actividades
                               </Button>
                               <Button
                                 variant="outline"
@@ -2090,6 +2269,161 @@ export default function MaestroAsignaturas() {
               </DialogContent>
             </Dialog>
 
+            {/* Modal de Actividades */}
+            <Dialog open={isActividadesModalOpen} onOpenChange={setIsActividadesModalOpen}>
+              <DialogContent className="max-w-[90vw]">
+                <DialogHeader>
+                  <DialogTitle>Actividades del Curso</DialogTitle>
+                  <DialogDescription>
+                    Define las actividades, evidencias, producto y examen para este curso. Estas actividades aparecerán para todos los alumnos.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="w-full overflow-x-auto">
+                  <table className="min-w-[2400px] border border-gray-300 text-center">
+                    <thead>
+                      <tr>
+                        <th colSpan={18} className="bg-blue-100 font-semibold border-r border-gray-300">Actividades de Aprendizaje</th>
+                        <th colSpan={18} className="bg-green-100 font-semibold border-r border-gray-300">Evidencias de Aprendizaje</th>
+                        <th className="bg-pink-200 font-semibold border-r border-gray-300">Producto del Parcial</th>
+                        <th className="bg-gray-400 font-semibold text-white">Examen Parcial</th>
+                      </tr>
+                      <tr>
+                        {[...Array(18)].map((_, i) => (
+                          <th key={"act"+i} className="bg-blue-50 border-r border-gray-200">A{i+1}</th>
+                        ))}
+                        {[...Array(18)].map((_, i) => (
+                          <th key={"ev"+i} className="bg-green-50 border-r border-gray-200">E{i+1}</th>
+                        ))}
+                        <th className="bg-pink-50 border-r border-gray-200">Producto</th>
+                        <th className="bg-gray-100">Examen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        {/* Inputs de nombre para Actividades */}
+                        {[...Array(18)].map((_, i) => (
+                          <td key={"actname"+i} className="px-2 py-1 border-r border-gray-100">
+                            <div className="flex flex-col items-center gap-1">
+                              <input
+                                type="text"
+                                placeholder="Nombre"
+                                value={actividadesDefinidas.actividades[i]?.name || ''}
+                                onChange={e => {
+                                  setActividadesDefinidas(prev => ({
+                                    ...prev,
+                                    actividades: prev.actividades.map((item, idx) => 
+                                      idx === i ? { ...item, name: e.target.value } : item
+                                    )
+                                  }))
+                                }}
+                                className="w-20 text-center border rounded px-2 py-1 mx-1 mb-1"
+                              />
+                              <Button
+                                size="sm"
+                                variant={actividadesDefinidas.actividades[i]?.id ? "outline" : "default"}
+                                className={`h-6 px-2 text-xs ${actividadesDefinidas.actividades[i]?.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                                onClick={() => handleActividadButtonClick('actividades', i)}
+                                disabled={isSavingActividad}
+                              >
+                                {actividadesDefinidas.actividades[i]?.id ? '✏️ Editar' : '➕ Agregar'}
+                              </Button>
+                            </div>
+                          </td>
+                        ))}
+                        {/* Inputs de nombre para Evidencias */}
+                        {[...Array(18)].map((_, i) => (
+                          <td key={"evname"+i} className="px-2 py-1 border-r border-gray-100">
+                            <div className="flex flex-col items-center gap-1">
+                              <input
+                                type="text"
+                                placeholder="Nombre"
+                                value={actividadesDefinidas.evidencias[i]?.name || ''}
+                                onChange={e => {
+                                  setActividadesDefinidas(prev => ({
+                                    ...prev,
+                                    evidencias: prev.evidencias.map((item, idx) => 
+                                      idx === i ? { ...item, name: e.target.value } : item
+                                    )
+                                  }))
+                                }}
+                                className="w-20 text-center border rounded px-2 py-1 mx-1 mb-1"
+                              />
+                              <Button
+                                size="sm"
+                                variant={actividadesDefinidas.evidencias[i]?.id ? "outline" : "default"}
+                                className={`h-6 px-2 text-xs ${actividadesDefinidas.evidencias[i]?.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                                onClick={() => handleActividadButtonClick('evidencias', i)}
+                                disabled={isSavingActividad}
+                              >
+                                {actividadesDefinidas.evidencias[i]?.id ? '✏️ Editar' : '➕ Agregar'}
+                              </Button>
+                            </div>
+                          </td>
+                        ))}
+                        {/* Producto */}
+                        <td className="px-2 py-1 border-r border-gray-100">
+                          <div className="flex flex-col items-center gap-1">
+                            <input
+                              type="text"
+                              placeholder="Nombre"
+                              value={actividadesDefinidas.producto?.name || ''}
+                              onChange={e => {
+                                setActividadesDefinidas(prev => ({
+                                  ...prev,
+                                  producto: { ...prev.producto, name: e.target.value }
+                                }))
+                              }}
+                              className="w-20 text-center border rounded px-2 py-1 mx-1 mb-1"
+                            />
+                            <Button
+                              size="sm"
+                              variant={actividadesDefinidas.producto?.id ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${actividadesDefinidas.producto?.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handleActividadButtonClick('producto', 0)}
+                              disabled={isSavingActividad}
+                            >
+                              {actividadesDefinidas.producto?.id ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
+                        </td>
+                        {/* Examen */}
+                        <td className="px-2 py-1">
+                          <div className="flex flex-col items-center gap-1">
+                            <input
+                              type="text"
+                              placeholder="Nombre"
+                              value={actividadesDefinidas.examen?.name || ''}
+                              onChange={e => {
+                                setActividadesDefinidas(prev => ({
+                                  ...prev,
+                                  examen: { ...prev.examen, name: e.target.value }
+                                }))
+                              }}
+                              className="w-20 text-center border rounded px-2 py-1 mx-1 mb-1"
+                            />
+                            <Button
+                              size="sm"
+                              variant={actividadesDefinidas.examen?.id ? "outline" : "default"}
+                              className={`h-6 px-2 text-xs ${actividadesDefinidas.examen?.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+                              onClick={() => handleActividadButtonClick('examen', 0)}
+                              disabled={isSavingActividad}
+                            >
+                              {actividadesDefinidas.examen?.id ? '✏️ Editar' : '➕ Agregar'}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <DialogFooter className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" onClick={() => setIsActividadesModalOpen(false)}>
+                    Cerrar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             {/* Modal de Asistencia */}
             <Dialog open={isAsistenciaModalOpen} onOpenChange={setIsAsistenciaModalOpen}>
               <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
@@ -2269,32 +2603,32 @@ export default function MaestroAsignaturas() {
                         <th className="bg-purple-100">Calificación</th>
                       </tr>
                       <tr>
-                        {/* Inputs de nombre para Actividades */}
+                        {/* Nombres de Actividades (solo lectura) */}
                         {[...Array(18)].map((_, i) => (
                           <th key={"actname"+i} className="bg-blue-50 border-r border-gray-200">
-                            <input
-                              type="text"
-                              placeholder="Nombre"
-                              value={evaluacionesParciales.actividades[i]?.name || ''}
-                              onChange={e => handlePartialEvaluationNameChange('actividades', i, e.target.value)}
-                              className="w-20 text-center border rounded px-2 py-1 mx-1 mb-1"
-                            />
+                            <div className="text-xs font-medium text-blue-800 px-1">
+                              {actividadesDefinidas.actividades[i]?.name || `A${i+1}`}
+                            </div>
                           </th>
                         ))}
-                        {/* Inputs de nombre para Evidencias */}
+                        {/* Nombres de Evidencias (solo lectura) */}
                         {[...Array(18)].map((_, i) => (
                           <th key={"evname"+i} className="bg-green-50 border-r border-gray-200">
-                            <input
-                              type="text"
-                              placeholder="Nombre"
-                              value={evaluacionesParciales.evidencias[i]?.name || ''}
-                              onChange={e => handlePartialEvaluationNameChange('evidencias', i, e.target.value)}
-                              className="w-20 text-center border rounded px-2 py-1 mx-1 mb-1"
-                            />
+                            <div className="text-xs font-medium text-green-800 px-1">
+                              {actividadesDefinidas.evidencias[i]?.name || `E${i+1}`}
+                            </div>
                           </th>
                         ))}
-                        <th></th>
-                        <th></th>
+                        <th className="bg-pink-50 border-r border-gray-200">
+                          <div className="text-xs font-medium text-pink-800 px-1">
+                            {actividadesDefinidas.producto?.name || 'Producto'}
+                          </div>
+                        </th>
+                        <th className="bg-gray-100 border-r border-gray-200">
+                          <div className="text-xs font-medium text-gray-800 px-1">
+                            {actividadesDefinidas.examen?.name || 'Examen'}
+                          </div>
+                        </th>
                         <th></th>
                       </tr>
                     </thead>

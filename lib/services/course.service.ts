@@ -303,6 +303,47 @@ export const CourseService = {
         return data;
     },
 
+    // NUEVOS MÉTODOS PARA LA NUEVA ESTRUCTURA
+    async getPartialEvaluationsByCourseGroupId(courseGroupId: number) {
+        const response = await fetch(`${API_URL}/partial-evaluations/course-group/${courseGroupId}`, {
+            headers: getAuthHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Error al obtener evaluaciones parciales del curso');
+        return data;
+    },
+
+    async createPartialEvaluationGrade(dto: any) {
+        const response = await fetch(`${API_URL}/partial-evaluation-grades`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(dto)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Error al crear calificación de evaluación');
+        return data;
+    },
+
+    async updatePartialEvaluationGrade(id: number, dto: any) {
+        const response = await fetch(`${API_URL}/partial-evaluation-grades/${id}`, {
+            method: 'PATCH',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(dto)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Error al editar calificación de evaluación');
+        return data;
+    },
+
+    async getPartialEvaluationGradesByStudentAndPartial(courseGroupStudentId: number, partial: number) {
+        const response = await fetch(`${API_URL}/partial-evaluation-grades/student/${courseGroupStudentId}?partial=${partial}`, {
+            headers: getAuthHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Error al obtener calificaciones de evaluaciones parciales');
+        return data;
+    },
+
     async getAttendancesByCourseGroupStudentAndPartial(courseGroupStudentId: number, partial: number) {
         const response = await fetch(`${API_URL}/courses-groups-attendances/student/${courseGroupStudentId}?partial=${partial}`, {
             headers: getAuthHeaders()
