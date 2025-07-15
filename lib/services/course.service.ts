@@ -305,7 +305,7 @@ export const CourseService = {
 
     // NUEVOS MÉTODOS PARA LA NUEVA ESTRUCTURA
     async getPartialEvaluationsByCourseGroupId(courseGroupId: number) {
-        const response = await fetch(`${API_URL}/partial-evaluations/course-group/${courseGroupId}`, {
+        const response = await fetch(`${API_URL}/partial-evaluations/${courseGroupId}`, {
             headers: getAuthHeaders(),
         });
         const data = await response.json();
