@@ -2507,7 +2507,7 @@ export default function MaestroAsignaturas() {
                       {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
                         ? 'Ord A'
                         : calificacionesFinales.exentos !== null
-                          ? calificacionesFinales.exentos.toFixed(2)
+                          ? Math.round(calificacionesFinales.exentos)
                           : '--'}
                     </td>
                     <td className={
