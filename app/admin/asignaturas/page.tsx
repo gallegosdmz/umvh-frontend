@@ -65,6 +65,7 @@ export default function AsignaturasPage() {
   const [openViewAssignmentsModal, setOpenViewAssignmentsModal] = useState(false);
   const [selectedCourseAssignments, setSelectedCourseAssignments] = useState<any[]>([]);
   const [currentAssignmentPage, setCurrentAssignmentPage] = useState(1);
+  const [totalAssignments, setTotalAssignments] = useState(0);
   const assignmentsPerPage = 5;
   const [schedule, setSchedule] = useState("");
   const [scheduleError, setScheduleError] = useState("");
@@ -79,6 +80,7 @@ export default function AsignaturasPage() {
   const [selectedCourseGroupForStudents, setSelectedCourseGroupForStudents] = useState<any>(null);
   const [currentStudentsPage, setCurrentStudentsPage] = useState(1);
   const studentsPerPage = 10;
+  const [totalStudents, setTotalStudents] = useState(0);
   const [openImportModal, setOpenImportModal] = useState(false);
   const [importedStudents, setImportedStudents] = useState<ImportedStudent[]>([]);
   const [importLoading, setImportLoading] = useState(false);
@@ -110,9 +112,15 @@ export default function AsignaturasPage() {
 
   useEffect(() => {
     if (openViewAssignmentsModal && selectedCourse?.id) {
-      handleViewAssignments(selectedCourse);
+      loadAssignmentsForCourse();
     }
-  }, [currentAssignmentPage]);
+  }, [currentAssignmentPage, openViewAssignmentsModal, selectedCourse?.id]);
+
+  useEffect(() => {
+    if (openViewStudentsModal && selectedCourseGroupForStudents?.id) {
+      loadStudentsForCourseGroup();
+    }
+  }, [currentStudentsPage, openViewStudentsModal, selectedCourseGroupForStudents?.id]);
 
   const loadItems = async () => {
     try {
@@ -487,6 +495,46 @@ export default function AsignaturasPage() {
     });
   };
 
+  const loadAssignmentsForCourse = async () => {
+    if (!selectedCourse?.id) return;
+    
+    try {
+      const offset = (currentAssignmentPage - 1) * assignmentsPerPage;
+      const response = await CourseService.getAssignments(selectedCourse.id, assignmentsPerPage, offset);
+      console.log('Respuesta de asignaciones:', response);
+      
+      let assignments = [];
+      let total = 0;
+      
+      // Manejar diferentes formatos de respuesta
+      if (Array.isArray(response)) {
+        assignments = response;
+        total = response.length;
+      } else if (response && typeof response === 'object') {
+        if (response.items && Array.isArray(response.items)) {
+          assignments = response.items;
+          total = response.total || response.items.length;
+        } else if (response.data && Array.isArray(response.data)) {
+          assignments = response.data;
+          total = response.total || response.data.length;
+        } else {
+          assignments = [];
+          total = 0;
+        }
+      }
+      
+      setSelectedCourseAssignments(assignments);
+      setTotalAssignments(total);
+      
+      console.log('Asignaciones cargadas:', assignments.length, 'Total:', total);
+    } catch (err) {
+      console.error('Error al cargar las asignaciones:', err);
+      toast.error('Error al cargar las asignaciones');
+      setSelectedCourseAssignments([]);
+      setTotalAssignments(0);
+    }
+  };
+
   const handleViewAssignments = async (course: Course) => {
     if (!course.id) {
       toast.error('Error: ID de curso no válido');
@@ -495,17 +543,7 @@ export default function AsignaturasPage() {
 
     setSelectedCourse(course);
     setOpenViewAssignmentsModal(true);
-    try {
-      const offset = (currentAssignmentPage - 1) * assignmentsPerPage;
-      const response = await CourseService.getAssignments(course.id, assignmentsPerPage, offset);
-      // Asegurarnos de que siempre sea un array
-      const assignments = Array.isArray(response) ? response : [];
-      setSelectedCourseAssignments(assignments);
-    } catch (err) {
-      console.error('Error al cargar las asignaciones:', err);
-      toast.error('Error al cargar las asignaciones');
-      setSelectedCourseAssignments([]);
-    }
+    setCurrentAssignmentPage(1);
   };
 
   const handleAssignmentPageChange = (newPage: number) => {
@@ -553,6 +591,46 @@ export default function AsignaturasPage() {
     setOpenDeleteAssignmentModal(true);
   };
 
+  const loadStudentsForCourseGroup = async () => {
+    if (!selectedCourseGroupForStudents?.id) return;
+    
+    try {
+      const offset = (currentStudentsPage - 1) * studentsPerPage;
+      const response = await CourseService.getStudentsByCourseGroup(selectedCourseGroupForStudents.id, studentsPerPage, offset);
+      console.log('Respuesta de estudiantes del grupo:', response);
+      
+      let students = [];
+      let total = 0;
+      
+      // Manejar diferentes formatos de respuesta
+      if (Array.isArray(response)) {
+        students = response;
+        total = response.length;
+      } else if (response && typeof response === 'object') {
+        if (response.items && Array.isArray(response.items)) {
+          students = response.items;
+          total = response.total || response.items.length;
+        } else if (response.data && Array.isArray(response.data)) {
+          students = response.data;
+          total = response.total || response.data.length;
+        } else {
+          students = [];
+          total = 0;
+        }
+      }
+      
+      setSelectedCourseGroupStudents(students);
+      setTotalStudents(total);
+      
+      console.log('Estudiantes cargados:', students.length, 'Total:', total);
+    } catch (err) {
+      console.error('Error al cargar los estudiantes:', err);
+      toast.error('Error al cargar los estudiantes');
+      setSelectedCourseGroupStudents([]);
+      setTotalStudents(0);
+    }
+  };
+
   const handleViewStudents = async (assignment: any) => {
     if (!assignment.id) {
       toast.error('Error: ID de asignación no válido');
@@ -562,17 +640,6 @@ export default function AsignaturasPage() {
     setSelectedCourseGroupForStudents(assignment);
     setOpenViewStudentsModal(true);
     setCurrentStudentsPage(1);
-    
-    try {
-      const offset = (currentStudentsPage - 1) * studentsPerPage;
-      const response = await CourseService.getStudentsByCourseGroup(assignment.id, studentsPerPage, offset);
-      const students = Array.isArray(response) ? response : [];
-      setSelectedCourseGroupStudents(students);
-    } catch (err) {
-      console.error('Error al cargar los estudiantes:', err);
-      toast.error('Error al cargar los estudiantes');
-      setSelectedCourseGroupStudents([]);
-    }
   };
 
   const handleStudentsPageChange = (newPage: number) => {
@@ -1360,7 +1427,7 @@ export default function AsignaturasPage() {
 
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-gray-600">
-                Mostrando {selectedCourseAssignments.length} asignaciones
+                Mostrando {selectedCourseAssignments.length} de {totalAssignments} asignaciones
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1372,13 +1439,13 @@ export default function AsignaturasPage() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-sm font-medium">
-                  Página {currentAssignmentPage}
+                  Página {currentAssignmentPage} de {Math.ceil(totalAssignments / assignmentsPerPage)}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleAssignmentPageChange(currentAssignmentPage + 1)}
-                  disabled={selectedCourseAssignments.length < assignmentsPerPage}
+                  disabled={currentAssignmentPage >= Math.ceil(totalAssignments / assignmentsPerPage)}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -1389,6 +1456,7 @@ export default function AsignaturasPage() {
               <Button variant="outline" onClick={() => {
                 setOpenViewAssignmentsModal(false);
                 setCurrentAssignmentPage(1);
+                setTotalAssignments(0);
               }}>
                 Cerrar
               </Button>
@@ -1500,7 +1568,7 @@ export default function AsignaturasPage() {
         </Dialog>
 
         <Dialog open={openViewStudentsModal} onOpenChange={setOpenViewStudentsModal}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Alumnos asignados a {selectedCourseGroupForStudents?.group?.name}</DialogTitle>
               <DialogDescription>
@@ -1508,7 +1576,7 @@ export default function AsignaturasPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="border rounded-lg">
+            <div className="border rounded-lg flex-1 overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1547,7 +1615,7 @@ export default function AsignaturasPage() {
 
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-gray-600">
-                Mostrando {selectedCourseGroupStudents.length} alumnos
+                Mostrando {selectedCourseGroupStudents.length} de {totalStudents} alumnos
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1559,13 +1627,13 @@ export default function AsignaturasPage() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-sm font-medium">
-                  Página {currentStudentsPage}
+                  Página {currentStudentsPage} de {Math.ceil(totalStudents / studentsPerPage)}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleStudentsPageChange(currentStudentsPage + 1)}
-                  disabled={selectedCourseGroupStudents.length < studentsPerPage}
+                  disabled={currentStudentsPage >= Math.ceil(totalStudents / studentsPerPage)}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -1578,6 +1646,7 @@ export default function AsignaturasPage() {
                 setCurrentStudentsPage(1);
                 setSelectedCourseGroupStudents([]);
                 setSelectedCourseGroupForStudents(null);
+                setTotalStudents(0);
               }}>
                 Cerrar
               </Button>
