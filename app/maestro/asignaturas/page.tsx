@@ -1576,11 +1576,25 @@ export default function MaestroAsignaturas() {
       
       console.log('🔍 Promedio calculado:', promedio);
       
-      // Calcular asistencia total
-      let asistenciasTotales = await CourseService.getAttendancesByCourseGroupStudentAndPartial(alumno.courseGroupStudentId, 0); // 0 = todas
-      if (!Array.isArray(asistenciasTotales)) asistenciasTotales = [];
-      const presentesTotales = asistenciasTotales.filter((att: any) => att.attend === 1).length;
-      const asistenciaPorcentaje = asistenciasTotales.length > 0 ? Math.round((presentesTotales / asistenciasTotales.length) * 100) : 0;
+      // Calcular asistencia de los 3 parciales
+      let asistenciasParciales: any[] = [];
+      for (let parcial = 1; parcial <= 3; parcial++) {
+        try {
+          const asistenciasDelParcial = await CourseService.getAttendancesByCourseGroupStudentAndPartial(alumno.courseGroupStudentId, parcial);
+          if (Array.isArray(asistenciasDelParcial)) {
+            asistenciasParciales = asistenciasParciales.concat(asistenciasDelParcial);
+          }
+        } catch (error) {
+          console.error(`❌ Error obteniendo asistencias del parcial ${parcial}:`, error);
+        }
+      }
+      
+      console.log('🔍 Asistencias de los 3 parciales:', asistenciasParciales);
+      
+      const presentesTotales = asistenciasParciales.filter((att: any) => att.attend === 1).length;
+      const asistenciaPorcentaje = asistenciasParciales.length > 0 ? Math.round((presentesTotales / asistenciasParciales.length) * 100) : 0;
+      
+      console.log('🔍 Porcentaje de asistencia de los 3 parciales:', asistenciaPorcentaje + '%');
       
       // Exentos = promedio redondeado a 2 decimales
       const exentos = promedio !== null ? Math.round(promedio * 100) / 100 : null;
