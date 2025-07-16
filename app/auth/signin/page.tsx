@@ -47,15 +47,6 @@ export default function SignIn() {
     }
   }
 
-  const fillDemoCredentials = (role: "admin" | "maestro") => {
-    if (role === "admin") {
-      setEmail("admin@escuela.com")
-    } else {
-      setEmail("maestro.correo@gmail.com")
-    }
-    setPassword("Juvencio12")
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-red-50 to-blue-50 p-4">
       <div className="w-full max-w-md">
@@ -140,7 +131,7 @@ export default function SignIn() {
                 )}
               </Button>
             </form>
-            
+
           </CardContent>
         </Card>
       </div>
