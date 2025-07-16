@@ -510,14 +510,6 @@ export default function AlumnosPage() {
                             <Button 
                               variant="outline" 
                               size="icon" 
-                              title="Asignar Alumnos"
-                              onClick={() => handleAssignStudents(grupo)}
-                            >
-                              <Users className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
                               title="Editar"
                               onClick={() => handleEdit(grupo)}
                             >
