@@ -140,41 +140,7 @@ export default function SignIn() {
                 )}
               </Button>
             </form>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-500">Usuarios de prueba</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fillDemoCredentials("admin")}
-                className="h-10 text-xs border-[#bc4b26] text-[#bc4b26] hover:bg-orange-50"
-              >
-                👨‍💼 Administrador
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fillDemoCredentials("maestro")}
-                className="h-10 text-xs border-[#003d5c] text-[#003d5c] hover:bg-blue-50"
-              >
-                👩‍🏫 Maestro
-              </Button>
-            </div>
-
-            <div className="text-center text-xs text-gray-500 space-y-1">
-              <p>
-                💡 <strong>Tip:</strong> Haz clic en los botones de arriba para llenar automáticamente
-              </p>
-              <p>Cualquier contraseña funciona para la demo</p>
-            </div>
+            
           </CardContent>
         </Card>
       </div>
