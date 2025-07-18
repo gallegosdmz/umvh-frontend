@@ -72,8 +72,17 @@ export default function NuevoMaestro() {
 
     if (!formData.password) {
       newErrors.password = "La contraseña es requerida"
-    } else if (formData.password.length < 6) {
-      newErrors.password = "La contraseña debe tener al menos 6 caracteres"
+    } else if (formData.password.length < 8) {
+      newErrors.password = "La contraseña debe tener al menos 8 caracteres"
+    } else {
+      // Validar que tenga al menos una mayúscula
+      if (!/[A-Z]/.test(formData.password)) {
+        newErrors.password = "La contraseña debe contener al menos una letra mayúscula"
+      }
+      // Validar que tenga al menos 2 números
+      else if ((formData.password.match(/\d/g) || []).length < 2) {
+        newErrors.password = "La contraseña debe contener al menos 2 números"
+      }
     }
 
     if (formData.password !== formData.confirmPassword) {
