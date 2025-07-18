@@ -35,11 +35,23 @@ export default function NuevoMaestro() {
   const [success, setSuccess] = useState(false)
 
   const generatePassword = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    const numbers = "0123456789"
     let password = ""
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length))
+    
+    // Asegurar al menos 2 números
+    for (let i = 0; i < 2; i++) {
+      password += numbers.charAt(Math.floor(Math.random() * numbers.length))
     }
+    
+    // Completar con letras hasta llegar a 12 caracteres
+    for (let i = 0; i < 10; i++) {
+      password += letters.charAt(Math.floor(Math.random() * letters.length))
+    }
+    
+    // Mezclar los caracteres para que no estén todos los números juntos
+    password = password.split('').sort(() => Math.random() - 0.5).join('')
+    
     setFormData({ ...formData, password, confirmPassword: password })
   }
 
