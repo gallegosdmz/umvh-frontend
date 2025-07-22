@@ -81,6 +81,7 @@ export default function AsignaturasPage() {
   const [currentStudentsPage, setCurrentStudentsPage] = useState(1);
   const studentsPerPage = 10;
   const [totalStudents, setTotalStudents] = useState(0);
+  const [allCourseGroupStudents, setAllCourseGroupStudents] = useState<Student[]>([]);
   const [openImportModal, setOpenImportModal] = useState(false);
   const [importedStudents, setImportedStudents] = useState<ImportedStudent[]>([]);
   const [importLoading, setImportLoading] = useState(false);
@@ -154,9 +155,10 @@ export default function AsignaturasPage() {
 
   useEffect(() => {
     if (openViewStudentsModal && selectedCourseGroupForStudents?.id) {
+      console.log('useEffect ejecutado - Cargando estudiantes para CourseGroup:', selectedCourseGroupForStudents.id, 'Página:', currentStudentsPage);
       loadStudentsForCourseGroup();
     }
-  }, [currentStudentsPage, openViewStudentsModal, selectedCourseGroupForStudents?.id]);
+  }, [currentStudentsPage, openViewStudentsModal, selectedCourseGroupForStudents?.id, allCourseGroupStudents]);
 
   // Removido el useEffect problemático que causaba bucles infinitos
 
@@ -678,39 +680,53 @@ export default function AsignaturasPage() {
     if (!selectedCourseGroupForStudents?.id) return;
     
     try {
-      const offset = (currentStudentsPage - 1) * studentsPerPage;
-      const response = await CourseService.getStudentsByCourseGroup(selectedCourseGroupForStudents.id, studentsPerPage, offset);
-      console.log('Respuesta de estudiantes del grupo:', response);
-      
-      let students = [];
-      let total = 0;
-      
-      // Manejar diferentes formatos de respuesta
-      if (Array.isArray(response)) {
-        students = response;
-        total = response.length;
-      } else if (response && typeof response === 'object') {
-        if (response.items && Array.isArray(response.items)) {
-          students = response.items;
-          total = response.total || response.items.length;
-        } else if (response.data && Array.isArray(response.data)) {
-          students = response.data;
-          total = response.total || response.data.length;
-        } else {
-          students = [];
-          total = 0;
+      // Si es la primera vez que se carga, obtener todos los estudiantes
+      if (allCourseGroupStudents.length === 0) {
+        console.log('Cargando todos los estudiantes del grupo:', selectedCourseGroupForStudents.id);
+        const response = await CourseService.getStudentsByCourseGroup(selectedCourseGroupForStudents.id, 1000, 0);
+        console.log('Respuesta completa de estudiantes del grupo:', response);
+        
+        let students = [];
+        
+        // Manejar diferentes formatos de respuesta
+        if (Array.isArray(response)) {
+          students = response;
+        } else if (response && typeof response === 'object') {
+          if (response.items && Array.isArray(response.items)) {
+            students = response.items;
+          } else if (response.data && Array.isArray(response.data)) {
+            students = response.data;
+          } else {
+            students = [];
+          }
         }
+        
+        // Extraer los objetos Student de la respuesta (pueden venir anidados)
+        const processedStudents = students.map((item: any) => {
+          const student = (typeof item === 'object' && item !== null && item.student) ? item.student : item;
+          return student;
+        });
+        
+        setAllCourseGroupStudents(processedStudents);
+        setTotalStudents(processedStudents.length);
+        console.log('Todos los estudiantes cargados:', processedStudents.length);
       }
       
-      setSelectedCourseGroupStudents(students);
-      setTotalStudents(total);
+      // Aplicar paginación del lado del cliente
+      const startIndex = (currentStudentsPage - 1) * studentsPerPage;
+      const endIndex = startIndex + studentsPerPage;
+      const paginatedStudents = allCourseGroupStudents.slice(startIndex, endIndex);
       
-      console.log('Estudiantes cargados:', students.length, 'Total:', total);
+      console.log('Paginación - Total estudiantes:', allCourseGroupStudents.length, 'Página:', currentStudentsPage, 'Start:', startIndex, 'End:', endIndex, 'Mostrando:', paginatedStudents.length);
+      setSelectedCourseGroupStudents(paginatedStudents);
+      console.log('Página actual:', currentStudentsPage, 'Mostrando estudiantes:', startIndex + 1, 'a', Math.min(endIndex, allCourseGroupStudents.length), 'de', allCourseGroupStudents.length);
+      
     } catch (err) {
       console.error('Error al cargar los estudiantes:', err);
       toast.error('Error al cargar los estudiantes');
       setSelectedCourseGroupStudents([]);
       setTotalStudents(0);
+      setAllCourseGroupStudents([]);
     }
   };
 
@@ -720,12 +736,15 @@ export default function AsignaturasPage() {
       return;
     }
 
+    console.log('Abriendo modal de estudiantes para assignment:', assignment);
     setSelectedCourseGroupForStudents(assignment);
     setOpenViewStudentsModal(true);
     setCurrentStudentsPage(1);
+    setAllCourseGroupStudents([]); // Limpiar para forzar recarga
   };
 
   const handleStudentsPageChange = (newPage: number) => {
+    console.log('Cambiando página de estudiantes a:', newPage);
     setCurrentStudentsPage(newPage);
   };
 
@@ -2001,7 +2020,10 @@ export default function AsignaturasPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleStudentsPageChange(currentStudentsPage - 1)}
+                  onClick={() => {
+                    console.log('Botón anterior clickeado - Página actual:', currentStudentsPage);
+                    handleStudentsPageChange(currentStudentsPage - 1);
+                  }}
                   disabled={currentStudentsPage === 1}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -2012,7 +2034,10 @@ export default function AsignaturasPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleStudentsPageChange(currentStudentsPage + 1)}
+                  onClick={() => {
+                    console.log('Botón siguiente clickeado - Página actual:', currentStudentsPage, 'Total páginas:', Math.ceil(totalStudents / studentsPerPage));
+                    handleStudentsPageChange(currentStudentsPage + 1);
+                  }}
                   disabled={currentStudentsPage >= Math.ceil(totalStudents / studentsPerPage)}
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -2027,6 +2052,7 @@ export default function AsignaturasPage() {
                 setSelectedCourseGroupStudents([]);
                 setSelectedCourseGroupForStudents(null);
                 setTotalStudents(0);
+                setAllCourseGroupStudents([]); // Limpiar todos los estudiantes
               }}>
                 Cerrar
               </Button>

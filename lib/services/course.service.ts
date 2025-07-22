@@ -181,11 +181,14 @@ export const CourseService = {
     },
 
     async getStudentsByCourseGroup(courseGroupId: number, limit: number = 10, offset: number = 0) {
+        console.log('Llamando a getStudentsByCourseGroup con:', { courseGroupId, limit, offset });
         const response = await fetch(`${API_URL}/courses-groups-students/findAll/${courseGroupId}?limit=${limit}&offset=${offset}`, {
             headers: getAuthHeaders()
         });
         if (!response.ok) throw new Error('Error al obtener los estudiantes del grupo');
-        return response.json();
+        const data = await response.json();
+        console.log('Respuesta de getStudentsByCourseGroup:', data);
+        return data;
     },
 
     async createGradingScheme(gradingSchemeData: { courseGroupId: number; type: string; percentage: number }) {
