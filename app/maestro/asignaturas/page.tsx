@@ -155,7 +155,10 @@ export default function MaestroAsignaturas() {
 
   const [calificacionesParcialesAlumnos, setCalificacionesParcialesAlumnos] = useState<{[key: number]: {
     calificacion: number,
-    porcentajeAsistencia: number
+    porcentajeAsistencia: number,
+    parcial1?: number,
+    parcial2?: number,
+    parcial3?: number
   }}>({})
   
   // Estado para el modal general
@@ -188,6 +191,12 @@ export default function MaestroAsignaturas() {
   const [isSavingExtraordinario, setIsSavingExtraordinario] = useState(false);
   const [ordinarioGuardado, setOrdinarioGuardado] = useState<number | null>(null);
   const [extraordinarioGuardado, setExtraordinarioGuardado] = useState<number | null>(null);
+  
+  // Estado para almacenar las calificaciones finales de todos los alumnos
+  const [calificacionesFinalesAlumnos, setCalificacionesFinalesAlumnos] = useState<{[key: number]: {
+    ordinario: number | null;
+    extraordinario: number | null;
+  }}>({});
 
 
 
@@ -1314,19 +1323,11 @@ export default function MaestroAsignaturas() {
       console.log(`Calificaciones parcial ${parcial} para estudiante ${courseGroupStudentId}:`, response);
       
       if (response && response.length > 0) {
-        // Calcular la calificación del parcial basada en las ponderaciones
-        let calificacionTotal = 0;
-        let ponderacionTotal = 0;
-        
-        response.forEach((grade: any) => {
-          if (grade.partialEvaluation && grade.grade > 0) {
-            const ponderacion = grade.partialEvaluation.percentage || 0;
-            calificacionTotal += (grade.grade * ponderacion) / 100;
-            ponderacionTotal += ponderacion;
-          }
-        });
-        
-        return ponderacionTotal > 0 ? calificacionTotal : 0;
+        // Buscar la calificación parcial calculada
+        const partialGrade = response.find((grade: any) => grade.partial === parcial);
+        if (partialGrade && partialGrade.grade > 0) {
+          return partialGrade.grade;
+        }
       }
       
       return 0;
@@ -1377,6 +1378,9 @@ export default function MaestroAsignaturas() {
       // Calcular las calificaciones parciales de todos los alumnos
       await calcularCalificacionesParcialesTodosAlumnos();
       
+      // Cargar calificaciones finales de todos los alumnos
+      await cargarCalificacionesFinalesAlumnos();
+      
       // Cargar calificaciones de los 3 parciales para cada alumno
       const calificacionesTemp: {[key: number]: {
         parcial1: number,
@@ -1386,9 +1390,13 @@ export default function MaestroAsignaturas() {
       }} = {};
       
       for (const alumno of mappedStudents) {
+        console.log(`\n--- Cargando calificaciones para alumno ${alumno.fullName} ---`);
+        
         const parcial1 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 1);
         const parcial2 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 2);
         const parcial3 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 3);
+        
+        console.log(`Parcial 1: ${parcial1}, Parcial 2: ${parcial2}, Parcial 3: ${parcial3}`);
         
         const promedio = ((parcial1 + parcial2 + parcial3) / 3);
         
@@ -1398,6 +1406,8 @@ export default function MaestroAsignaturas() {
           parcial3,
           promedio
         };
+        
+        console.log(`Calificaciones guardadas para ${alumno.courseGroupStudentId}:`, calificacionesTemp[alumno.courseGroupStudentId!]);
       }
       
       setCalificacionesGenerales(calificacionesTemp);
@@ -2062,7 +2072,10 @@ export default function MaestroAsignaturas() {
     
     const nuevasCalificacionesParciales: {[key: number]: {
       calificacion: number,
-      porcentajeAsistencia: number
+      porcentajeAsistencia: number,
+      parcial1?: number,
+      parcial2?: number,
+      parcial3?: number
     }} = {};
     
     for (const alumno of alumnos) {
@@ -2215,9 +2228,17 @@ export default function MaestroAsignaturas() {
       
       console.log('Calificación parcial final:', calificacionParcialFinal);
       
+      // Obtener los parciales individuales para este alumno
+      const parcial1 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 1);
+      const parcial2 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 2);
+      const parcial3 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 3);
+      
       nuevasCalificacionesParciales[alumno.courseGroupStudentId!] = {
         calificacion: Math.round(calificacionParcialFinal * 100) / 100,
-        porcentajeAsistencia: Math.round(porcentajeAsistencia * 100) / 100
+        porcentajeAsistencia: Math.round(porcentajeAsistencia * 100) / 100,
+        parcial1: parcial1,
+        parcial2: parcial2,
+        parcial3: parcial3
       };
     }
     
@@ -2319,8 +2340,52 @@ export default function MaestroAsignaturas() {
       
       // Calcular calificaciones parciales después de cargar las calificaciones
       await calcularCalificacionesParcialesTodosAlumnos();
+      
+      // Cargar calificaciones finales de todos los alumnos
+      await cargarCalificacionesFinalesAlumnos();
     } catch (error) {
       console.error('Error al cargar calificaciones de alumnos:', error);
+    }
+  };
+
+  // Función para cargar las calificaciones finales de todos los alumnos
+  const cargarCalificacionesFinalesAlumnos = async () => {
+    if (!selectedCourseGroup?.courseGroupStudents) return;
+    
+    try {
+      const nuevasCalificacionesFinales: {[key: number]: {
+        ordinario: number | null;
+        extraordinario: number | null;
+      }} = {};
+      
+      for (const alumno of selectedCourseGroup.courseGroupStudents) {
+        try {
+          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(alumno.courseGroupStudentId!);
+          
+          if (finalGrades && finalGrades.length > 0) {
+            const finalGrade = finalGrades[0];
+            nuevasCalificacionesFinales[alumno.courseGroupStudentId!] = {
+              ordinario: finalGrade.gradeOrdinary,
+              extraordinario: finalGrade.gradeExtraordinary
+            };
+          } else {
+            nuevasCalificacionesFinales[alumno.courseGroupStudentId!] = {
+              ordinario: null,
+              extraordinario: null
+            };
+          }
+        } catch (error) {
+          console.error(`Error obteniendo calificaciones finales para alumno ${alumno.courseGroupStudentId}:`, error);
+          nuevasCalificacionesFinales[alumno.courseGroupStudentId!] = {
+            ordinario: null,
+            extraordinario: null
+          };
+        }
+      }
+      
+      setCalificacionesFinalesAlumnos(nuevasCalificacionesFinales);
+    } catch (error) {
+      console.error('Error al cargar calificaciones finales de alumnos:', error);
     }
   };
 
@@ -2924,15 +2989,34 @@ export default function MaestroAsignaturas() {
                         </thead>
                         <tbody>
                           {alumnos.map((alumno, index) => {
-                            // Obtener calificaciones de los 3 parciales
-                            const calificaciones = calificacionesGenerales[alumno.courseGroupStudentId!];
-                            const calificacionParcial1 = calificaciones?.parcial1 || 0;
-                            const calificacionParcial2 = calificaciones?.parcial2 || 0;
-                            const calificacionParcial3 = calificaciones?.parcial3 || 0;
-                            const promedio = calificaciones?.promedio || 0;
+                            // Obtener calificaciones de los 3 parciales desde la base de datos
+                            const calificacionParcial1 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial1 || 0;
+                            const calificacionParcial2 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial2 || 0;
+                            const calificacionParcial3 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial3 || 0;
+                            
+                            console.log(`Alumno ${alumno.fullName}: P1=${calificacionParcial1}, P2=${calificacionParcial2}, P3=${calificacionParcial3}`);
+                            
+                            // Calcular promedio general solo con parciales válidos
+                            const parcialesValidos = [calificacionParcial1, calificacionParcial2, calificacionParcial3]
+                              .filter(p => p > 0 && typeof p === 'number' && !isNaN(p));
+                            const promedio = parcialesValidos.length > 0 
+                              ? Math.round((parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) * 100) / 100
+                              : 0;
                             
                             // Obtener porcentaje de asistencia
                             const asistencia = calificacionesParcialesAlumnos[alumno.courseGroupStudentId!]?.porcentajeAsistencia || 0;
+                            
+                            // Obtener calificaciones finales
+                            const calificacionesFinales = calificacionesFinalesAlumnos[alumno.courseGroupStudentId!];
+                            const ordinario = calificacionesFinales?.ordinario;
+                            const extraordinario = calificacionesFinales?.extraordinario;
+                            
+                            // Función helper para validar y formatear calificaciones
+                            const formatearCalificacion = (calificacion: number | null | undefined) => {
+                              return calificacion !== null && calificacion !== undefined && !isNaN(calificacion) 
+                                ? calificacion.toFixed(2) 
+                                : '--';
+                            };
                             
                             return (
                               <tr key={alumno.id} className="hover:bg-gray-50">
@@ -2944,10 +3028,98 @@ export default function MaestroAsignaturas() {
                                 <td className="border border-gray-300 px-2 py-1">{calificacionParcial3 > 0 ? calificacionParcial3.toFixed(2) : '--'}</td>
                                 <td className="border border-gray-300 px-2 py-1 font-semibold">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
                                 <td className="border border-gray-300 px-2 py-1">{asistencia > 0 ? `${asistencia.toFixed(0)}%` : '--'}</td>
-                                <td className="border border-gray-300 px-2 py-1 bg-green-100">--</td>
-                                <td className="border border-gray-300 px-2 py-1">--</td>
-                                <td className="border border-gray-300 px-2 py-1">--</td>
-                                <td className="border border-gray-300 px-2 py-1">--</td>
+                                <td className="border border-gray-300 px-2 py-1 bg-green-100">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="10"
+                                    step="0.01"
+                                    className="w-16 text-center border rounded px-1 py-1 text-sm"
+                                    placeholder="--"
+                                    value={ordinario !== null && ordinario !== undefined ? ordinario : ''}
+                                    onChange={async (e) => {
+                                      const value = e.target.value === '' ? null : Number(e.target.value);
+                                      const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                      
+                                      // Actualizar estado local inmediatamente
+                                      setCalificacionesFinalesAlumnos(prev => ({
+                                        ...prev,
+                                        [courseGroupStudentId]: {
+                                          ...prev[courseGroupStudentId],
+                                          ordinario: value
+                                        }
+                                      }));
+                                      
+                                      // Guardar en la base de datos
+                                      try {
+                                        const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                        if (finalGrades && finalGrades.length > 0) {
+                                          await CourseService.updateFinalGrade(finalGrades[0].id, { gradeOrdinary: value });
+                                        } else {
+                                          await CourseService.createFinalGrade({
+                                            grade: 0,
+                                            gradeOrdinary: value,
+                                            gradeExtraordinary: null,
+                                            date: new Date().toISOString(),
+                                            type: 'final',
+                                            courseGroupStudentId: courseGroupStudentId
+                                          });
+                                        }
+                                        toast.success('Calificación ordinaria guardada');
+                                      } catch (error) {
+                                        console.error('Error al guardar calificación ordinaria:', error);
+                                        toast.error('Error al guardar calificación ordinaria');
+                                      }
+                                    }}
+                                  />
+                                </td>
+                                <td className="border border-gray-300 px-2 py-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="10"
+                                    step="0.01"
+                                    className="w-16 text-center border rounded px-1 py-1 text-sm"
+                                    placeholder="--"
+                                    value={extraordinario !== null && extraordinario !== undefined ? extraordinario : ''}
+                                    onChange={async (e) => {
+                                      const value = e.target.value === '' ? null : Number(e.target.value);
+                                      const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                      
+                                      // Actualizar estado local inmediatamente
+                                      setCalificacionesFinalesAlumnos(prev => ({
+                                        ...prev,
+                                        [courseGroupStudentId]: {
+                                          ...prev[courseGroupStudentId],
+                                          extraordinario: value
+                                        }
+                                      }));
+                                      
+                                      // Guardar en la base de datos
+                                      try {
+                                        const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                        if (finalGrades && finalGrades.length > 0) {
+                                          await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
+                                        } else {
+                                          await CourseService.createFinalGrade({
+                                            grade: 0,
+                                            gradeOrdinary: null,
+                                            gradeExtraordinary: value,
+                                            date: new Date().toISOString(),
+                                            type: 'final',
+                                            courseGroupStudentId: courseGroupStudentId
+                                          });
+                                        }
+                                        toast.success('Calificación extraordinaria guardada');
+                                      } catch (error) {
+                                        console.error('Error al guardar calificación extraordinaria:', error);
+                                        toast.error('Error al guardar calificación extraordinaria');
+                                      }
+                                    }}
+                                  />
+                                </td>
                               </tr>
                             );
                           })}
@@ -3803,8 +3975,17 @@ export default function MaestroAsignaturas() {
                                 try {
                                   await CourseService.updateFinalGrade(finalGradeId, { gradeOrdinary: Number(inputOrdinario) });
                                   setOrdinarioGuardado(Number(inputOrdinario));
+                                  
+                                  // Actualizar el estado de calificaciones finales
+                                  setCalificacionesFinalesAlumnos(prev => ({
+                                    ...prev,
+                                    [alumnoCalificacionFinal.courseGroupStudentId]: {
+                                      ...prev[alumnoCalificacionFinal.courseGroupStudentId],
+                                      ordinario: Number(inputOrdinario)
+                                    }
+                                  }));
+                                  
                                   toast.success('Calificación ordinaria guardada correctamente');
-                                  // No necesitamos recargar, ya tenemos el valor actualizado en el estado
                                 } catch (err) {
                                   console.error('Error al guardar calificación ordinaria:', err);
                                   toast.error('Error al guardar calificación ordinaria');
@@ -3849,8 +4030,17 @@ export default function MaestroAsignaturas() {
                                 try {
                                   await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
                                   setExtraordinarioGuardado(Number(inputExtraordinario));
+                                  
+                                  // Actualizar el estado de calificaciones finales
+                                  setCalificacionesFinalesAlumnos(prev => ({
+                                    ...prev,
+                                    [alumnoCalificacionFinal.courseGroupStudentId]: {
+                                      ...prev[alumnoCalificacionFinal.courseGroupStudentId],
+                                      extraordinario: Number(inputExtraordinario)
+                                    }
+                                  }));
+                                  
                                   toast.success('Calificación extraordinaria guardada correctamente');
-                                  // No necesitamos recargar, ya tenemos el valor actualizado en el estado
                                 } catch (err) {
                                   console.error('Error al guardar calificación extraordinaria:', err);
                                   toast.error('Error al guardar calificación extraordinaria');
