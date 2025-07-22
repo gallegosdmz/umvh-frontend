@@ -2520,7 +2520,7 @@ export default function MaestroAsignaturas() {
 
             {/* Modal de Alumnos con Tabla de Evaluaciones */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogContent className="max-w-[95vw] max-h-[90vh] flex flex-col">
+              <DialogContent className="max-w-[95vw] h-[90vh] flex flex-col">
                 <DialogHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -2535,7 +2535,7 @@ export default function MaestroAsignaturas() {
                   </div>
                 </DialogHeader>
                 
-                <div className="flex items-center gap-4 mb-4 flex-shrink-0">
+                <div className="flex items-center gap-4 mb-4 flex-shrink-0 z-20 relative">
                   <div className="flex items-center gap-2">
                     <label htmlFor="parcial-select" className="font-medium">Parcial:</label>
                     <select
@@ -2576,8 +2576,8 @@ export default function MaestroAsignaturas() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 overflow-auto">
-                    <div className="overflow-x-auto">
+                  <div className="flex-1 overflow-hidden">
+                    <div className="overflow-x-auto h-full">
                       <table className="min-w-[2000px] border border-gray-300 text-center">
                         <thead className="sticky top-0 bg-white z-10">
                           {/* Primera fila de encabezados principales */}
