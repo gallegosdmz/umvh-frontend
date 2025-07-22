@@ -96,6 +96,7 @@ export default function AsignaturasPage() {
   const [searchTermForAssignment, setSearchTermForAssignment] = useState("");
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [assignedStudentsToCourseGroup, setAssignedStudentsToCourseGroup] = useState<Student[]>([]);
+  const [importedStudentsForSelection, setImportedStudentsForSelection] = useState<Student[]>([]);
 
   useEffect(() => {
     loadItems();
@@ -116,19 +117,34 @@ export default function AsignaturasPage() {
   useEffect(() => {
     if (openAssignModal) {
       console.log('useEffect de filtrado ejecutado');
-      console.log('Estado actual - searchTerm:', searchTerm, 'grupos:', grupos.length, 'maestros:', maestros.length, 'alumnos:', alumnos.length);
+      console.log('Estado actual - searchTerm:', searchTerm, 'grupos:', grupos.length, 'maestros:', maestros.length, 'alumnos:', alumnos.length, 'importedStudentsForSelection:', importedStudentsForSelection.length);
       filterGroups();
       filterTeachers();
       filterStudents();
     }
-  }, [searchTerm, grupos, maestros, alumnos]);
+  }, [searchTerm, grupos, maestros, alumnos, importedStudentsForSelection]);
 
   // useEffect para logging del estado de estudiantes
   useEffect(() => {
     if (currentStep === 'students') {
-      console.log('Estado de estudiantes actualizado - alumnos:', alumnos, 'filteredStudents:', filteredStudents);
+      console.log('Estado de estudiantes actualizado - alumnos:', alumnos, 'filteredStudents:', filteredStudents, 'importedStudentsForSelection:', importedStudentsForSelection);
     }
-  }, [alumnos, filteredStudents, currentStep]);
+  }, [alumnos, filteredStudents, currentStep, importedStudentsForSelection]);
+
+  // useEffect para cargar alumnos cuando se cambia al paso de estudiantes
+  useEffect(() => {
+    if (currentStep === 'students') {
+      loadStudents();
+    }
+  }, [currentStep]);
+
+  // useEffect específico para manejar cambios en alumnos importados
+  useEffect(() => {
+    if (importedStudentsForSelection.length > 0) {
+      console.log('Alumnos importados cambiaron, actualizando filteredStudents');
+      setFilteredStudents(importedStudentsForSelection);
+    }
+  }, [importedStudentsForSelection]);
 
   useEffect(() => {
     if (openViewAssignmentsModal && selectedCourse?.id) {
@@ -300,6 +316,12 @@ export default function AsignaturasPage() {
 
   const loadStudents = async () => {
     try {
+      // Si hay alumnos importados, no cargar nada del servidor
+      if (importedStudentsForSelection.length > 0) {
+        console.log('Hay alumnos importados, no cargando del servidor');
+        return;
+      }
+
       // Si estamos en el paso de estudiantes y hay un grupo seleccionado,
       // cargar solo los alumnos de ese grupo
       if (currentStep === 'students' && selectedGroup?.id) {
@@ -467,6 +489,7 @@ export default function AsignaturasPage() {
     setCurrentStep('groups');
     setSchedule("");
     setScheduleError("");
+    setImportedStudentsForSelection([]);
   };
 
   const filterGroups = () => {
@@ -499,16 +522,21 @@ export default function AsignaturasPage() {
 
   const filterStudents = () => {
     console.log('filterStudents ejecutado. alumnos:', alumnos);
+    console.log('importedStudentsForSelection:', importedStudentsForSelection);
     console.log('searchTerm:', searchTerm);
     
+    // Determinar qué lista de alumnos usar
+    const studentsToFilter = importedStudentsForSelection.length > 0 ? importedStudentsForSelection : alumnos;
+    console.log('studentsToFilter:', studentsToFilter);
+    
     if (!searchTerm) {
-      console.log('Sin término de búsqueda, mostrando todos los alumnos:', alumnos);
-      setFilteredStudents(alumnos);
+      console.log('Sin término de búsqueda, mostrando todos los alumnos:', studentsToFilter);
+      setFilteredStudents(studentsToFilter);
       return;
     }
 
     const searchLower = searchTerm.toLowerCase();
-    const filtered = alumnos.filter(alumno => 
+    const filtered = studentsToFilter.filter(alumno => 
       alumno.fullName.toLowerCase().includes(searchLower) ||
       alumno.registrationNumber.toLowerCase().includes(searchLower)
     );
@@ -798,6 +826,7 @@ export default function AsignaturasPage() {
     try {
       let successCount = 0;
       let errorCount = 0;
+      const successfullyImportedStudents: Student[] = [];
 
       for (const student of importedStudents) {
         try {
@@ -808,7 +837,8 @@ export default function AsignaturasPage() {
           };
 
           // Llamar a la API para crear el estudiante
-          await studentService.createStudent(studentData);
+          const createdStudent = await studentService.createStudent(studentData);
+          successfullyImportedStudents.push(createdStudent);
           
           successCount++;
         } catch (error) {
@@ -819,6 +849,11 @@ export default function AsignaturasPage() {
 
       if (successCount > 0) {
         toast.success(`${successCount} alumnos importados correctamente`);
+        // Guardar los alumnos importados para mostrarlos en el modal de asignación
+        setImportedStudentsForSelection(successfullyImportedStudents);
+        // Actualizar el estado de alumnos en el modal de asignación
+        setAlumnos(successfullyImportedStudents);
+        // No actualizar filteredStudents aquí, dejar que el useEffect lo haga
       }
       
       if (errorCount > 0) {
@@ -1525,7 +1560,7 @@ export default function AsignaturasPage() {
                         Volver
                       </Button>
                       <h3 className="text-lg font-semibold">
-                        Selecciona Alumnos del Grupo {selectedGroup?.name} (Opcional)
+                        Selecciona Alumnos {importedStudentsForSelection.length > 0 ? 'Importados' : `del Grupo ${selectedGroup?.name}`} (Opcional)
                         {selectedStudents.size > 0 && (
                           <span className="ml-2 text-sm text-blue-600 font-normal">
                             ({selectedStudents.size} seleccionado{selectedStudents.size !== 1 ? 's' : ''})
@@ -1534,6 +1569,24 @@ export default function AsignaturasPage() {
                       </h3>
                     </div>
                     <div className="flex items-center gap-2">
+                      {importedStudentsForSelection.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setImportedStudentsForSelection([]);
+                            // Recargar los alumnos del grupo
+                            if (selectedGroup?.id) {
+                              loadStudents();
+                            }
+                            // Limpiar también filteredStudents para que se recargue
+                            setFilteredStudents([]);
+                          }}
+                        >
+                          <Users className="h-4 w-4 mr-2" />
+                          Ver alumnos del grupo
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -1576,7 +1629,7 @@ export default function AsignaturasPage() {
                     <div className="text-sm text-gray-600">
                       {selectedStudents.size > 0 && (
                         <span>
-                          {selectedStudents.size} de {filteredStudents.length} alumnos del grupo seleccionado{selectedStudents.size !== 1 ? 's' : ''}
+                          {selectedStudents.size} de {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : 'del grupo seleccionado'}{selectedStudents.size !== 1 ? 's' : ''}
                         </span>
                       )}
                     </div>
@@ -1612,7 +1665,7 @@ export default function AsignaturasPage() {
                   </div>
                   <div className="flex items-center justify-between mt-4">
                     <div className="text-sm text-gray-600">
-                      Mostrando {filteredStudents.length} alumnos del grupo {selectedGroup?.name}
+                      Mostrando {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : `del grupo ${selectedGroup?.name}`}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
