@@ -708,6 +708,9 @@ export default function MaestroAsignaturas() {
         await reloadPonderacionesAfterCreate()
       }
       
+      // Recalcular calificaciones parciales después de cambiar ponderaciones
+      await calcularCalificacionesParcialesTodosAlumnos();
+      
     } catch (error) {
       console.error('Error al guardar la ponderación:', error)
       toast.error('Error al guardar la ponderación')
@@ -934,6 +937,9 @@ export default function MaestroAsignaturas() {
       
       console.log('\n=== FINALIZADO GUARDADO DE ASISTENCIAS ===')
       toast.success('Asistencia guardada correctamente')
+      
+      // Recalcular calificaciones parciales después de guardar asistencias
+      await calcularCalificacionesParcialesTodosAlumnos();
       
     } catch (error) {
       console.error('❌ Error general al guardar la asistencia:', error)
@@ -2246,6 +2252,50 @@ export default function MaestroAsignaturas() {
     console.log('nuevasCalificacionesParciales:', nuevasCalificacionesParciales);
     
     setCalificacionesParcialesAlumnos(nuevasCalificacionesParciales);
+    
+    // Actualizar calificaciones parciales en la base de datos
+    await actualizarCalificacionesParcialesEnBD(nuevasCalificacionesParciales);
+  };
+
+  // Función para actualizar calificaciones parciales en la base de datos
+  const actualizarCalificacionesParcialesEnBD = async (calificaciones: {[key: number]: any}) => {
+    console.log('=== ACTUALIZANDO CALIFICACIONES PARCIALES EN BD ===');
+    
+    for (const [courseGroupStudentId, calificacion] of Object.entries(calificaciones)) {
+      try {
+        const studentId = Number(courseGroupStudentId);
+        const calificacionParcial = calificacion.calificacion;
+        
+        if (calificacionParcial > 0) {
+          console.log(`Actualizando calificación parcial para alumno ${studentId}: ${calificacionParcial}`);
+          
+          // Verificar si ya existe una calificación parcial para este alumno y parcial
+          const existingPartialGrades = await CourseService.getPartialGradesByStudentAndPartial(studentId, selectedPartial);
+          
+          const partialGradeDto = {
+            partial: selectedPartial,
+            grade: Math.round(calificacionParcial * 100) / 100, // Redondear a 2 decimales
+            date: new Date().toISOString(),
+            courseGroupStudentId: studentId
+          };
+          
+          if (existingPartialGrades && existingPartialGrades.length > 0) {
+            // Actualizar calificación parcial existente
+            const existingPartialGrade = existingPartialGrades[0];
+            console.log(`Actualizando calificación parcial existente ID: ${existingPartialGrade.id}`);
+            await CourseService.updatePartialGrade(existingPartialGrade.id, partialGradeDto);
+          } else {
+            // Crear nueva calificación parcial
+            console.log(`Creando nueva calificación parcial para alumno ${studentId}`);
+            await CourseService.createPartialGrade(partialGradeDto);
+          }
+        }
+      } catch (error) {
+        console.error(`Error actualizando calificación parcial para alumno ${courseGroupStudentId}:`, error);
+      }
+    }
+    
+    console.log('=== FIN ACTUALIZACIÓN CALIFICACIONES PARCIALES EN BD ===');
   };
 
   const cargarCalificacionesAlumnos = async () => {
