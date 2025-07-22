@@ -2626,94 +2626,98 @@ export default function MaestroAsignaturas() {
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <div className="rounded-md border h-full flex flex-col">
-                    <table className="min-w-full w-full border-separate" style={{ borderSpacing: 0, tableLayout: 'fixed' }}>
-                      <thead className="bg-white sticky top-0 z-10" style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
-                        <tr>
-                          <th className="px-4 py-2 text-left" style={{ width: '30%' }}>Nombre Completo</th>
-                          <th className="px-4 py-2 text-left" style={{ width: '18%' }}>Matrícula</th>
-                          <th className="px-4 py-2 text-left" style={{ width: '18%' }}>Estado</th>
-                          <th className="px-4 py-2 text-center" style={{ width: '11%' }}>Presente</th>
-                          <th className="px-4 py-2 text-center" style={{ width: '11%' }}>Ausente</th>
-                          <th className="px-4 py-2 text-center" style={{ width: '12%' }}>Retardo</th>
-                        </tr>
-                      </thead>
-                      <tbody className="block max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100" style={{ display: 'block', width: '100%' }}>
-                        {isLoadingAsistencia || isLoadingDateChange ? (
-                          <tr style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
-                            <td colSpan={6} className="text-center py-8">
-                              <div className="flex flex-col items-center justify-center text-gray-500">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
-                                <p>{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
-                              </div>
-                            </td>
+                    <div className="overflow-y-auto max-h-[400px] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                      <table className="min-w-full w-full border-separate" style={{ borderSpacing: 0, tableLayout: 'fixed' }}>
+                        <thead className="bg-white sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-2 text-center" style={{ width: '8%' }}>No.</th>
+                            <th className="px-4 py-2 text-left" style={{ width: '25%' }}>Nombre Completo</th>
+                            <th className="px-4 py-2 text-left" style={{ width: '15%' }}>Matrícula</th>
+                            <th className="px-4 py-2 text-left" style={{ width: '15%' }}>Estado</th>
+                            <th className="px-4 py-2 text-center" style={{ width: '12%' }}>Presente</th>
+                            <th className="px-4 py-2 text-center" style={{ width: '12%' }}>Ausente</th>
+                            <th className="px-4 py-2 text-center" style={{ width: '13%' }}>Retardo</th>
                           </tr>
-                        ) : asistenciaAlumnos.length === 0 ? (
-                          <tr style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
-                            <td colSpan={6} className="text-center py-8">
-                              <div className="flex flex-col items-center justify-center text-gray-500">
-                                <Users className="h-12 w-12 mb-4" />
-                                <p className="text-lg font-medium">No hay alumnos en este grupo</p>
-                                <p className="text-sm">Agrega alumnos al grupo para tomar asistencia</p>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : (
-                          asistenciaAlumnos.map((alumno) => (
-                            <tr key={alumno.id} style={{ display: 'table', width: '100%', tableLayout: 'fixed' }}>
-                              <td className="font-medium px-4 py-2" style={{ width: '30%' }}>{alumno.fullName}</td>
-                              <td className="px-4 py-2" style={{ width: '18%' }}>{alumno.registrationNumber}</td>
-                              <td className="px-4 py-2" style={{ width: '18%' }}>
-                                {alumno.attendanceId ? (
-                                  <Badge variant="secondary" className="bg-green-100 text-green-800">
-                                    ✓ Creada
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                                    ⚠ Nueva
-                                  </Badge>
-                                )}
-                              </td>
-                              <td className="px-4 py-2 text-center" style={{ width: '11%' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={alumno.attend === 1}
-                                  onChange={(e) => {
-                                    const updatedAlumnos = asistenciaAlumnos.map((a) =>
-                                      a.id === alumno.id ? { ...a, attend: e.target.checked ? 1 : 2 } : a
-                                    );
-                                    setAsistenciaAlumnos(updatedAlumnos);
-                                  }}
-                                />
-                              </td>
-                              <td className="px-4 py-2 text-center" style={{ width: '11%' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={alumno.attend === 2}
-                                  onChange={(e) => {
-                                    const updatedAlumnos = asistenciaAlumnos.map((a) =>
-                                      a.id === alumno.id ? { ...a, attend: e.target.checked ? 2 : 1 } : a
-                                    );
-                                    setAsistenciaAlumnos(updatedAlumnos);
-                                  }}
-                                />
-                              </td>
-                              <td className="px-4 py-2 text-center" style={{ width: '12%' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={alumno.attend === 3}
-                                  onChange={(e) => {
-                                    const updatedAlumnos = asistenciaAlumnos.map((a) =>
-                                      a.id === alumno.id ? { ...a, attend: e.target.checked ? 3 : 1 } : a
-                                    );
-                                    setAsistenciaAlumnos(updatedAlumnos);
-                                  }}
-                                />
+                        </thead>
+                        <tbody>
+                          {isLoadingAsistencia || isLoadingDateChange ? (
+                            <tr>
+                              <td colSpan={7} className="text-center py-8">
+                                <div className="flex flex-col items-center justify-center text-gray-500">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                                  <p>{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
+                                </div>
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : asistenciaAlumnos.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="text-center py-8">
+                                <div className="flex flex-col items-center justify-center text-gray-500">
+                                  <Users className="h-12 w-12 mb-4" />
+                                  <p className="text-lg font-medium">No hay alumnos en este grupo</p>
+                                  <p className="text-sm">Agrega alumnos al grupo para tomar asistencia</p>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : (
+                            asistenciaAlumnos.map((alumno, index) => (
+                              <tr key={alumno.id}>
+                                <td className="px-4 py-2 text-center font-medium" style={{ width: '8%' }}>{index + 1}</td>
+                                <td className="font-medium px-4 py-2" style={{ width: '25%' }}>{alumno.fullName}</td>
+                                <td className="px-4 py-2" style={{ width: '15%' }}>{alumno.registrationNumber}</td>
+                                <td className="px-4 py-2" style={{ width: '15%' }}>
+                                  {alumno.attendanceId ? (
+                                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                      ✓ Creada
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                      ⚠ Nueva
+                                    </Badge>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2 text-center" style={{ width: '12%' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={alumno.attend === 1}
+                                    onChange={(e) => {
+                                      const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                        a.id === alumno.id ? { ...a, attend: e.target.checked ? 1 : 2 } : a
+                                      );
+                                      setAsistenciaAlumnos(updatedAlumnos);
+                                    }}
+                                  />
+                                </td>
+                                <td className="px-4 py-2 text-center" style={{ width: '12%' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={alumno.attend === 2}
+                                    onChange={(e) => {
+                                      const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                        a.id === alumno.id ? { ...a, attend: e.target.checked ? 2 : 1 } : a
+                                      );
+                                      setAsistenciaAlumnos(updatedAlumnos);
+                                    }}
+                                  />
+                                </td>
+                                <td className="px-4 py-2 text-center" style={{ width: '13%' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={alumno.attend === 3}
+                                    onChange={(e) => {
+                                      const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                        a.id === alumno.id ? { ...a, attend: e.target.checked ? 3 : 1 } : a
+                                      );
+                                      setAsistenciaAlumnos(updatedAlumnos);
+                                    }}
+                                  />
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-4 flex-shrink-0">
