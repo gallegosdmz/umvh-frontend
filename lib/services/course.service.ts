@@ -336,12 +336,26 @@ export const CourseService = {
     },
 
     async getPartialEvaluationGradesByStudentAndPartial(courseGroupStudentId: number, partial: number) {
-        const response = await fetch(`${API_URL}/partial-evaluation-grades/student/${courseGroupStudentId}?partial=${partial}`, {
-            headers: getAuthHeaders(),
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Error al obtener calificaciones de evaluaciones parciales');
-        return data;
+        try {
+            // Intentar obtener todas las calificaciones del estudiante
+            const response = await fetch(`${API_URL}/partial-evaluation-grades`, {
+                headers: getAuthHeaders(),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Error al obtener calificaciones de evaluaciones parciales');
+            
+            // Filtrar por courseGroupStudentId y parcial
+            const calificacionesDelParcial = data.filter((cal: any) => {
+                return cal.courseGroupStudentId === courseGroupStudentId && 
+                       cal.partialEvaluation && 
+                       cal.partialEvaluation.partial === partial;
+            });
+            
+            return calificacionesDelParcial;
+        } catch (error) {
+            console.error('Error al obtener calificaciones:', error);
+            return [];
+        }
     },
 
     async getAttendancesByCourseGroupStudentAndPartial(courseGroupStudentId: number, partial: number) {

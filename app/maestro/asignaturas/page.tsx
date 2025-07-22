@@ -1674,29 +1674,47 @@ export default function MaestroAsignaturas() {
         return;
       }
 
-      const dto: any = {
+      const dto = {
         grade: grade,
         partialEvaluationId: actividadDefinida.id,
         courseGroupStudentId: courseGroupStudentId,
       };
 
-      // Buscar si ya existe una calificación para este alumno y actividad
-      const existingGrades = await CourseService.getPartialEvaluationGradesByStudentAndPartial(
-        courseGroupStudentId,
-        selectedPartial
-      );
-
-      const existingGrade = existingGrades.find((g: any) => g.partialEvaluationId === actividadDefinida.id);
-
-      if (existingGrade) {
-        // Actualizar calificación existente
-        await CourseService.updatePartialEvaluationGrade(existingGrade.id, dto);
-        toast.success("Calificación actualizada");
-      } else {
-        // Crear nueva calificación
+      // Intentar crear la calificación (si ya existe, el backend debería manejarlo)
+      try {
         await CourseService.createPartialEvaluationGrade(dto);
         toast.success("Calificación guardada");
+      } catch (error) {
+        // Si falla al crear, intentar actualizar
+        console.log('Error al crear calificación, intentando actualizar:', error);
+        
+        // Buscar la calificación existente en el estado actual
+        const calificacionActual = calificacionesAlumnos[courseGroupStudentId];
+        let existingGradeId = null;
+        
+        if (type === "actividades" && calificacionActual?.actividades[index]?.id) {
+          existingGradeId = calificacionActual.actividades[index].id;
+        } else if (type === "evidencias" && calificacionActual?.evidencias[index]?.id) {
+          existingGradeId = calificacionActual.evidencias[index].id;
+        } else if (type === "producto" && calificacionActual?.producto?.id) {
+          existingGradeId = calificacionActual.producto.id;
+        } else if (type === "examen" && calificacionActual?.examen?.id) {
+          existingGradeId = calificacionActual.examen.id;
+        }
+        
+        if (existingGradeId) {
+          await CourseService.updatePartialEvaluationGrade(existingGradeId, dto);
+          toast.success("Calificación actualizada");
+        } else {
+          toast.error("Error al guardar la calificación");
+          return;
+        }
       }
+
+      // Recargar las calificaciones después de guardar
+      setTimeout(() => {
+        cargarCalificacionesAlumnos();
+      }, 100);
 
       // Recalcular calificación parcial del alumno
       await calcularCalificacionParcialParaAlumno(courseGroupStudentId);
@@ -1717,46 +1735,89 @@ export default function MaestroAsignaturas() {
     if (!selectedCourseGroup || !alumnos.length) return;
     
     try {
+      console.log('=== CARGANDO CALIFICACIONES DE ALUMNOS ===');
+      console.log('selectedCourseGroup?.id:', selectedCourseGroup?.id);
+      console.log('selectedPartial:', selectedPartial);
+      console.log('alumnos:', alumnos);
+      
+      // Cargar las actividades definidas para el curso (que incluyen las calificaciones)
+      const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup.id!);
+      console.log('actividadesDefinidasData:', actividadesDefinidasData);
+      
       const nuevasCalificaciones: {[key: number]: any} = {};
       
       for (const alumno of alumnos) {
+        console.log(`\n--- Procesando alumno ${alumno.courseGroupStudentId} ---`);
+        
         // Inicializar estructura para el alumno
         nuevasCalificaciones[alumno.courseGroupStudentId!] = {
-          actividades: Array(18).fill({grade: 0, id: null}),
-          evidencias: Array(18).fill({grade: 0, id: null}),
+          actividades: Array(18).fill(null).map(() => ({grade: 0, id: null})),
+          evidencias: Array(18).fill(null).map(() => ({grade: 0, id: null})),
           producto: {grade: 0, id: null},
           examen: {grade: 0, id: null}
         };
         
-        // Cargar calificaciones existentes del alumno
-        const calificacionesExistentes = await CourseService.getPartialEvaluationGradesByStudentAndPartial(
-          alumno.courseGroupStudentId!,
-          selectedPartial
-        );
-        
-        // Mapear calificaciones a la estructura
-        calificacionesExistentes.forEach((cal: any) => {
-          // Encontrar la actividad correspondiente
-          const actividadDefinida = actividadesDefinidas.actividades.find(a => a.id === cal.partialEvaluationId) ||
-                                   actividadesDefinidas.evidencias.find(a => a.id === cal.partialEvaluationId) ||
-                                   (actividadesDefinidas.producto.id === cal.partialEvaluationId ? actividadesDefinidas.producto : null) ||
-                                   (actividadesDefinidas.examen.id === cal.partialEvaluationId ? actividadesDefinidas.examen : null);
+        // Mapear las actividades definidas y buscar sus calificaciones
+        actividadesDefinidasData.forEach((actividadDefinida: any) => {
+          console.log('\n--- Procesando actividad ---');
+          console.log('actividadDefinida:', actividadDefinida);
+          console.log('actividadDefinida.partial:', actividadDefinida.partial, 'selectedPartial:', selectedPartial);
           
-          if (actividadDefinida) {
-            if (actividadesDefinidas.actividades.find(a => a.id === cal.partialEvaluationId)) {
-              const index = actividadesDefinidas.actividades.findIndex(a => a.id === cal.partialEvaluationId);
-              nuevasCalificaciones[alumno.courseGroupStudentId!].actividades[index] = {grade: cal.grade, id: cal.id};
-            } else if (actividadesDefinidas.evidencias.find(a => a.id === cal.partialEvaluationId)) {
-              const index = actividadesDefinidas.evidencias.findIndex(a => a.id === cal.partialEvaluationId);
-              nuevasCalificaciones[alumno.courseGroupStudentId!].evidencias[index] = {grade: cal.grade, id: cal.id};
-            } else if (actividadesDefinidas.producto.id === cal.partialEvaluationId) {
-              nuevasCalificaciones[alumno.courseGroupStudentId!].producto = {grade: cal.grade, id: cal.id};
-            } else if (actividadesDefinidas.examen.id === cal.partialEvaluationId) {
-              nuevasCalificaciones[alumno.courseGroupStudentId!].examen = {grade: cal.grade, id: cal.id};
+          // Solo procesar actividades del parcial seleccionado
+          if (actividadDefinida.partial !== selectedPartial) {
+            console.log('Saltando actividad - no corresponde al parcial seleccionado');
+            return;
+          }
+          
+          // Buscar el courseGroupStudent específico del alumno
+          const courseGroupStudent = actividadDefinida.courseGroup?.coursesGroupsStudents?.find(
+            (cgs: any) => cgs.id === alumno.courseGroupStudentId
+          );
+          
+          console.log('courseGroupStudent encontrado:', courseGroupStudent);
+          console.log('Todas las calificaciones del alumno:', courseGroupStudent?.partialEvaluationGrades);
+          
+          // Buscar la calificación específica para esta actividad
+          const grade = courseGroupStudent?.partialEvaluationGrades?.find(
+            (peg: any) => {
+              const matchesActivity = peg.partialEvaluation?.id === actividadDefinida.id;
+              console.log('Evaluando peg:', peg, 'matchesActivity:', matchesActivity);
+              return matchesActivity;
             }
+          );
+          
+          console.log('grade encontrada para actividad', actividadDefinida.id, 'parcial', selectedPartial, ':', grade);
+          
+          if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
+            nuevasCalificaciones[alumno.courseGroupStudentId!].actividades[actividadDefinida.slot] = {
+              grade: grade?.grade || 0,
+              id: grade?.id || null
+            };
+            console.log(`Asignando actividad slot ${actividadDefinida.slot}:`, nuevasCalificaciones[alumno.courseGroupStudentId!].actividades[actividadDefinida.slot]);
+          } else if (actividadDefinida.type === 'Evidencias' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
+            nuevasCalificaciones[alumno.courseGroupStudentId!].evidencias[actividadDefinida.slot] = {
+              grade: grade?.grade || 0,
+              id: grade?.id || null
+            };
+            console.log(`Asignando evidencia slot ${actividadDefinida.slot}:`, nuevasCalificaciones[alumno.courseGroupStudentId!].evidencias[actividadDefinida.slot]);
+          } else if (actividadDefinida.type === 'Producto') {
+            nuevasCalificaciones[alumno.courseGroupStudentId!].producto = {
+              grade: grade?.grade || 0,
+              id: grade?.id || null
+            };
+            console.log('Asignando producto:', nuevasCalificaciones[alumno.courseGroupStudentId!].producto);
+          } else if (actividadDefinida.type === 'Examen') {
+            nuevasCalificaciones[alumno.courseGroupStudentId!].examen = {
+              grade: grade?.grade || 0,
+              id: grade?.id || null
+            };
+            console.log('Asignando examen:', nuevasCalificaciones[alumno.courseGroupStudentId!].examen);
           }
         });
       }
+      
+      console.log('\n=== RESULTADO FINAL ===');
+      console.log('nuevasCalificaciones:', nuevasCalificaciones);
       
       setCalificacionesAlumnos(nuevasCalificaciones);
     } catch (error) {
