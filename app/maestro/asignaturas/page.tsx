@@ -144,6 +144,15 @@ export default function MaestroAsignaturas() {
   const [selectedPartial, setSelectedPartial] = useState(1)
   const [selectedPartialForActividades, setSelectedPartialForActividades] = useState(1)
   const [calificacionParcial, setCalificacionParcial] = useState<number | null>(null)
+  
+  // Estado para almacenar las calificaciones de todos los alumnos
+  const [calificacionesAlumnos, setCalificacionesAlumnos] = useState<{[key: number]: {
+    actividades: Array<{grade: number, id: number | null}>,
+    evidencias: Array<{grade: number, id: number | null}>,
+    producto: {grade: number, id: number | null},
+    examen: {grade: number, id: number | null}
+  }}>({})
+  
   // 1. Agregar estados para el modal de calificación final
   const [isCalificacionFinalModalOpen, setIsCalificacionFinalModalOpen] = useState(false);
   const [alumnoCalificacionFinal, setAlumnoCalificacionFinal] = useState<any | null>(null);
@@ -230,7 +239,7 @@ export default function MaestroAsignaturas() {
       console.log('GroupId:', groupId)
       console.log('Course:', course)
       console.log('CourseGroup:', courseGroup)
-      const response = await handleGetStudentsByCourseGroup(courseGroup.id!, alumnosPerPage, 0)
+      const response = await handleGetStudentsByCourseGroup(courseGroup.id!, 100, 0) // Cargar todos los alumnos
       console.log('Respuesta del servidor:', response)
       
       // Extraer estudiantes de la estructura anidada
@@ -259,6 +268,67 @@ export default function MaestroAsignaturas() {
       }))
       setAlumnos(mappedStudents)
       setCurrentAlumnosPage(1)
+      
+      // Cargar las ponderaciones del curso
+      try {
+        const courseGroupWithPonderaciones = await CourseService.getCourseGroupIndividual(courseGroup.id!)
+        const gradingschemes = courseGroupWithPonderaciones.coursesGroupsGradingschemes || []
+        
+        const ponderaciones = {
+          asistencia: 0,
+          actividades: 0,
+          evidencias: 0,
+          producto: 0,
+          examen: 0
+        }
+        
+        const ids: {
+          asistencia?: number,
+          actividades?: number,
+          evidencias?: number,
+          producto?: number,
+          examen?: number
+        } = {}
+        
+        gradingschemes.forEach((scheme: any) => {
+          const type = scheme.type.toLowerCase()
+          if (type === 'asistencia') {
+            ponderaciones.asistencia = scheme.percentage
+            ids.asistencia = scheme.id
+          } else if (type === 'actividades') {
+            ponderaciones.actividades = scheme.percentage
+            ids.actividades = scheme.id
+          } else if (type === 'evidencias') {
+            ponderaciones.evidencias = scheme.percentage
+            ids.evidencias = scheme.id
+          } else if (type === 'producto') {
+            ponderaciones.producto = scheme.percentage
+            ids.producto = scheme.id
+          } else if (type === 'examen') {
+            ponderaciones.examen = scheme.percentage
+            ids.examen = scheme.id
+          }
+        })
+        
+        setPonderacionesCurso(ponderaciones)
+        setPonderacionesIds(ids)
+      } catch (error) {
+        console.error('Error al cargar las ponderaciones:', error)
+      }
+      
+      // Cargar las actividades definidas para el curso
+      try {
+        const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(courseGroup.id!)
+        console.log('Actividades definidas:', actividadesDefinidasData)
+        
+        // Usar la función filtrarActividadesPorParcial para obtener las actividades del parcial seleccionado
+        const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, selectedPartial)
+        setActividadesDefinidas(actividadesFiltradas)
+      } catch (error) {
+        console.error('Error al cargar actividades definidas:', error)
+        toast.error('Error al cargar las actividades del curso')
+      }
+      
     } catch (error) {
       console.error('Error al cargar los alumnos:', error)
       toast.error('Error al cargar los alumnos')
@@ -1541,6 +1611,159 @@ export default function MaestroAsignaturas() {
     }
   }, [evaluacionesParciales, ponderacionesCurso, selectedPartial]);
 
+  // Cargar calificaciones cuando se abra el modal de alumnos
+  useEffect(() => {
+    if (isModalOpen && selectedCourseGroup && alumnos.length > 0) {
+      cargarCalificacionesAlumnos();
+    }
+  }, [isModalOpen, selectedCourseGroup, alumnos, selectedPartial, actividadesDefinidas]);
+
+  // Recargar actividades cuando se cierre el modal de actividades (para reflejar cambios)
+  useEffect(() => {
+    if (!isActividadesModalOpen && selectedCourseGroup && isModalOpen) {
+      // Recargar las actividades cuando se cierre el modal de actividades
+      const recargarActividades = async () => {
+        try {
+          const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup.id!)
+          const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, selectedPartial)
+          setActividadesDefinidas(actividadesFiltradas)
+        } catch (error) {
+          console.error('Error al recargar actividades:', error)
+        }
+      }
+      recargarActividades()
+    }
+  }, [isActividadesModalOpen, selectedCourseGroup, selectedPartial, isModalOpen])
+
+  // Función para manejar el cambio de parcial en la tabla de evaluaciones
+  const handleParcialChangeEvaluaciones = async (newParcial: number) => {
+    setSelectedPartial(newParcial);
+    
+    if (selectedCourseGroup) {
+      try {
+        // Recargar las actividades del nuevo parcial
+        const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup.id!)
+        const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, newParcial)
+        setActividadesDefinidas(actividadesFiltradas)
+        
+        // Limpiar calificaciones anteriores
+        setCalificacionesAlumnos({});
+        
+        // Recargar las calificaciones del nuevo parcial
+        await cargarCalificacionesAlumnos();
+      } catch (error) {
+        console.error('Error al cambiar parcial:', error)
+        toast.error('Error al cambiar de parcial')
+      }
+    }
+  };
+
+  const handleSaveStudentGrade = async (courseGroupStudentId: number, type: string, index: number, grade: number) => {
+    try {
+      // Verificar que existe la actividad definida
+      let actividadDefinida: any;
+      if (type === "actividades" || type === "evidencias") {
+        const actividadesArray = actividadesDefinidas[type as keyof typeof actividadesDefinidas] as any[];
+        actividadDefinida = actividadesArray[index];
+      } else {
+        actividadDefinida = actividadesDefinidas[type as keyof typeof actividadesDefinidas];
+      }
+
+      if (!actividadDefinida?.id) {
+        toast.error("Primero debes crear la actividad en el botón 'Actividades'");
+        return;
+      }
+
+      const dto: any = {
+        grade: grade,
+        partialEvaluationId: actividadDefinida.id,
+        courseGroupStudentId: courseGroupStudentId,
+      };
+
+      // Buscar si ya existe una calificación para este alumno y actividad
+      const existingGrades = await CourseService.getPartialEvaluationGradesByStudentAndPartial(
+        courseGroupStudentId,
+        selectedPartial
+      );
+
+      const existingGrade = existingGrades.find((g: any) => g.partialEvaluationId === actividadDefinida.id);
+
+      if (existingGrade) {
+        // Actualizar calificación existente
+        await CourseService.updatePartialEvaluationGrade(existingGrade.id, dto);
+        toast.success("Calificación actualizada");
+      } else {
+        // Crear nueva calificación
+        await CourseService.createPartialEvaluationGrade(dto);
+        toast.success("Calificación guardada");
+      }
+
+      // Recalcular calificación parcial del alumno
+      await calcularCalificacionParcialParaAlumno(courseGroupStudentId);
+
+    } catch (error) {
+      console.error('Error al guardar calificación:', error);
+      toast.error("Error al guardar la calificación");
+    }
+  };
+
+  const calcularCalificacionParcialParaAlumno = async (courseGroupStudentId: number) => {
+    // Esta función calcularía la calificación parcial para un alumno específico
+    // Similar a calcularCalificacionParcial pero para un alumno en particular
+    console.log('Calculando calificación parcial para alumno:', courseGroupStudentId);
+  };
+
+  const cargarCalificacionesAlumnos = async () => {
+    if (!selectedCourseGroup || !alumnos.length) return;
+    
+    try {
+      const nuevasCalificaciones: {[key: number]: any} = {};
+      
+      for (const alumno of alumnos) {
+        // Inicializar estructura para el alumno
+        nuevasCalificaciones[alumno.courseGroupStudentId!] = {
+          actividades: Array(18).fill({grade: 0, id: null}),
+          evidencias: Array(18).fill({grade: 0, id: null}),
+          producto: {grade: 0, id: null},
+          examen: {grade: 0, id: null}
+        };
+        
+        // Cargar calificaciones existentes del alumno
+        const calificacionesExistentes = await CourseService.getPartialEvaluationGradesByStudentAndPartial(
+          alumno.courseGroupStudentId!,
+          selectedPartial
+        );
+        
+        // Mapear calificaciones a la estructura
+        calificacionesExistentes.forEach((cal: any) => {
+          // Encontrar la actividad correspondiente
+          const actividadDefinida = actividadesDefinidas.actividades.find(a => a.id === cal.partialEvaluationId) ||
+                                   actividadesDefinidas.evidencias.find(a => a.id === cal.partialEvaluationId) ||
+                                   (actividadesDefinidas.producto.id === cal.partialEvaluationId ? actividadesDefinidas.producto : null) ||
+                                   (actividadesDefinidas.examen.id === cal.partialEvaluationId ? actividadesDefinidas.examen : null);
+          
+          if (actividadDefinida) {
+            if (actividadesDefinidas.actividades.find(a => a.id === cal.partialEvaluationId)) {
+              const index = actividadesDefinidas.actividades.findIndex(a => a.id === cal.partialEvaluationId);
+              nuevasCalificaciones[alumno.courseGroupStudentId!].actividades[index] = {grade: cal.grade, id: cal.id};
+            } else if (actividadesDefinidas.evidencias.find(a => a.id === cal.partialEvaluationId)) {
+              const index = actividadesDefinidas.evidencias.findIndex(a => a.id === cal.partialEvaluationId);
+              nuevasCalificaciones[alumno.courseGroupStudentId!].evidencias[index] = {grade: cal.grade, id: cal.id};
+            } else if (actividadesDefinidas.producto.id === cal.partialEvaluationId) {
+              nuevasCalificaciones[alumno.courseGroupStudentId!].producto = {grade: cal.grade, id: cal.id};
+            } else if (actividadesDefinidas.examen.id === cal.partialEvaluationId) {
+              nuevasCalificaciones[alumno.courseGroupStudentId!].examen = {grade: cal.grade, id: cal.id};
+            }
+          }
+        });
+      }
+      
+      setCalificacionesAlumnos(nuevasCalificaciones);
+    } catch (error) {
+      console.error('Error al cargar calificaciones de alumnos:', error);
+    }
+  };
+
   // 2. Función para calcular la calificación final y asistencia
   const handleVerCalificacionFinal = async (alumno: any) => {
     if (!selectedCourseGroup) return;
@@ -1847,15 +2070,15 @@ export default function MaestroAsignaturas() {
               </Table>
             </div>
 
-            {/* Modal de Alumnos */}
+            {/* Modal de Alumnos con Tabla de Evaluaciones */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-              <DialogContent className="max-w-5xl [&>button]:hidden">
+              <DialogContent className="max-w-[95vw] max-h-[90vh] flex flex-col">
                 <DialogHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <DialogTitle>Lista de Alumnos</DialogTitle>
+                      <DialogTitle>Evaluaciones - {selectedPartial === 1 ? 'Primer' : selectedPartial === 2 ? 'Segundo' : 'Tercer'} Parcial</DialogTitle>
                       <DialogDescription>
-                        Alumnos inscritos en el grupo seleccionado
+                        Calificaciones de todos los alumnos del grupo
                       </DialogDescription>
                     </div>
                     <Button variant="outline" onClick={() => setIsModalOpen(false)}>
@@ -1863,146 +2086,256 @@ export default function MaestroAsignaturas() {
                     </Button>
                   </div>
                 </DialogHeader>
-                <div className="mt-4">
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Nombre Completo</TableHead>
-                          <TableHead>Semestre</TableHead>
-                          <TableHead>Matricula</TableHead>
-                          <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {isLoadingAlumnos ? (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8">
-                              <div className="flex flex-col items-center justify-center text-gray-500">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
-                                <p>Cargando alumnos...</p>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ) : alumnos.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8">
-                              <div className="flex flex-col items-center justify-center text-gray-500">
-                                <Users className="h-12 w-12 mb-4" />
-                                <p className="text-lg font-medium">No hay alumnos inscritos</p>
-                                <p className="text-sm">Este grupo aún no tiene alumnos asignados</p>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          alumnos.map((alumno) => (
-                            <TableRow key={alumno.id}>
-                              <TableCell className="font-medium">{alumno.fullName}</TableCell>
-                              <TableCell>{selectedCourseGroup?.group?.semester || 'N/A'}</TableCell>
-                              <TableCell>{alumno.registrationNumber}</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex gap-2 justify-end">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-36 flex items-center justify-center"
-                                    onClick={async () => {
-                                      setAlumnoEvaluacion(alumno)
-                                      setIsEvaluacionesModalOpen(true)
-                                      
-                                      // Cargar las ponderaciones del curso si no están cargadas
-                                      if (!ponderacionesCurso && selectedCourseGroup) {
-                                        try {
-                                          const courseGroupWithPonderaciones = await CourseService.getCourseGroupIndividual(selectedCourseGroup.id)
-                                          const gradingschemes = courseGroupWithPonderaciones.coursesGroupsGradingschemes || []
-                                          
-                                          const ponderaciones = {
-                                            asistencia: 0,
-                                            actividades: 0,
-                                            evidencias: 0,
-                                            producto: 0,
-                                            examen: 0
-                                          }
-                                          
-                                          const ids: {
-                                            asistencia?: number,
-                                            actividades?: number,
-                                            evidencias?: number,
-                                            producto?: number,
-                                            examen?: number
-                                          } = {}
-                                          
-                                          gradingschemes.forEach((scheme: any) => {
-                                            const type = scheme.type.toLowerCase()
-                                            if (type === 'asistencia') {
-                                              ponderaciones.asistencia = scheme.percentage
-                                              ids.asistencia = scheme.id
-                                            } else if (type === 'actividades') {
-                                              ponderaciones.actividades = scheme.percentage
-                                              ids.actividades = scheme.id
-                                            } else if (type === 'evidencias') {
-                                              ponderaciones.evidencias = scheme.percentage
-                                              ids.evidencias = scheme.id
-                                            } else if (type === 'producto') {
-                                              ponderaciones.producto = scheme.percentage
-                                              ids.producto = scheme.id
-                                            } else if (type === 'examen') {
-                                              ponderaciones.examen = scheme.percentage
-                                              ids.examen = scheme.id
-                                            }
-                                          })
-                                          
-                                          setPonderacionesCurso(ponderaciones)
-                                          setPonderacionesIds(ids)
-                                        } catch (error) {
-                                          console.error('Error al cargar las ponderaciones:', error)
-                                        }
-                                      }
-                                    }}
-                                  >
-                                    <BarChart3 className="h-4 w-4 mr-2" />
-                                    Evaluaciones
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-36 flex items-center justify-center"
-                                    onClick={() => handleVerCalificacionFinal(alumno)}
-                                  >
-                                    Promedio
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
+                
+                <div className="flex items-center gap-4 mb-4 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="parcial-select" className="font-medium">Parcial:</label>
+                    <select
+                      id="parcial-select"
+                      value={selectedPartial}
+                      onChange={e => handleParcialChangeEvaluaciones(Number(e.target.value))}
+                      className="border rounded px-2 py-1"
+                    >
+                      <option value={1}>Primer Parcial</option>
+                      <option value={2}>Segundo Parcial</option>
+                      <option value={3}>Tercer Parcial</option>
+                    </select>
                   </div>
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="text-sm text-gray-500">
-                      Página {currentAlumnosPage}
-                    </div>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleAlumnosPageChange(currentAlumnosPage - 1)}
-                        disabled={currentAlumnosPage === 1 || isLoadingAlumnos}
-                      >
-                        Anterior
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleAlumnosPageChange(currentAlumnosPage + 1)}
-                        disabled={alumnos.length < alumnosPerPage || isLoadingAlumnos}
-                      >
-                        Siguiente
-                      </Button>
-                    </div>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenActividadesModal(selectedCourse!, selectedCourseGroup!)}
+                    className="ml-auto"
+                  >
+                    <BookOpen className="h-4 w-4 mr-2" />
+                    Gestionar Actividades
+                  </Button>
                 </div>
+
+                {isLoadingAlumnos ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                      <p>Cargando alumnos...</p>
+                    </div>
+                  </div>
+                ) : alumnos.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <Users className="h-12 w-12 mb-4" />
+                      <p className="text-lg font-medium">No hay alumnos inscritos</p>
+                      <p className="text-sm">Este grupo aún no tiene alumnos asignados</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-auto">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-[2000px] border border-gray-300 text-center">
+                        <thead className="sticky top-0 bg-white z-10">
+                          {/* Primera fila de encabezados principales */}
+                          <tr>
+                            <th rowSpan={3} className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">No.</th>
+                            <th rowSpan={3} className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Matrícula</th>
+                            <th rowSpan={3} className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Nombre</th>
+                            <th colSpan={18} className="bg-blue-100 font-semibold border border-gray-300">Actividades de Aprendizaje</th>
+                            <th colSpan={18} className="bg-green-100 font-semibold border border-gray-300">Evidencias de Aprendizaje</th>
+                            <th colSpan={2} className="bg-purple-100 font-semibold border border-gray-300">Calificaciones Parciales</th>
+                            <th colSpan={5} className="bg-gray-100 font-semibold border border-gray-300">Ponderaciones</th>
+                            <th colSpan={2} className="bg-yellow-100 font-semibold border border-gray-300">Calificación Final</th>
+                          </tr>
+                          
+                          {/* Segunda fila - Nombres de actividades */}
+                          <tr>
+                            {[...Array(18)].map((_, i) => (
+                              <th key={"act"+i} className="bg-blue-50 border border-gray-300 px-1 py-1 text-xs">
+                                {actividadesDefinidas.actividades[i]?.name || `A${i+1}`}
+                              </th>
+                            ))}
+                            {[...Array(18)].map((_, i) => (
+                              <th key={"ev"+i} className="bg-green-50 border border-gray-300 px-1 py-1 text-xs">
+                                {actividadesDefinidas.evidencias[i]?.name || `E${i+1}`}
+                              </th>
+                            ))}
+                            <th className="bg-pink-50 border border-gray-300 px-1 py-1 text-xs">Producto</th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Examen</th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Asistencia</th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Actividades</th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Evidencias</th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Producto</th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Examen</th>
+                            <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Calificación</th>
+                            <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">% Asistencia</th>
+                          </tr>
+                          
+                          {/* Tercera fila - Porcentajes de ponderación */}
+                          <tr>
+                            {[...Array(18)].map((_, i) => (
+                              <th key={"actp"+i} className="bg-blue-50 border border-gray-300 px-1 py-1 text-xs">
+                                {ponderacionesCurso?.actividades ? `${ponderacionesCurso.actividades}%` : '0%'}
+                              </th>
+                            ))}
+                            {[...Array(18)].map((_, i) => (
+                              <th key={"evp"+i} className="bg-green-50 border border-gray-300 px-1 py-1 text-xs">
+                                {ponderacionesCurso?.evidencias ? `${ponderacionesCurso.evidencias}%` : '0%'}
+                              </th>
+                            ))}
+                            <th className="bg-pink-50 border border-gray-300 px-1 py-1 text-xs">
+                              {ponderacionesCurso?.producto ? `${ponderacionesCurso.producto}%` : '0%'}
+                            </th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
+                              {ponderacionesCurso?.examen ? `${ponderacionesCurso.examen}%` : '0%'}
+                            </th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
+                              {ponderacionesCurso?.asistencia ? `${ponderacionesCurso.asistencia}%` : '0%'}
+                            </th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
+                              {ponderacionesCurso?.actividades ? `${ponderacionesCurso.actividades}%` : '0%'}
+                            </th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
+                              {ponderacionesCurso?.evidencias ? `${ponderacionesCurso.evidencias}%` : '0%'}
+                            </th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
+                              {ponderacionesCurso?.producto ? `${ponderacionesCurso.producto}%` : '0%'}
+                            </th>
+                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
+                              {ponderacionesCurso?.examen ? `${ponderacionesCurso.examen}%` : '0%'}
+                            </th>
+                            <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Final</th>
+                            <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {alumnos.map((alumno, index) => (
+                            <tr key={alumno.id} className="hover:bg-gray-50">
+                              <td className="border border-gray-300 px-2 py-1 font-medium">{index + 1}</td>
+                              <td className="border border-gray-300 px-2 py-1">{alumno.registrationNumber}</td>
+                              <td className="border border-gray-300 px-2 py-1 font-medium text-left">{alumno.fullName}</td>
+                              
+                              {/* Actividades */}
+                              {[...Array(18)].map((_, i) => (
+                                <td key={"act"+i} className="border border-gray-300 px-1 py-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={10}
+                                    step={0.1}
+                                    value={calificacionesAlumnos[alumno.courseGroupStudentId!]?.actividades[i]?.grade || ''}
+                                    className="w-12 text-center border-none bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                                    placeholder="0.0"
+                                    onChange={(e) => {
+                                      const value = Number(e.target.value);
+                                      setCalificacionesAlumnos(prev => ({
+                                        ...prev,
+                                        [alumno.courseGroupStudentId!]: {
+                                          ...prev[alumno.courseGroupStudentId!],
+                                          actividades: prev[alumno.courseGroupStudentId!]?.actividades.map((act, idx) => 
+                                            idx === i ? {...act, grade: value} : act
+                                          ) || Array(18).fill({grade: 0, id: null})
+                                        }
+                                      }));
+                                    }}
+                                    onBlur={(e) => handleSaveStudentGrade(alumno.courseGroupStudentId!, 'actividades', i, Number(e.target.value))}
+                                  />
+                                </td>
+                              ))}
+                              
+                              {/* Evidencias */}
+                              {[...Array(18)].map((_, i) => (
+                                <td key={"ev"+i} className="border border-gray-300 px-1 py-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={10}
+                                    step={0.1}
+                                    value={calificacionesAlumnos[alumno.courseGroupStudentId!]?.evidencias[i]?.grade || ''}
+                                    className="w-12 text-center border-none bg-transparent focus:outline-none focus:ring-1 focus:ring-green-500 rounded"
+                                    placeholder="0.0"
+                                    onChange={(e) => {
+                                      const value = Number(e.target.value);
+                                      setCalificacionesAlumnos(prev => ({
+                                        ...prev,
+                                        [alumno.courseGroupStudentId!]: {
+                                          ...prev[alumno.courseGroupStudentId!],
+                                          evidencias: prev[alumno.courseGroupStudentId!]?.evidencias.map((ev, idx) => 
+                                            idx === i ? {...ev, grade: value} : ev
+                                          ) || Array(18).fill({grade: 0, id: null})
+                                        }
+                                      }));
+                                    }}
+                                    onBlur={(e) => handleSaveStudentGrade(alumno.courseGroupStudentId!, 'evidencias', i, Number(e.target.value))}
+                                  />
+                                </td>
+                              ))}
+                              
+                              {/* Producto */}
+                              <td className="border border-gray-300 px-1 py-1">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={10}
+                                  step={0.1}
+                                  value={calificacionesAlumnos[alumno.courseGroupStudentId!]?.producto?.grade || ''}
+                                  className="w-12 text-center border-none bg-transparent focus:outline-none focus:ring-1 focus:ring-pink-500 rounded"
+                                  placeholder="0.0"
+                                  onChange={(e) => {
+                                    const value = Number(e.target.value);
+                                    setCalificacionesAlumnos(prev => ({
+                                      ...prev,
+                                      [alumno.courseGroupStudentId!]: {
+                                        ...prev[alumno.courseGroupStudentId!],
+                                        producto: prev[alumno.courseGroupStudentId!]?.producto ? 
+                                          {...prev[alumno.courseGroupStudentId!].producto, grade: value} : 
+                                          {grade: value, id: null}
+                                      }
+                                    }));
+                                  }}
+                                  onBlur={(e) => handleSaveStudentGrade(alumno.courseGroupStudentId!, 'producto', 0, Number(e.target.value))}
+                                />
+                              </td>
+                              
+                              {/* Examen */}
+                              <td className="border border-gray-300 px-1 py-1">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={10}
+                                  step={0.1}
+                                  value={calificacionesAlumnos[alumno.courseGroupStudentId!]?.examen?.grade || ''}
+                                  className="w-12 text-center border-none bg-transparent focus:outline-none focus:ring-1 focus:ring-gray-500 rounded"
+                                  placeholder="0.0"
+                                  onChange={(e) => {
+                                    const value = Number(e.target.value);
+                                    setCalificacionesAlumnos(prev => ({
+                                      ...prev,
+                                      [alumno.courseGroupStudentId!]: {
+                                        ...prev[alumno.courseGroupStudentId!],
+                                        examen: prev[alumno.courseGroupStudentId!]?.examen ? 
+                                          {...prev[alumno.courseGroupStudentId!].examen, grade: value} : 
+                                          {grade: value, id: null}
+                                      }
+                                    }));
+                                  }}
+                                  onBlur={(e) => handleSaveStudentGrade(alumno.courseGroupStudentId!, 'examen', 0, Number(e.target.value))}
+                                />
+                              </td>
+                              
+                              {/* Ponderaciones calculadas */}
+                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
+                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
+                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
+                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
+                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
+                              
+                              {/* Calificación Final */}
+                              <td className="border border-gray-300 px-1 py-1 font-semibold">--</td>
+                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </DialogContent>
             </Dialog>
 
@@ -2740,199 +3073,7 @@ export default function MaestroAsignaturas() {
               </DialogContent>
             </Dialog>
 
-            {/* Modal de Evaluaciones */}
-            <Dialog open={isEvaluacionesModalOpen} onOpenChange={setIsEvaluacionesModalOpen}>
-              <DialogContent className="max-w-[90vw]">
-                <DialogHeader>
-                  <DialogTitle>Evaluaciones de {alumnoEvaluacion?.fullName}</DialogTitle>
-                  <DialogDescription>
-                    Asigna las calificaciones de las evaluaciones para el alumno seleccionado.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="w-full overflow-x-auto">
-                  <table className="min-w-[2400px] border border-gray-300 text-center">
-                    <thead>
-                      <tr>
-                        <th colSpan={18} className="bg-blue-100 font-semibold border-r border-gray-300">Actividades de Aprendizaje</th>
-                        <th colSpan={18} className="bg-green-100 font-semibold border-r border-gray-300">Evidencias de Aprendizaje</th>
-                        <th className="bg-pink-200 font-semibold border-r border-gray-300">Producto del Parcial</th>
-                        <th className="bg-gray-400 font-semibold text-white border-r border-gray-300">Examen Parcial</th>
-                        <th className="bg-purple-500 font-semibold text-white">Calificación Parcial</th>
-                      </tr>
-                      <tr>
-                        {[...Array(18)].map((_, i) => (
-                          <th key={"act"+i} className="bg-blue-50 border-r border-gray-200">A{i+1}</th>
-                        ))}
-                        {[...Array(18)].map((_, i) => (
-                          <th key={"ev"+i} className="bg-green-50 border-r border-gray-200">E{i+1}</th>
-                        ))}
-                        <th className="bg-pink-50 border-r border-gray-200">Producto</th>
-                        <th className="bg-gray-100 border-r border-gray-200">Examen</th>
-                        <th className="bg-purple-100">Calificación</th>
-                      </tr>
-                      <tr>
-                        {/* Nombres de Actividades (solo lectura) */}
-                        {[...Array(18)].map((_, i) => (
-                          <th key={"actname"+i} className="bg-blue-50 border-r border-gray-200">
-                            <div className="text-xs font-medium text-blue-800 px-1">
-                              {actividadesDefinidas.actividades[i]?.name || `A${i+1}`}
-                            </div>
-                          </th>
-                        ))}
-                        {/* Nombres de Evidencias (solo lectura) */}
-                        {[...Array(18)].map((_, i) => (
-                          <th key={"evname"+i} className="bg-green-50 border-r border-gray-200">
-                            <div className="text-xs font-medium text-green-800 px-1">
-                              {actividadesDefinidas.evidencias[i]?.name || `E${i+1}`}
-                            </div>
-                          </th>
-                        ))}
-                        <th className="bg-pink-50 border-r border-gray-200">
-                          <div className="text-xs font-medium text-pink-800 px-1">
-                            {actividadesDefinidas.producto?.name || 'Producto'}
-                          </div>
-                        </th>
-                        <th className="bg-gray-100 border-r border-gray-200">
-                          <div className="text-xs font-medium text-gray-800 px-1">
-                            {actividadesDefinidas.examen?.name || 'Examen'}
-                          </div>
-                        </th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        {/* Inputs de calificación y botón para Actividades */}
-                        {evaluacionesParciales.actividades.map((item, i) => (
-                          <td key={"actv"+i} className="px-2 py-1 border-r border-gray-100">
-                            <div className="flex flex-col items-center gap-1">
-                              <input
-                                type="number"
-                                min={0}
-                                max={10}
-                                value={item.grade}
-                                onChange={e => handlePartialEvaluationChange('actividades', i, Number(e.target.value))}
-                                onKeyDown={e => handlePartialEvaluationKeyPress('actividades', i, e)}
-                                className="w-14 text-center border rounded px-2 py-1 mx-1"
-                              />
-                              <Button
-                                size="sm"
-                                variant={item.id ? "outline" : "default"}
-                                className={`h-6 px-2 text-xs ${item.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                                onClick={() => handlePartialEvaluationButtonClick('actividades', i)}
-                                disabled={isSavingPartial}
-                              >
-                                {item.id ? '✏️ Editar' : '➕ Agregar'}
-                              </Button>
-                            </div>
-                          </td>
-                        ))}
-                        {/* Inputs de calificación y botón para Evidencias */}
-                        {evaluacionesParciales.evidencias.map((item, i) => (
-                          <td key={"evv"+i} className="px-2 py-1 border-r border-gray-100">
-                            <div className="flex flex-col items-center gap-1">
-                              <input
-                                type="number"
-                                min={0}
-                                max={10}
-                                value={item.grade}
-                                onChange={e => handlePartialEvaluationChange('evidencias', i, Number(e.target.value))}
-                                onKeyDown={e => handlePartialEvaluationKeyPress('evidencias', i, e)}
-                                className="w-14 text-center border rounded px-2 py-1 mx-1"
-                              />
-                              <Button
-                                size="sm"
-                                variant={item.id ? "outline" : "default"}
-                                className={`h-6 px-2 text-xs ${item.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                                onClick={() => handlePartialEvaluationButtonClick('evidencias', i)}
-                                disabled={isSavingPartial}
-                              >
-                                {item.id ? '✏️ Editar' : '➕ Agregar'}
-                              </Button>
-                            </div>
-                          </td>
-                        ))}
-                        {/* Producto */}
-                        <td className="px-2 py-1 border-r border-gray-100">
-                          <div className="flex flex-col items-center gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              max={10}
-                              value={evaluacionesParciales.producto.grade}
-                              onChange={e => setEvaluacionesParciales(prev => ({ ...prev, producto: { ...prev.producto, grade: Number(e.target.value) } }))}
-                              onKeyDown={e => handlePartialEvaluationKeyPress('producto', 0, e)}
-                              className="w-14 text-center border rounded px-2 py-1 mx-1"
-                            />
-                            <Button
-                              size="sm"
-                              variant={evaluacionesParciales.producto.id ? "outline" : "default"}
-                              className={`h-6 px-2 text-xs ${evaluacionesParciales.producto.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                              onClick={() => handlePartialEvaluationButtonClick('producto', 0)}
-                              disabled={isSavingPartial}
-                            >
-                              {evaluacionesParciales.producto.id ? '✏️ Editar' : '➕ Agregar'}
-                            </Button>
-                          </div>
-                        </td>
-                        {/* Examen */}
-                        <td className="px-2 py-1 border-r border-gray-100">
-                          <div className="flex flex-col items-center gap-1">
-                            <input
-                              type="number"
-                              min={0}
-                              max={10}
-                              value={evaluacionesParciales.examen.grade}
-                              onChange={e => setEvaluacionesParciales(prev => ({ ...prev, examen: { ...prev.examen, grade: Number(e.target.value) } }))}
-                              onKeyDown={e => handlePartialEvaluationKeyPress('examen', 0, e)}
-                              className="w-14 text-center border rounded px-2 py-1 mx-1"
-                            />
-                            <Button
-                              size="sm"
-                              variant={evaluacionesParciales.examen.id ? "outline" : "default"}
-                              className={`h-6 px-2 text-xs ${evaluacionesParciales.examen.id ? 'border-green-500 text-green-600 hover:bg-green-50' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                              onClick={() => handlePartialEvaluationButtonClick('examen', 0)}
-                              disabled={isSavingPartial}
-                            >
-                              {evaluacionesParciales.examen.id ? '✏️ Editar' : '➕ Agregar'}
-                            </Button>
-                          </div>
-                        </td>
-                        {/* Calificación del Parcial */}
-                        <td className="px-2 py-1">
-                          <div className="flex flex-col items-center gap-1">
-                            <div className="w-14 h-8 flex items-center justify-center bg-purple-50 border border-purple-200 rounded font-semibold text-purple-700">
-                              {calificacionParcial !== null ? (Math.floor(calificacionParcial * 100) / 100).toFixed(2) : '--.--'}
-                            </div>
-                            <div className="text-xs text-purple-600 font-medium">
-                              Calificación
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <DialogFooter className="flex justify-end gap-2 mt-4">
-                  <Button variant="outline" onClick={() => setIsEvaluacionesModalOpen(false)}>
-                    Cerrar
-                  </Button>
-                </DialogFooter>
-                <div className="flex items-center gap-2 mt-4 justify-start">
-                  <label htmlFor="parcial-select" className="font-medium">Parcial:</label>
-                  <select
-                    id="parcial-select"
-                    value={selectedPartial}
-                    onChange={e => setSelectedPartial(Number(e.target.value))}
-                    className="border rounded px-2 py-1"
-                  >
-                    <option value={1}>Primer Parcial</option>
-                    <option value={2}>Segundo Parcial</option>
-                    <option value={3}>Tercer Parcial</option>
-                  </select>
-                </div>
-              </DialogContent>
-            </Dialog>
+
 
             {/* Pagination */}
             {totalPages > 1 && (
