@@ -35,7 +35,7 @@ export default function AsignaturasPage() {
   const { loading: courseLoading, error: courseError, totalItems: courseTotalItems, handleGetCourses, handleCreateCourse, handleUpdateCourse, handleDeleteCourse } = useCourse();
   const { loading: teacherLoading, error: teacherError, totalItems: teacherTotalItems, handleGetTeachers, handleCreateTeacher, handleUpdateTeacher, handleDeleteTeacher } = useTeacher();
   const { handleGetGroups } = useGroup();
-  const { loading: studentLoading, error: studentError, totalItems: studentTotalItems, handleGetStudents } = useStudent();
+  const { loading: studentLoading, error: studentError, totalItems: studentTotalItems, handleGetStudents, handleGetStudentsByGroup } = useStudent();
   const [asignaturas, setAsignaturas] = useState<Course[]>([]);
   const [maestros, setMaestros] = useState<User[]>([]);
   const [nombre, setNombre] = useState("");
@@ -115,11 +115,20 @@ export default function AsignaturasPage() {
 
   useEffect(() => {
     if (openAssignModal) {
+      console.log('useEffect de filtrado ejecutado');
+      console.log('Estado actual - searchTerm:', searchTerm, 'grupos:', grupos.length, 'maestros:', maestros.length, 'alumnos:', alumnos.length);
       filterGroups();
       filterTeachers();
       filterStudents();
     }
   }, [searchTerm, grupos, maestros, alumnos]);
+
+  // useEffect para logging del estado de estudiantes
+  useEffect(() => {
+    if (currentStep === 'students') {
+      console.log('Estado de estudiantes actualizado - alumnos:', alumnos, 'filteredStudents:', filteredStudents);
+    }
+  }, [alumnos, filteredStudents, currentStep]);
 
   useEffect(() => {
     if (openViewAssignmentsModal && selectedCourse?.id) {
@@ -291,9 +300,22 @@ export default function AsignaturasPage() {
 
   const loadStudents = async () => {
     try {
-      const offset = (currentStudentPage - 1) * itemsPerPage;
-      const data = await handleGetStudents(itemsPerPage, offset);
-      setAlumnos(Array.isArray(data) ? data : []);
+      // Si estamos en el paso de estudiantes y hay un grupo seleccionado,
+      // cargar solo los alumnos de ese grupo
+      if (currentStep === 'students' && selectedGroup?.id) {
+        console.log('Cargando alumnos del grupo:', selectedGroup.id);
+        const offset = (currentStudentPage - 1) * itemsPerPage;
+        const data = await handleGetStudentsByGroup(selectedGroup.id, itemsPerPage, offset);
+        console.log('Datos recibidos de handleGetStudentsByGroup:', data);
+        const processedData = Array.isArray(data) ? data : [];
+        console.log('Datos procesados para setAlumnos:', processedData);
+        setAlumnos(processedData);
+      } else {
+        // Si no hay grupo seleccionado, cargar todos los alumnos
+        const offset = (currentStudentPage - 1) * itemsPerPage;
+        const data = await handleGetStudents(itemsPerPage, offset);
+        setAlumnos(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
       console.error('Error al cargar los alumnos:', err);
     }
@@ -476,7 +498,11 @@ export default function AsignaturasPage() {
   };
 
   const filterStudents = () => {
+    console.log('filterStudents ejecutado. alumnos:', alumnos);
+    console.log('searchTerm:', searchTerm);
+    
     if (!searchTerm) {
+      console.log('Sin término de búsqueda, mostrando todos los alumnos:', alumnos);
       setFilteredStudents(alumnos);
       return;
     }
@@ -486,6 +512,7 @@ export default function AsignaturasPage() {
       alumno.fullName.toLowerCase().includes(searchLower) ||
       alumno.registrationNumber.toLowerCase().includes(searchLower)
     );
+    console.log('Alumnos filtrados:', filtered);
     setFilteredStudents(filtered);
   };
 
@@ -1308,7 +1335,7 @@ export default function AsignaturasPage() {
             <DialogHeader>
               <DialogTitle>Asignar Grupo, Maestro y Alumnos a {selectedCourse?.name}</DialogTitle>
               <DialogDescription>
-                Selecciona un grupo, un maestro y opcionalmente alumnos para esta asignatura
+                Selecciona un grupo, un maestro y opcionalmente alumnos del grupo seleccionado para esta asignatura
               </DialogDescription>
               <div className="flex items-center justify-center space-x-4 mt-4">
                 <div className={`flex items-center space-x-2 ${currentStep === 'groups' ? 'text-blue-600' : 'text-gray-400'}`}>
@@ -1498,7 +1525,7 @@ export default function AsignaturasPage() {
                         Volver
                       </Button>
                       <h3 className="text-lg font-semibold">
-                        Selecciona Alumnos (Opcional)
+                        Selecciona Alumnos del Grupo {selectedGroup?.name} (Opcional)
                         {selectedStudents.size > 0 && (
                           <span className="ml-2 text-sm text-blue-600 font-normal">
                             ({selectedStudents.size} seleccionado{selectedStudents.size !== 1 ? 's' : ''})
@@ -1549,7 +1576,7 @@ export default function AsignaturasPage() {
                     <div className="text-sm text-gray-600">
                       {selectedStudents.size > 0 && (
                         <span>
-                          {selectedStudents.size} de {filteredStudents.length} alumnos seleccionado{selectedStudents.size !== 1 ? 's' : ''}
+                          {selectedStudents.size} de {filteredStudents.length} alumnos del grupo seleccionado{selectedStudents.size !== 1 ? 's' : ''}
                         </span>
                       )}
                     </div>
@@ -1585,7 +1612,7 @@ export default function AsignaturasPage() {
                   </div>
                   <div className="flex items-center justify-between mt-4">
                     <div className="text-sm text-gray-600">
-                      Mostrando {filteredStudents.length} alumnos
+                      Mostrando {filteredStudents.length} alumnos del grupo {selectedGroup?.name}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button

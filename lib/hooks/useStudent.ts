@@ -61,6 +61,21 @@ export const useStudent = () => {
     }
   };
 
+  const handleGetStudentsByGroup = async (groupId: number, limit: number = 20, offset: number = 0) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await studentService.getStudentsByGroup(groupId, limit, offset);
+      setTotalItems(data.length);
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al obtener los alumnos del grupo');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -69,5 +84,6 @@ export const useStudent = () => {
     handleCreateStudent,
     handleUpdateStudent,
     handleDeleteStudent,
+    handleGetStudentsByGroup,
   };
 }; 
