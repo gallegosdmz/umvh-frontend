@@ -2495,14 +2495,6 @@ export default function MaestroAsignaturas() {
                               </Button>
                               <Button
                                 variant="outline"
-                                size="sm"
-                                onClick={() => handleOpenActividadesModal(asignatura, courseGroup)}
-                              >
-                                <BookOpen className="h-4 w-4 mr-2" />
-                                Actividades
-                              </Button>
-                              <Button
-                                variant="outline"
                                 onClick={() => handleOpenAsistenciaModal(asignatura, courseGroup)}
                               >
                                 <Calendar className="h-4 w-4 mr-2" />
@@ -2522,16 +2514,11 @@ export default function MaestroAsignaturas() {
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogContent className="max-w-[95vw] h-[90vh] flex flex-col">
                 <DialogHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <DialogTitle>Evaluaciones - {selectedPartial === 1 ? 'Primer' : selectedPartial === 2 ? 'Segundo' : 'Tercer'} Parcial</DialogTitle>
-                      <DialogDescription>
-                        Calificaciones de todos los alumnos del grupo
-                      </DialogDescription>
-                    </div>
-                    <Button variant="outline" onClick={() => setIsModalOpen(false)}>
-                      Cerrar
-                    </Button>
+                  <div>
+                    <DialogTitle>Evaluaciones - {selectedPartial === 1 ? 'Primer' : selectedPartial === 2 ? 'Segundo' : 'Tercer'} Parcial</DialogTitle>
+                    <DialogDescription>
+                      Calificaciones de todos los alumnos del grupo
+                    </DialogDescription>
                   </div>
                 </DialogHeader>
                 
