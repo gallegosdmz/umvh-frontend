@@ -3126,49 +3126,62 @@ export default function MaestroAsignaturas() {
                                   />
                                 </td>
                                 <td className="border border-gray-300 px-2 py-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="10"
-                                    step="0.01"
-                                    className="w-16 text-center border rounded px-1 py-1 text-sm"
-                                    placeholder="--"
-                                    value={extraordinario !== null && extraordinario !== undefined ? extraordinario : ''}
-                                    onChange={async (e) => {
-                                      const value = e.target.value === '' ? null : Number(e.target.value);
-                                      const courseGroupStudentId = alumno.courseGroupStudentId!;
-                                      
-                                      // Actualizar estado local inmediatamente
-                                      setCalificacionesFinalesAlumnos(prev => ({
-                                        ...prev,
-                                        [courseGroupStudentId]: {
-                                          ...prev[courseGroupStudentId],
-                                          extraordinario: value
+                                  <div className="flex items-center justify-center gap-1">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="10"
+                                      step="0.01"
+                                      className="w-16 text-center border rounded px-1 py-1 text-sm"
+                                      placeholder="--"
+                                      value={extraordinario !== null && extraordinario !== undefined ? extraordinario : ''}
+                                      onChange={async (e) => {
+                                        const value = e.target.value === '' ? null : Number(e.target.value);
+                                        const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                        
+                                        // Actualizar estado local inmediatamente
+                                        setCalificacionesFinalesAlumnos(prev => ({
+                                          ...prev,
+                                          [courseGroupStudentId]: {
+                                            ...prev[courseGroupStudentId],
+                                            extraordinario: value
+                                          }
+                                        }));
+                                        
+                                        // Guardar en la base de datos
+                                        try {
+                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                          if (finalGrades && finalGrades.length > 0) {
+                                            await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
+                                          } else {
+                                            await CourseService.createFinalGrade({
+                                              grade: 0,
+                                              gradeOrdinary: null,
+                                              gradeExtraordinary: value,
+                                              date: new Date().toISOString(),
+                                              type: 'final',
+                                              courseGroupStudentId: courseGroupStudentId
+                                            });
+                                          }
+                                          toast.success('Calificación extraordinaria guardada');
+                                        } catch (error) {
+                                          console.error('Error al guardar calificación extraordinaria:', error);
+                                          toast.error('Error al guardar calificación extraordinaria');
                                         }
-                                      }));
-                                      
-                                      // Guardar en la base de datos
-                                      try {
-                                        const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
-                                        if (finalGrades && finalGrades.length > 0) {
-                                          await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
-                                        } else {
-                                          await CourseService.createFinalGrade({
-                                            grade: 0,
-                                            gradeOrdinary: null,
-                                            gradeExtraordinary: value,
-                                            date: new Date().toISOString(),
-                                            type: 'final',
-                                            courseGroupStudentId: courseGroupStudentId
-                                          });
-                                        }
-                                        toast.success('Calificación extraordinaria guardada');
-                                      } catch (error) {
-                                        console.error('Error al guardar calificación extraordinaria:', error);
-                                        toast.error('Error al guardar calificación extraordinaria');
-                                      }
-                                    }}
-                                  />
+                                      }}
+                                    />
+                                    {extraordinario !== null && extraordinario !== undefined && (
+                                      <span className={`text-xs font-bold ${
+                                        extraordinario === 0 
+                                          ? 'text-red-600' 
+                                          : extraordinario < 6 
+                                            ? 'text-red-600' 
+                                            : 'text-transparent'
+                                      }`}>
+                                        {extraordinario === 0 ? 'NP' : extraordinario < 6 ? 'NA' : ''}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
