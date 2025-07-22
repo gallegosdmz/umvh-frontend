@@ -158,6 +158,17 @@ export default function MaestroAsignaturas() {
     porcentajeAsistencia: number
   }}>({})
   
+  // Estado para el modal general
+  const [isGeneralModalOpen, setIsGeneralModalOpen] = useState(false)
+  const [selectedCourseForGeneral, setSelectedCourseForGeneral] = useState<Course | null>(null)
+  const [selectedCourseGroupForGeneral, setSelectedCourseGroupForGeneral] = useState<any | null>(null)
+  const [calificacionesGenerales, setCalificacionesGenerales] = useState<{[key: number]: {
+    parcial1: number,
+    parcial2: number,
+    parcial3: number,
+    promedio: number
+  }}>({})
+  
   // 1. Agregar estados para el modal de calificación final
   const [isCalificacionFinalModalOpen, setIsCalificacionFinalModalOpen] = useState(false);
   const [alumnoCalificacionFinal, setAlumnoCalificacionFinal] = useState<any | null>(null);
@@ -1293,6 +1304,107 @@ export default function MaestroAsignaturas() {
     } catch (error) {
       console.error('Error al cargar las actividades definidas:', error);
       toast.error('Error al cargar las actividades');
+    }
+  };
+
+  // Función para obtener calificación de un parcial específico
+  const obtenerCalificacionParcial = async (courseGroupStudentId: number, parcial: number) => {
+    try {
+      const response = await CourseService.getPartialGradesByStudentAndPartial(courseGroupStudentId, parcial);
+      console.log(`Calificaciones parcial ${parcial} para estudiante ${courseGroupStudentId}:`, response);
+      
+      if (response && response.length > 0) {
+        // Calcular la calificación del parcial basada en las ponderaciones
+        let calificacionTotal = 0;
+        let ponderacionTotal = 0;
+        
+        response.forEach((grade: any) => {
+          if (grade.partialEvaluation && grade.grade > 0) {
+            const ponderacion = grade.partialEvaluation.percentage || 0;
+            calificacionTotal += (grade.grade * ponderacion) / 100;
+            ponderacionTotal += ponderacion;
+          }
+        });
+        
+        return ponderacionTotal > 0 ? calificacionTotal : 0;
+      }
+      
+      return 0;
+    } catch (error) {
+      console.error(`Error al obtener calificación del parcial ${parcial}:`, error);
+      return 0;
+    }
+  };
+
+  // Función para abrir el modal general
+  const handleOpenGeneralModal = async (course: Course, courseGroup: any) => {
+    console.log('=== ABRIENDO MODAL GENERAL ===');
+    console.log('course:', course);
+    console.log('courseGroup:', courseGroup);
+    
+    setSelectedCourseForGeneral(course);
+    setSelectedCourseGroupForGeneral(courseGroup);
+    setIsGeneralModalOpen(true);
+    
+    try {
+      // Cargar los alumnos del grupo
+      const response = await handleGetStudentsByCourseGroup(courseGroup.id, 100, 0);
+      
+      // Extraer estudiantes de la estructura anidada
+      let students = []
+      if (Array.isArray(response)) {
+        students = response
+      } else if (response && response.items) {
+        students = response.items
+      } else if (response && response.coursesGroupsStudents) {
+        students = response.coursesGroupsStudents
+      } else {
+        students = []
+      }
+      
+      const mappedStudents = students.map((item: any) => ({
+        id: item.student.id,
+        fullName: item.student.fullName,
+        semester: item.student.semester,
+        registrationNumber: item.student.registrationNumber,
+        courseGroupStudentId: item.id
+      }))
+      setAlumnos(mappedStudents)
+      
+      // Cargar las calificaciones de todos los alumnos
+      await cargarCalificacionesAlumnos();
+      
+      // Calcular las calificaciones parciales de todos los alumnos
+      await calcularCalificacionesParcialesTodosAlumnos();
+      
+      // Cargar calificaciones de los 3 parciales para cada alumno
+      const calificacionesTemp: {[key: number]: {
+        parcial1: number,
+        parcial2: number,
+        parcial3: number,
+        promedio: number
+      }} = {};
+      
+      for (const alumno of mappedStudents) {
+        const parcial1 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 1);
+        const parcial2 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 2);
+        const parcial3 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 3);
+        
+        const promedio = ((parcial1 + parcial2 + parcial3) / 3);
+        
+        calificacionesTemp[alumno.courseGroupStudentId!] = {
+          parcial1,
+          parcial2,
+          parcial3,
+          promedio
+        };
+      }
+      
+      setCalificacionesGenerales(calificacionesTemp);
+      
+    } catch (error) {
+      console.error('Error al cargar datos para el modal general:', error);
+      toast.error('Error al cargar los datos');
     }
   };
 
@@ -2540,10 +2652,17 @@ export default function MaestroAsignaturas() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleOpenActividadesModal(selectedCourse!, selectedCourseGroup!)}
-                    className="ml-auto"
                   >
                     <BookOpen className="h-4 w-4 mr-2" />
                     Gestionar Actividades
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenGeneralModal(selectedCourse!, selectedCourseGroup!)}
+                  >
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    General
                   </Button>
                 </div>
 
@@ -2748,6 +2867,90 @@ export default function MaestroAsignaturas() {
                               </td>
                             </tr>
                           ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
+            {/* Modal General */}
+            <Dialog open={isGeneralModalOpen} onOpenChange={setIsGeneralModalOpen}>
+              <DialogContent className="max-w-[95vw] h-[90vh] flex flex-col">
+                <DialogHeader>
+                  <div>
+                    <DialogTitle>Reporte General - {selectedCourseForGeneral?.name}</DialogTitle>
+                    <DialogDescription>
+                      Promedio final de todos los alumnos del grupo
+                    </DialogDescription>
+                  </div>
+                </DialogHeader>
+                
+                {isLoadingAlumnos ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                      <p>Cargando datos...</p>
+                    </div>
+                  </div>
+                ) : alumnos.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <Users className="h-12 w-12 mb-4" />
+                      <p className="text-lg font-medium">No hay alumnos inscritos</p>
+                      <p className="text-sm">Este grupo aún no tiene alumnos asignados</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 overflow-hidden">
+                    <div className="overflow-x-auto h-full">
+                      <table className="min-w-[800px] border border-gray-300 text-center">
+                        <thead className="sticky top-0 bg-yellow-100 z-10">
+                          <tr>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">No.</th>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Matrícula</th>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Nombre</th>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Parcial 1</th>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Parcial 2</th>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Parcial 3</th>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Promedio</th>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Asistencia</th>
+                            <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Exentos</th>
+                            <th className="bg-red-200 font-semibold border border-gray-300 px-2 py-1">Calif Ordinario</th>
+                            <th className="bg-red-200 font-semibold border border-gray-300 px-2 py-1">Ordinario</th>
+                            <th className="bg-red-200 font-semibold border border-gray-300 px-2 py-1">Extraordinario</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {alumnos.map((alumno, index) => {
+                            // Obtener calificaciones de los 3 parciales
+                            const calificaciones = calificacionesGenerales[alumno.courseGroupStudentId!];
+                            const calificacionParcial1 = calificaciones?.parcial1 || 0;
+                            const calificacionParcial2 = calificaciones?.parcial2 || 0;
+                            const calificacionParcial3 = calificaciones?.parcial3 || 0;
+                            const promedio = calificaciones?.promedio || 0;
+                            
+                            // Obtener porcentaje de asistencia
+                            const asistencia = calificacionesParcialesAlumnos[alumno.courseGroupStudentId!]?.porcentajeAsistencia || 0;
+                            
+                            return (
+                              <tr key={alumno.id} className="hover:bg-gray-50">
+                                <td className="border border-gray-300 px-2 py-1 font-medium">{index + 1}</td>
+                                <td className="border border-gray-300 px-2 py-1">{alumno.registrationNumber}</td>
+                                <td className="border border-gray-300 px-2 py-1 font-medium text-left">{alumno.fullName}</td>
+                                <td className="border border-gray-300 px-2 py-1">{calificacionParcial1 > 0 ? calificacionParcial1.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">{calificacionParcial2 > 0 ? calificacionParcial2.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">{calificacionParcial3 > 0 ? calificacionParcial3.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1 font-semibold">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">{asistencia > 0 ? `${asistencia.toFixed(0)}%` : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1 bg-green-100">--</td>
+                                <td className="border border-gray-300 px-2 py-1">--</td>
+                                <td className="border border-gray-300 px-2 py-1">--</td>
+                                <td className="border border-gray-300 px-2 py-1">--</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
