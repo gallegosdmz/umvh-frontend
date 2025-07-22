@@ -2398,7 +2398,6 @@ export default function MaestroAsignaturas() {
                             <th colSpan={18} className="bg-blue-100 font-semibold border border-gray-300">Actividades de Aprendizaje</th>
                             <th colSpan={18} className="bg-green-100 font-semibold border border-gray-300">Evidencias de Aprendizaje</th>
                             <th colSpan={2} className="bg-purple-100 font-semibold border border-gray-300">Calificaciones Parciales</th>
-                            <th colSpan={5} className="bg-gray-100 font-semibold border border-gray-300">Ponderaciones</th>
                             <th colSpan={2} className="bg-yellow-100 font-semibold border border-gray-300">Calificación Final</th>
                           </tr>
                           
@@ -2415,11 +2414,6 @@ export default function MaestroAsignaturas() {
                               </th>
                             ))}
                             <th className="bg-pink-50 border border-gray-300 px-1 py-1 text-xs">Producto</th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Examen</th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Asistencia</th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Actividades</th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Evidencias</th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Producto</th>
                             <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Examen</th>
                             <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Calificación</th>
                             <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">% Asistencia</th>
@@ -2438,21 +2432,6 @@ export default function MaestroAsignaturas() {
                               </th>
                             ))}
                             <th className="bg-pink-50 border border-gray-300 px-1 py-1 text-xs">
-                              {ponderacionesCurso?.producto ? `${ponderacionesCurso.producto}%` : '0%'}
-                            </th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
-                              {ponderacionesCurso?.examen ? `${ponderacionesCurso.examen}%` : '0%'}
-                            </th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
-                              {ponderacionesCurso?.asistencia ? `${ponderacionesCurso.asistencia}%` : '0%'}
-                            </th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
-                              {ponderacionesCurso?.actividades ? `${ponderacionesCurso.actividades}%` : '0%'}
-                            </th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
-                              {ponderacionesCurso?.evidencias ? `${ponderacionesCurso.evidencias}%` : '0%'}
-                            </th>
-                            <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
                               {ponderacionesCurso?.producto ? `${ponderacionesCurso.producto}%` : '0%'}
                             </th>
                             <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">
@@ -2576,13 +2555,6 @@ export default function MaestroAsignaturas() {
                                   onBlur={(e) => handleSaveStudentGrade(alumno.courseGroupStudentId!, 'examen', 0, Number(e.target.value))}
                                 />
                               </td>
-                              
-                              {/* Ponderaciones calculadas */}
-                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
-                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
-                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
-                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
-                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
                               
                               {/* Calificación Final */}
                               <td className="border border-gray-300 px-1 py-1 font-semibold">--</td>
