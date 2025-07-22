@@ -152,6 +152,11 @@ export default function MaestroAsignaturas() {
     producto: {grade: number, id: number | null},
     examen: {grade: number, id: number | null}
   }}>({})
+
+  const [calificacionesParcialesAlumnos, setCalificacionesParcialesAlumnos] = useState<{[key: number]: {
+    calificacion: number,
+    porcentajeAsistencia: number
+  }}>({})
   
   // 1. Agregar estados para el modal de calificación final
   const [isCalificacionFinalModalOpen, setIsCalificacionFinalModalOpen] = useState(false);
@@ -1618,6 +1623,13 @@ export default function MaestroAsignaturas() {
     }
   }, [isModalOpen, selectedCourseGroup, alumnos, selectedPartial, actividadesDefinidas]);
 
+  // Recalcular calificaciones parciales cuando cambien las ponderaciones
+  useEffect(() => {
+    if (isModalOpen && ponderacionesCurso && Object.keys(calificacionesAlumnos).length > 0) {
+      calcularCalificacionesParcialesTodosAlumnos();
+    }
+  }, [ponderacionesCurso, calificacionesAlumnos, selectedPartial]);
+
   // Recargar actividades cuando se cierre el modal de actividades (para reflejar cambios)
   useEffect(() => {
     if (!isActividadesModalOpen && selectedCourseGroup && isModalOpen) {
@@ -1725,8 +1737,8 @@ export default function MaestroAsignaturas() {
         toast.success("Calificación guardada");
       }
 
-      // Recalcular calificación parcial del alumno
-      await calcularCalificacionParcialParaAlumno(courseGroupStudentId);
+      // Recalcular calificaciones parciales de todos los alumnos
+      await calcularCalificacionesParcialesTodosAlumnos();
 
     } catch (error) {
       console.error('Error al guardar calificación:', error);
@@ -1928,6 +1940,181 @@ export default function MaestroAsignaturas() {
     }
   };
 
+  const calcularCalificacionesParcialesTodosAlumnos = async () => {
+    console.log('=== CALCULANDO CALIFICACIONES PARCIALES PARA TODOS LOS ALUMNOS ===');
+    
+    if (!ponderacionesCurso || !alumnos.length) {
+      console.log('❌ No hay ponderaciones o alumnos disponibles');
+      return;
+    }
+    
+    const nuevasCalificacionesParciales: {[key: number]: {
+      calificacion: number,
+      porcentajeAsistencia: number
+    }} = {};
+    
+    for (const alumno of alumnos) {
+      console.log(`\n--- Calculando para alumno ${alumno.courseGroupStudentId} ---`);
+      
+      const calificacionesAlumno = calificacionesAlumnos[alumno.courseGroupStudentId!];
+      if (!calificacionesAlumno) {
+        console.log('❌ No hay calificaciones para el alumno');
+        nuevasCalificacionesParciales[alumno.courseGroupStudentId!] = { calificacion: 0, porcentajeAsistencia: 0 };
+        continue;
+      }
+      
+      let calificacionFinal = 0;
+      let totalPonderacion = 0;
+      let porcentajeAsistencia = 0;
+      
+      // 1. Cálculo de Asistencia
+      console.log('\n--- CÁLCULO DE ASISTENCIA ---');
+      console.log('Ponderación de Asistencia:', ponderacionesCurso.asistencia, '%');
+      
+      if (ponderacionesCurso.asistencia > 0) {
+        try {
+          const asistenciasAlumno = await CourseService.getAttendancesByCourseGroupStudentAndPartial(
+            alumno.courseGroupStudentId!,
+            selectedPartial
+          );
+
+          console.log('Asistencias del alumno en el parcial:', asistenciasAlumno);
+
+          if (Array.isArray(asistenciasAlumno) && asistenciasAlumno.length > 0) {
+            const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
+            const totalAsistencias = asistenciasAlumno.length;
+            porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
+            const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
+            const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
+
+            console.log('Total de asistencias registradas:', totalAsistencias);
+            console.log('Asistencias presentes:', asistenciasPresentes);
+            console.log('Porcentaje de asistencia:', porcentajeAsistencia.toFixed(2) + '%');
+            console.log('Promedio de Asistencia (0-10):', asistenciaPromedio.toFixed(2));
+            console.log('Calificación de Asistencia:', calificacionAsistencia.toFixed(2));
+
+            calificacionFinal += calificacionAsistencia;
+            totalPonderacion += ponderacionesCurso.asistencia;
+          } else {
+            console.log('No hay asistencias registradas para este alumno en el parcial');
+          }
+        } catch (error) {
+          console.error('Error al obtener asistencias:', error);
+        }
+      }
+      
+      // 2. Cálculo de Actividades
+      console.log('\n--- CÁLCULO DE ACTIVIDADES ---');
+      console.log('Ponderación de Actividades:', ponderacionesCurso.actividades, '%');
+      
+      const actividadesValores = calificacionesAlumno.actividades
+        .filter(item => item.grade > 0)
+        .map(item => item.grade);
+      
+      console.log('Valores de actividades (solo > 0):', actividadesValores);
+      
+      if (actividadesValores.length > 0) {
+        const promedioActividades = actividadesValores.reduce((sum, grade) => sum + grade, 0) / actividadesValores.length;
+        const calificacionActividades = (promedioActividades * ponderacionesCurso.actividades) / 100;
+        
+        console.log('Cantidad de actividades con calificación:', actividadesValores.length);
+        console.log('Promedio de Actividades:', promedioActividades);
+        console.log('Calificación de Actividades:', calificacionActividades);
+        
+        if (ponderacionesCurso.actividades > 0) {
+          calificacionFinal += calificacionActividades;
+          totalPonderacion += ponderacionesCurso.actividades;
+        }
+      } else {
+        console.log('No hay actividades con calificación > 0');
+      }
+      
+      // 3. Cálculo de Evidencias
+      console.log('\n--- CÁLCULO DE EVIDENCIAS ---');
+      console.log('Ponderación de Evidencias:', ponderacionesCurso.evidencias, '%');
+      
+      const evidenciasValores = calificacionesAlumno.evidencias
+        .filter(item => item.grade > 0)
+        .map(item => item.grade);
+      
+      console.log('Valores de evidencias (solo > 0):', evidenciasValores);
+      
+      if (evidenciasValores.length > 0) {
+        const promedioEvidencias = evidenciasValores.reduce((sum, grade) => sum + grade, 0) / evidenciasValores.length;
+        const calificacionEvidencias = (promedioEvidencias * ponderacionesCurso.evidencias) / 100;
+        
+        console.log('Cantidad de evidencias con calificación:', evidenciasValores.length);
+        console.log('Promedio de Evidencias:', promedioEvidencias);
+        console.log('Calificación de Evidencias:', calificacionEvidencias);
+        
+        if (ponderacionesCurso.evidencias > 0) {
+          calificacionFinal += calificacionEvidencias;
+          totalPonderacion += ponderacionesCurso.evidencias;
+        }
+      } else {
+        console.log('No hay evidencias con calificación > 0');
+      }
+      
+      // 4. Cálculo de Producto
+      console.log('\n--- CÁLCULO DE PRODUCTO ---');
+      console.log('Ponderación de Producto:', ponderacionesCurso.producto, '%');
+      
+      if (calificacionesAlumno.producto.grade > 0) {
+        const calificacionProducto = (calificacionesAlumno.producto.grade * ponderacionesCurso.producto) / 100;
+        
+        console.log('Calificación de Producto:', calificacionesAlumno.producto.grade);
+        console.log('Calificación ponderada de Producto:', calificacionProducto);
+        
+        if (ponderacionesCurso.producto > 0) {
+          calificacionFinal += calificacionProducto;
+          totalPonderacion += ponderacionesCurso.producto;
+        }
+      } else {
+        console.log('No hay calificación de producto > 0');
+      }
+      
+      // 5. Cálculo de Examen
+      console.log('\n--- CÁLCULO DE EXAMEN ---');
+      console.log('Ponderación de Examen:', ponderacionesCurso.examen, '%');
+      
+      if (calificacionesAlumno.examen.grade > 0) {
+        const calificacionExamen = (calificacionesAlumno.examen.grade * ponderacionesCurso.examen) / 100;
+        
+        console.log('Calificación de Examen:', calificacionesAlumno.examen.grade);
+        console.log('Calificación ponderada de Examen:', calificacionExamen);
+        
+        if (ponderacionesCurso.examen > 0) {
+          calificacionFinal += calificacionExamen;
+          totalPonderacion += ponderacionesCurso.examen;
+        }
+      } else {
+        console.log('No hay calificación de examen > 0');
+      }
+      
+      // 6. Cálculo Final
+      console.log('\n--- CÁLCULO FINAL ---');
+      console.log('Total de ponderación utilizada:', totalPonderacion, '%');
+      console.log('Calificación final ponderada:', calificacionFinal);
+      
+      let calificacionParcialFinal = 0;
+      if (totalPonderacion > 0) {
+        calificacionParcialFinal = (calificacionFinal / totalPonderacion) * 100;
+      }
+      
+      console.log('Calificación parcial final:', calificacionParcialFinal);
+      
+      nuevasCalificacionesParciales[alumno.courseGroupStudentId!] = {
+        calificacion: Math.round(calificacionParcialFinal * 100) / 100,
+        porcentajeAsistencia: Math.round(porcentajeAsistencia * 100) / 100
+      };
+    }
+    
+    console.log('\n=== RESULTADO FINAL ===');
+    console.log('nuevasCalificacionesParciales:', nuevasCalificacionesParciales);
+    
+    setCalificacionesParcialesAlumnos(nuevasCalificacionesParciales);
+  };
+
   const cargarCalificacionesAlumnos = async () => {
     if (!selectedCourseGroup || !alumnos.length) return;
     
@@ -2017,6 +2204,9 @@ export default function MaestroAsignaturas() {
       console.log('nuevasCalificaciones:', nuevasCalificaciones);
       
       setCalificacionesAlumnos(nuevasCalificaciones);
+      
+      // Calcular calificaciones parciales después de cargar las calificaciones
+      await calcularCalificacionesParcialesTodosAlumnos();
     } catch (error) {
       console.error('Error al cargar calificaciones de alumnos:', error);
     }
@@ -2557,8 +2747,18 @@ export default function MaestroAsignaturas() {
                               </td>
                               
                               {/* Calificación Final */}
-                              <td className="border border-gray-300 px-1 py-1 font-semibold">--</td>
-                              <td className="border border-gray-300 px-1 py-1 text-xs">--</td>
+                              <td className="border border-gray-300 px-1 py-1 font-semibold">
+                                {calificacionesParcialesAlumnos[alumno.courseGroupStudentId!]?.calificacion > 0 
+                                  ? calificacionesParcialesAlumnos[alumno.courseGroupStudentId!].calificacion.toFixed(2)
+                                  : '--'
+                                }
+                              </td>
+                              <td className="border border-gray-300 px-1 py-1 text-xs">
+                                {calificacionesParcialesAlumnos[alumno.courseGroupStudentId!]?.porcentajeAsistencia > 0 
+                                  ? `${calificacionesParcialesAlumnos[alumno.courseGroupStudentId!].porcentajeAsistencia.toFixed(1)}%`
+                                  : '--'
+                                }
+                              </td>
                             </tr>
                           ))}
                         </tbody>
