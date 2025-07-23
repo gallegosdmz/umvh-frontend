@@ -124,10 +124,7 @@ export default function AlumnosPage() {
       if (showGrupos) {
         await getCombinedGroups();
       } else {
-        console.log('Cargando estudiantes...');
         await getCombinedStudents();
-        console.log('Estudiantes cargados:', students);
-        console.log('Total de estudiantes:', students.length);
       }
     } catch (err) {
       console.error('Error al cargar los items:', err);
