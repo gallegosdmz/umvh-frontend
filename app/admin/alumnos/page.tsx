@@ -77,6 +77,15 @@ export default function AlumnosPage() {
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [totalItems, setTotalItems] = useState(0);
 
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    loadItems();
+    if (showGrupos) {
+      loadPeriods();
+    }
+  }, []);
+
+  // Recargar cuando cambie la vista o página
   useEffect(() => {
     loadItems();
     if (showGrupos) {
@@ -113,6 +122,7 @@ export default function AlumnosPage() {
       } else {
         await getCombinedStudents();
         setAlumnos(students);
+        setTotalItems(students.length);
       }
     } catch (err) {
       console.error('Error al cargar los items:', err);
@@ -249,7 +259,7 @@ export default function AlumnosPage() {
     setEditingItem(null);
   };
 
-  const totalPages = Math.ceil((showGrupos ? groupTotalItems : studentTotalItems) / itemsPerPage);
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -484,7 +494,10 @@ export default function AlumnosPage() {
                 <TableBody>
                   {showGrupos ? (
                     grupos.length > 0 ? (
-                      grupos.map((grupo) => (
+                      // Aplicar paginación a los grupos
+                      grupos
+                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                        .map((grupo) => (
                         <TableRow key={grupo.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium">{grupo.name}</TableCell>
                           <TableCell>
@@ -524,7 +537,10 @@ export default function AlumnosPage() {
                       </TableRow>
                     )
                   ) : (
-                    alumnos.map((alumno) => (
+                    // Aplicar paginación a los estudiantes
+                    alumnos
+                      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                      .map((alumno) => (
                       <TableRow key={alumno.id} className="hover:bg-gray-50">
                         <TableCell className="font-medium">{alumno.fullName}</TableCell>
                         <TableCell>{alumno.registrationNumber}</TableCell>
@@ -555,7 +571,10 @@ export default function AlumnosPage() {
 
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-gray-600">
-                Mostrando {showGrupos ? grupos.length : alumnos.length} de {showGrupos ? groupTotalItems : studentTotalItems} {showGrupos ? 'grupos' : 'alumnos'}
+                Mostrando {showGrupos ? 
+                  Math.min(grupos.length, itemsPerPage) : 
+                  Math.min(alumnos.length - (currentPage - 1) * itemsPerPage, itemsPerPage)
+                } de {showGrupos ? groupTotalItems : studentTotalItems} {showGrupos ? 'grupos' : 'alumnos'}
               </div>
               <div className="flex items-center gap-2">
                 <Button

@@ -6,6 +6,16 @@ import { useOfflineStorage } from './use-offline-storage'
 import { Student } from '@/lib/mock-data'
 import { toast } from 'react-toastify'
 
+const getAuthHeaders = () => {
+  const currentUser = localStorage.getItem('currentUser');
+  const user = currentUser ? JSON.parse(currentUser) : null;
+
+  return {
+      'Content-Type': 'application/json',
+      'Authorization': user?.token ? `Bearer ${user.token}` : ''
+  };
+}
+
 export function useOfflineStudent() {
   const {
     loading: studentLoading,
@@ -39,8 +49,9 @@ export function useOfflineStudent() {
   // Verificar conectividad real al servidor
   const checkServerConnectivity = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://uamvh.cloud'}/api/students?limit=1`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://uamvh.cloud'}/students`, {
         method: 'HEAD',
+        headers: getAuthHeaders(),
         cache: 'no-cache'
       })
       return response.ok
