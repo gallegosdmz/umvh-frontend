@@ -116,8 +116,15 @@ export const studentService = {
         headers: getAuthHeaders(),
         body: JSON.stringify(student),
       });
+      
+      const data = await response.json();
+
+      console.log(data);
+
       if (!response.ok) throw new Error('Error al actualizar el alumno');
-      return await response.json();
+
+      return data;
+
     } catch (error) {
       console.error('Error en updateStudent:', error);
       throw error;

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, act } from 'react'
 
 interface OfflineData {
   id: string
@@ -10,24 +10,57 @@ interface OfflineData {
   timestamp: number
 }
 
+const getAuthHeaders = () => {
+  const currentUser = localStorage.getItem("currentUser");
+  const user = currentUser ? JSON.parse(currentUser) : null;
+
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': user?.token ? `Bearer ${user.token}` : ''
+  };
+};
+
 export function useOfflineStorage() {
   const [isOnline, setIsOnline] = useState(true)
   const [pendingActions, setPendingActions] = useState<OfflineData[]>([])
 
-  // Verificar estado de conexión
+  // Verificar estado de conexión simplificado
   useEffect(() => {
     const updateOnlineStatus = () => {
       setIsOnline(navigator.onLine)
     }
 
-    window.addEventListener('online', updateOnlineStatus)
-    window.addEventListener('offline', updateOnlineStatus)
+    const handleOnline = () => {
+      setIsOnline(true)
+    }
+
+    const handleOffline = () => {
+      setIsOnline(false)
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
     
+    // Verificar estado inicial
     updateOnlineStatus()
 
     return () => {
-      window.removeEventListener('online', updateOnlineStatus)
-      window.removeEventListener('offline', updateOnlineStatus)
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  // Cargar acciones pendientes del localStorage al iniciar
+  useEffect(() => {
+    const savedActions = localStorage.getItem('offlineActions')
+    if (savedActions) {
+      try {
+        const actions = JSON.parse(savedActions)
+        setPendingActions(actions)
+      } catch (error) {
+        console.error('Error al cargar acciones offline:', error)
+        localStorage.removeItem('offlineActions')
+      }
     }
   }, [])
 
@@ -44,33 +77,119 @@ export function useOfflineStorage() {
     localStorage.setItem('offlineActions', JSON.stringify(updated))
     
     setPendingActions(updated)
+    console.log('Acción guardada offline:', offlineAction)
+  }, [])
+
+  // Verificar conectividad real al servidor
+  const checkServerConnectivity = useCallback(async (): Promise<boolean> => {
+    try {
+      // Intentar hacer una llamada simple al servidor
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://uamvh.cloud'}/students?limit=1`, {
+        method: 'HEAD',
+        headers: getAuthHeaders(),
+        cache: 'no-cache'
+      })
+      return response.ok
+    } catch (error) {
+      console.log('Servidor no disponible:', error)
+      return false
+    }
   }, [])
 
   // Sincronizar acciones cuando vuelve la conexión
   const syncOfflineActions = useCallback(async () => {
-    if (!isOnline) return
+    if (!isOnline || pendingActions.length === 0) return
 
-    const actions = JSON.parse(localStorage.getItem('offlineActions') || '[]')
-    if (actions.length === 0) return
-
-    try {
-      // Aquí implementarías la lógica para sincronizar con el servidor
-      // Por ahora solo simulamos la sincronización
-      console.log('Sincronizando acciones offline:', actions)
-      
-      // Limpiar acciones después de sincronizar
-      localStorage.removeItem('offlineActions')
-      setPendingActions([])
-    } catch (error) {
-      console.error('Error sincronizando acciones offline:', error)
+    // Verificar conectividad real al servidor antes de sincronizar
+    const serverAvailable = await checkServerConnectivity()
+    if (!serverAvailable) {
+      console.log('Servidor no disponible, manteniendo acciones offline')
+      return
     }
-  }, [isOnline])
 
-  // Cargar acciones pendientes al inicializar
-  useEffect(() => {
-    const actions = JSON.parse(localStorage.getItem('offlineActions') || '[]')
-    setPendingActions(actions)
-  }, [])
+    console.log('Sincronizando acciones offline...')
+    
+    for (const action of pendingActions) {
+      try {
+        console.log('Sincronizando:', action)
+        
+        // Hacer las llamadas reales a la API según el tipo de acción
+        switch (action.type) {
+          case 'student':
+            const { studentService } = await import('@/lib/services/student.service')
+            if (action.action === 'create') {
+              await studentService.createStudent(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await studentService.updateStudent(id, updateData)
+            } else if (action.action === 'delete') {
+              await studentService.deleteStudent(action.data.id)
+            }
+            break
+            
+          case 'teacher':
+            const { UserService } = await import('@/lib/services/user.service')
+            if (action.action === 'create') {
+              await UserService.create(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await UserService.update(id, updateData)
+            } else if (action.action === 'delete') {
+              await UserService.delete(action.data.id)
+            }
+            break
+            
+          case 'course':
+            const { CourseService } = await import('@/lib/services/course.service')
+            if (action.action === 'create') {
+              await CourseService.create(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await CourseService.update(id, updateData)
+            } else if (action.action === 'delete') {
+              await CourseService.delete(action.data.id)
+            }
+            break
+            
+          case 'group':
+            const { groupService } = await import('@/lib/services/group.service')
+            if (action.action === 'create') {
+              await groupService.createGroup(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await groupService.updateGroup(id, updateData)
+            } else if (action.action === 'delete') {
+              await groupService.deleteGroup(action.data.id)
+            }
+            break
+            
+          case 'period':
+            const { periodService } = await import('@/lib/services/period.service')
+            if (action.action === 'create') {
+              await periodService.createPeriod(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await periodService.updatePeriod(id, updateData)
+            } else if (action.action === 'delete') {
+              await periodService.deletePeriod(action.data.id)
+            }
+            break
+        }
+        
+        console.log('Acción sincronizada exitosamente:', action)
+        
+      } catch (error) {
+        console.error('Error al sincronizar acción:', action, error)
+        // La acción permanece en la lista para reintentar
+        return
+      }
+    }
+
+    // Si todas las acciones se sincronizaron exitosamente, limpiar
+    localStorage.removeItem('offlineActions')
+    setPendingActions([])
+    console.log('Todas las acciones sincronizadas exitosamente')
+  }, [isOnline, pendingActions, checkServerConnectivity])
 
   // Intentar sincronizar cuando vuelve la conexión
   useEffect(() => {
@@ -87,15 +206,20 @@ export function useOfflineStorage() {
   }
 }
 
-// Hook para manejar datos específicos offline
+// Hook para manejar datos offline específicos
 export function useOfflineData<T>(key: string, initialData: T[] = []) {
   const [data, setData] = useState<T[]>(initialData)
 
-  // Cargar datos del localStorage
+  // Cargar datos del localStorage al iniciar
   useEffect(() => {
-    const saved = localStorage.getItem(`offline_${key}`)
-    if (saved) {
-      setData(JSON.parse(saved))
+    const savedData = localStorage.getItem(`offline_${key}`)
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData)
+        setData(parsedData)
+      } catch (error) {
+        console.error(`Error al cargar datos offline para ${key}:`, error)
+      }
     }
   }, [key])
 
@@ -127,9 +251,9 @@ export function useOfflineData<T>(key: string, initialData: T[] = []) {
 
   return {
     data,
+    setData: saveData,
     addItem,
     updateItem,
-    removeItem,
-    saveData
+    removeItem
   }
 } 

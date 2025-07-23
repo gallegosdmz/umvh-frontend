@@ -6,7 +6,7 @@ import { AuthProvider } from "@/lib/auth-context"
 import { Navigation } from "@/components/navigation"
 import { OfflineStatus } from "@/components/offline-status"
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
-import { SyncStatus } from "@/components/sync-status"
+import { OfflineIndicator } from "@/components/offline-indicator"
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -67,7 +67,7 @@ export default function RootLayout({
           <OfflineStatus />
           {children}
           <PWAInstallPrompt />
-          <SyncStatus />
+          <OfflineIndicator />
           <ToastContainer position="top-right" autoClose={3000} />
         </AuthProvider>
       </body>

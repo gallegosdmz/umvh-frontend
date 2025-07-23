@@ -129,9 +129,28 @@ class OfflineSyncService {
 
   // Métodos específicos para cada tipo de entidad
   private async syncStudentAction(action: string, data: any) {
-    // Implementar lógica específica para estudiantes
     console.log('Sincronizando estudiante:', action, data)
-    // Aquí harías las llamadas a tu API
+    
+    try {
+      const { studentService } = await import('./student.service')
+      
+      switch (action) {
+        case 'create':
+          await studentService.createStudent(data)
+          break
+        case 'update':
+          await studentService.updateStudent(data.id, data)
+          break
+        case 'delete':
+          await studentService.deleteStudent(data.id)
+          break
+        default:
+          throw new Error(`Acción no soportada: ${action}`)
+      }
+    } catch (error) {
+      console.error('Error sincronizando estudiante:', error)
+      throw error
+    }
   }
 
   private async syncTeacherAction(action: string, data: any) {
@@ -147,9 +166,28 @@ class OfflineSyncService {
   }
 
   private async syncGroupAction(action: string, data: any) {
-    // Implementar lógica específica para grupos
     console.log('Sincronizando grupo:', action, data)
-    // Aquí harías las llamadas a tu API
+    
+    try {
+      const { groupService } = await import('./group.service')
+      
+      switch (action) {
+        case 'create':
+          await groupService.createGroup(data)
+          break
+        case 'update':
+          await groupService.updateGroup(data.id, data)
+          break
+        case 'delete':
+          await groupService.deleteGroup(data.id)
+          break
+        default:
+          throw new Error(`Acción no soportada: ${action}`)
+      }
+    } catch (error) {
+      console.error('Error sincronizando grupo:', error)
+      throw error
+    }
   }
 
   private async syncPeriodAction(action: string, data: any) {

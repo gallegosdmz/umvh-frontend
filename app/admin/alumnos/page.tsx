@@ -9,9 +9,9 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useStudent } from '@/lib/hooks/useStudent';
-import { useGroup } from '@/lib/hooks/useGroup';
-import { usePeriod } from '@/lib/hooks/usePeriod';
+import { useOfflineStudent } from '@/hooks/use-offline-student';
+import { useOfflineGroup } from '@/hooks/use-offline-group';
+import { useOfflinePeriod } from '@/hooks/use-offline-period';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'react-toastify';
@@ -26,28 +26,34 @@ export default function AlumnosPage() {
     loading: studentLoading, 
     error: studentError, 
     totalItems: studentTotalItems, 
-    handleGetStudents, 
-    handleCreateStudent, 
-    handleUpdateStudent, 
-    handleDeleteStudent 
-  } = useStudent();
+    students,
+    getCombinedStudents, 
+    createStudent, 
+    updateStudent, 
+    deleteStudent,
+    isOnline: studentOnline
+  } = useOfflineStudent();
 
   const { 
     loading: groupLoading, 
     error: groupError, 
     totalItems: groupTotalItems, 
-    handleGetGroups, 
-    handleCreateGroup, 
-    handleUpdateGroup, 
-    handleDeleteGroup, 
-    handleAssignStudents: assignStudentsToGroup 
-  } = useGroup();
+    groups,
+    getCombinedGroups, 
+    createGroup, 
+    updateGroup, 
+    deleteGroup, 
+    assignStudentsToGroup,
+    isOnline: groupOnline
+  } = useOfflineGroup();
 
   const { 
     loading: periodLoading, 
     error: periodError, 
-    handleGetPeriods 
-  } = usePeriod();
+    periods,
+    getCombinedPeriods,
+    isOnline: periodOnline
+  } = useOfflinePeriod();
 
   const [alumnos, setAlumnos] = useState<Student[]>([]);
   const [grupos, setGrupos] = useState<GroupWithStudents[]>([]);
@@ -90,39 +96,23 @@ export default function AlumnosPage() {
 
   const loadPeriods = async () => {
     try {
-      const data = await handleGetPeriods();
-      console.log('Períodos cargados (estructura completa):', JSON.stringify(data, null, 2));
-      if (Array.isArray(data)) {
-        setPeriodos(data);
-      } else {
-        console.error('Los períodos no son un array:', data);
-        setPeriodos([]);
-      }
-    } catch (err) {
-      console.error('Error al cargar los períodos:', err);
+      await getCombinedPeriods();
+      setPeriodos(periods);
+    } catch (error) {
+      console.error('Error cargando períodos:', error);
       setPeriodos([]);
     }
   };
 
   const loadItems = async () => {
     try {
-      const offset = (currentPage - 1) * itemsPerPage;
       if (showGrupos) {
-        const data = await handleGetGroups(itemsPerPage, offset);
-        console.log('Datos de grupos recibidos:', data);
-        
-        // La respuesta del backend ya viene como un array de grupos
-        if (Array.isArray(data)) {
-          setGrupos(data);
-          setTotalItems(data.length);
-        } else {
-          console.log('No hay grupos para mostrar');
-          setGrupos([]);
-          setTotalItems(0);
-        }
+        await getCombinedGroups();
+        setGrupos(groups);
+        setTotalItems(groups.length);
       } else {
-        const data = await handleGetStudents(itemsPerPage, offset);
-        setAlumnos(Array.isArray(data) ? data : []);
+        await getCombinedStudents();
+        setAlumnos(students);
       }
     } catch (err) {
       console.error('Error al cargar los items:', err);
@@ -137,8 +127,8 @@ export default function AlumnosPage() {
 
   const loadAllStudents = async () => {
     try {
-      const data = await handleGetStudents(1000, 0); // Obtener todos los estudiantes
-      setAllStudents(Array.isArray(data) ? data : []);
+      await getCombinedStudents();
+      setAllStudents(students);
     } catch (err) {
       console.error('Error al cargar todos los estudiantes:', err);
     }
@@ -186,10 +176,10 @@ export default function AlumnosPage() {
         };
 
         if (editingItem && editingItem.id) {
-          await handleUpdateGroup(editingItem.id.toString(), groupData);
+          await updateGroup(editingItem.id.toString(), groupData);
           toast.success('Grupo actualizado correctamente');
         } else {
-          await handleCreateGroup(groupData);
+          await createGroup(groupData);
           toast.success('Grupo creado correctamente');
         }
         setOpen(false);
@@ -202,9 +192,9 @@ export default function AlumnosPage() {
         };
 
         if (editingItem && editingItem.id) {
-          await handleUpdateStudent(editingItem.id.toString(), studentData);
+          await updateStudent(editingItem.id.toString(), studentData);
         } else {
-          await handleCreateStudent(studentData);
+          await createStudent(studentData);
         }
         setOpen(false);
         resetForm();
@@ -239,9 +229,9 @@ export default function AlumnosPage() {
     
     try {
       if (showGrupos) {
-        await handleDeleteGroup(itemToDelete.id.toString());
+        await deleteGroup(itemToDelete.id.toString());
       } else {
-        await handleDeleteStudent(itemToDelete.id.toString());
+        await deleteStudent(itemToDelete.id.toString());
       }
       setOpenDelete(false);
       setItemToDelete(null);
