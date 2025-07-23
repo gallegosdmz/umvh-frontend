@@ -251,7 +251,7 @@ export function useOfflineGroup() {
   return {
     loading: groupLoading,
     error: groupError,
-    totalItems: groupTotalItems,
+    totalItems: groups.length, // Usar la longitud del estado local
     groups,
     getCombinedGroups,
     createGroup,

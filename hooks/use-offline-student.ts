@@ -313,7 +313,7 @@ export function useOfflineStudent() {
     students,
     loading: loading || studentLoading,
     error: studentError,
-    totalItems: studentTotalItems,
+    totalItems: students.length, // Usar la longitud del estado local en lugar de studentTotalItems
     isOnline,
     getCombinedStudents,
     createStudent,
