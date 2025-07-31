@@ -38,7 +38,6 @@ export const UserService = {
         });
 
         const data = await response.json();
-        
 
         if (!response.ok) {
             return handleError(response, 'No se pudieron mostrar los maestros');

@@ -63,8 +63,11 @@ export default function AdminDashboard() {
         handleGetPeriods(1000, 0)   // Obtener todos los periodos
       ])
 
-      // Procesar datos de maestros
-      const totalMaestros = Array.isArray(maestrosData) ? maestrosData.length : 0
+
+      
+      // Procesar datos de maestros (nueva estructura: { users: [], total: number })
+      // maestrosData ya es el objeto { users: [], total: number } del hook useTeacher
+      const totalMaestros = maestrosData?.users?.length || maestrosData?.total || 0
       
       // Procesar datos de asignaturas
       const totalAsignaturas = Array.isArray(asignaturasData) ? asignaturasData.length : 0
