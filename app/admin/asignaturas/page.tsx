@@ -174,12 +174,12 @@ export default function AsignaturasPage() {
       if (showMaestros) {
         const response = await handleGetTeachers(itemsPerPage, offset);
         console.log('Respuesta de maestros:', response);
-        if (Array.isArray(response)) {
+        if (response && response.users) {
+          setMaestros(response.users);
+          setFilteredTeachers(response.users);
+        } else if (Array.isArray(response)) {
           setMaestros(response);
           setFilteredTeachers(response);
-        } else if (response && response.items) {
-          setMaestros(response.items);
-          setFilteredTeachers(response.items);
         }
       } else {
         const response = await handleGetCourses(itemsPerPage, offset);
@@ -310,7 +310,13 @@ export default function AsignaturasPage() {
     try {
       const offset = (currentTeacherPage - 1) * itemsPerPage;
       const data = await handleGetTeachers(itemsPerPage, offset);
-      setMaestros(Array.isArray(data) ? data : []);
+      if (data && data.users) {
+        setMaestros(data.users);
+      } else if (Array.isArray(data)) {
+        setMaestros(data);
+      } else {
+        setMaestros([]);
+      }
     } catch (err) {
       console.error('Error al cargar los maestros:', err);
     }

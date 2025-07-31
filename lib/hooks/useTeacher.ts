@@ -16,12 +16,25 @@ export const useTeacher = () => {
             const response = await UserService.get(limit, offset);
             console.log('Respuesta en el hook:', response);
             
-            // Si la respuesta es un array directo, lo usamos como items
-            const items = Array.isArray(response) ? response : response.items || [];
-            const total = response.total || response.length || items.length;
+            // Manejar la respuesta según la estructura esperada {users: [], total: number}
+            let items: User[] = [];
+            let total = 0;
+            
+            if (response && typeof response === 'object') {
+                if (response.users && Array.isArray(response.users)) {
+                    items = response.users;
+                    total = response.total || 0;
+                } else if (response.items && Array.isArray(response.items)) {
+                    items = response.items;
+                    total = response.total || response.items.length;
+                } else if (Array.isArray(response)) {
+                    items = response;
+                    total = response.length;
+                }
+            }
             
             setTotalItems(total);
-            return items;
+            return { users: items, total };
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Error al obtener los maestros');
             throw err;
