@@ -18,15 +18,22 @@ export const useGroup = (): UseGroupReturn => {
   const [error, setError] = useState<string | null>(null);
   const [totalItems, setTotalItems] = useState(0);
 
-  const handleGetGroups = async (limit: number = 10, offset: number = 0): Promise<Group[]> => {
+  const handleGetGroups = async (limit: number = 20, offset: number = 0): Promise<Group[]> => {
     setLoading(true);
+    console.log(`handleGetGroups - Limit: ${limit}, Offset: ${offset}`);
     try {
       const data = await groupService.getGroups(limit, offset);
       console.log('Respuesta del servicio de grupos:', data);
       
       // La respuesta del backend viene como un array directo
       if (Array.isArray(data)) {
-        setTotalItems(data.length);
+        console.log(`Grupos recibidos: ${data.length}`);
+        // Si no hay límite o el límite es muy alto, usar la longitud de la respuesta
+        // como total (esto es para cuando se cargan todos los grupos)
+        if (!limit || limit >= 1000) {
+          setTotalItems(data.length);
+          console.log(`Total de grupos establecido: ${data.length}`);
+        }
         return data;
       }
       

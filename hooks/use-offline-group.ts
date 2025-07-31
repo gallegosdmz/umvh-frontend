@@ -6,6 +6,16 @@ import { useOfflineStorage } from './use-offline-storage'
 import { Group, CreateGroupDto } from '@/lib/mock-data'
 import { toast } from 'react-toastify'
 
+const getAuthHeaders = () => {
+  const currentUser = localStorage.getItem('currentUser');
+  const user = currentUser ? JSON.parse(currentUser) : null;
+
+  return {
+      'Content-Type': 'application/json',
+      'Authorization': user?.token ? `Bearer ${user.token}` : ''
+  };
+}
+
 export function useOfflineGroup() {
   const {
     loading: groupLoading,
@@ -18,45 +28,111 @@ export function useOfflineGroup() {
     handleAssignStudents
   } = useGroup()
 
-  const { isOnline, saveOfflineAction } = useOfflineStorage()
+  const { isOnline, saveOfflineAction, syncOfflineActions } = useOfflineStorage()
   const [offlineGroups, setOfflineGroups] = useState<Group[]>([])
   const [groups, setGroups] = useState<Group[]>([])
+  const [loading, setLoading] = useState(false)
 
   // Cargar grupos offline al inicializar
   useEffect(() => {
     const saved = localStorage.getItem('offline_groups')
     if (saved) {
-      const parsed = JSON.parse(saved)
-      setOfflineGroups(parsed)
-      setGroups(parsed)
+      try {
+        const parsed = JSON.parse(saved)
+        setOfflineGroups(parsed)
+        setGroups(parsed)
+      } catch (error) {
+        console.error('Error cargando grupos offline:', error)
+      }
+    }
+  }, [])
+
+  // Verificar conectividad real al servidor
+  const checkServerConnectivity = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://uamvh.cloud'}/groups`, {
+        method: 'HEAD',
+        headers: getAuthHeaders(),
+        cache: 'no-cache'
+      })
+      return response.ok
+    } catch (error) {
+      console.log('Servidor no disponible:', error)
+      return false
     }
   }, [])
 
   // Combinar datos online y offline
-  const getCombinedGroups = useCallback(async () => {
+  const getCombinedGroups = useCallback(async (limit?: number, offset?: number) => {
+    setLoading(true)
+    console.log(`getCombinedGroups - Limit: ${limit}, Offset: ${offset}, Online: ${isOnline}`)
     try {
       if (isOnline) {
-        const onlineGroups = await handleGetGroups()
-        if (Array.isArray(onlineGroups)) {
-          setGroups(onlineGroups)
-          // Guardar en localStorage para uso offline
-          localStorage.setItem('offline_groups', JSON.stringify(onlineGroups))
-          setOfflineGroups(onlineGroups)
+        // Verificar conectividad real al servidor
+        const serverAvailable = await checkServerConnectivity()
+        console.log(`Servidor disponible: ${serverAvailable}`)
+        if (serverAvailable) {
+          // Solo intentar cargar del servidor si está disponible
+          const onlineGroups = await handleGetGroups(limit, offset)
+          console.log(`Grupos online recibidos: ${onlineGroups.length}`)
+          if (Array.isArray(onlineGroups)) {
+            setGroups(onlineGroups)
+            // Guardar en localStorage para uso offline
+            localStorage.setItem('offline_groups', JSON.stringify(onlineGroups))
+            setOfflineGroups(onlineGroups)
+          }
+        } else {
+          // Servidor no disponible, usar datos offline con paginación local
+          console.log('Servidor no disponible, usando datos offline')
+          const startIndex = offset || 0
+          const endIndex = startIndex + (limit || 20)
+          const paginatedGroups = offlineGroups.slice(startIndex, endIndex)
+          console.log(`Grupos offline paginados: ${paginatedGroups.length} de ${offlineGroups.length}`)
+          setGroups(paginatedGroups)
         }
       } else {
-        // Usar datos offline
-        setGroups(offlineGroups)
+        // Usar datos offline con paginación local
+        console.log('Modo offline: usando datos locales')
+        const startIndex = offset || 0
+        const endIndex = startIndex + (limit || 20)
+        const paginatedGroups = offlineGroups.slice(startIndex, endIndex)
+        console.log(`Grupos offline paginados: ${paginatedGroups.length} de ${offlineGroups.length}`)
+        setGroups(paginatedGroups)
       }
     } catch (error) {
       console.error('Error cargando grupos:', error)
-      // En caso de error de red, forzar modo offline
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        console.log('Error de red detectado, usando datos offline')
-      }
-      // Usar datos offline
-      setGroups(offlineGroups)
+      // En caso de error, usar datos offline con paginación local
+      const startIndex = offset || 0
+      const endIndex = startIndex + (limit || 20)
+      const paginatedGroups = offlineGroups.slice(startIndex, endIndex)
+      setGroups(paginatedGroups)
+    } finally {
+      setLoading(false)
     }
-  }, [isOnline, handleGetGroups, offlineGroups])
+  }, [isOnline, handleGetGroups, offlineGroups, checkServerConnectivity])
+
+  // Cargar todos los grupos para obtener el total
+  const loadAllGroupsForTotal = useCallback(async () => {
+    try {
+      if (isOnline) {
+        const serverAvailable = await checkServerConnectivity()
+        if (serverAvailable) {
+          const allGroups = await handleGetGroups(1000, 0) // Obtener todos
+          if (Array.isArray(allGroups)) {
+            setOfflineGroups(allGroups)
+            localStorage.setItem('offline_groups', JSON.stringify(allGroups))
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando todos los grupos:', error)
+    }
+  }, [isOnline, handleGetGroups, checkServerConnectivity])
+
+  // Cargar todos los grupos al inicializar para tener el total correcto
+  useEffect(() => {
+    loadAllGroupsForTotal()
+  }, [loadAllGroupsForTotal])
 
   // Crear grupo con soporte offline
   const createGroup = useCallback(async (groupData: CreateGroupDto) => {
@@ -66,22 +142,34 @@ export function useOfflineGroup() {
     }
 
     if (isOnline) {
-      try {
-        await handleCreateGroup(groupData)
-        toast.success('Grupo creado exitosamente')
-        await getCombinedGroups()
-      } catch (error) {
-        console.error('Error creando grupo online:', error)
-        
-        // Detectar si es un error de red
-        const isNetworkError = error instanceof TypeError && 
-          (error.message.includes('fetch') || error.message.includes('Failed to fetch'))
-        
-        if (isNetworkError) {
-          console.log('Error de red detectado, guardando grupo offline')
+      // Verificar conectividad real al servidor
+      const serverAvailable = await checkServerConnectivity()
+      if (serverAvailable) {
+        try {
+          await handleCreateGroup(groupData)
+          toast.success('Grupo creado exitosamente')
+          await getCombinedGroups()
+        } catch (error) {
+          console.error('Error creando grupo online:', error)
+          
+          // Si falla online, guardar offline
+          saveOfflineAction({
+            id: newGroup.id!.toString(),
+            type: 'group',
+            action: 'create',
+            data: groupData
+          })
+          
+          // Agregar a lista local
+          const updatedGroups = [...groups, newGroup]
+          setGroups(updatedGroups)
+          setOfflineGroups(updatedGroups)
+          localStorage.setItem('offline_groups', JSON.stringify(updatedGroups))
+          
+          toast.info('Grupo guardado offline. Se sincronizará cuando haya conexión.')
         }
-        
-        // Si falla online, guardar offline
+      } else {
+        // Servidor no disponible, guardar offline
         saveOfflineAction({
           id: newGroup.id!.toString(),
           type: 'group',
@@ -98,7 +186,7 @@ export function useOfflineGroup() {
         toast.info('Grupo guardado offline. Se sincronizará cuando haya conexión.')
       }
     } else {
-      // Guardar offline
+      // Guardar offline directamente
       saveOfflineAction({
         id: newGroup.id!.toString(),
         type: 'group',
@@ -114,33 +202,47 @@ export function useOfflineGroup() {
       
       toast.info('Grupo guardado offline. Se sincronizará cuando haya conexión.')
     }
-  }, [isOnline, handleCreateGroup, groups, saveOfflineAction, getCombinedGroups])
+  }, [isOnline, handleCreateGroup, groups, saveOfflineAction, getCombinedGroups, checkServerConnectivity])
 
   // Actualizar grupo con soporte offline
   const updateGroup = useCallback(async (id: string, updates: Partial<Group>) => {
     if (isOnline) {
-      try {
-        // Convertir updates a CreateGroupDto
-        const groupData: CreateGroupDto = {
-          name: updates.name || '',
-          periodId: updates.periodId || 0,
-          semester: updates.semester || 0
+      // Verificar conectividad real al servidor
+      const serverAvailable = await checkServerConnectivity()
+      if (serverAvailable) {
+        try {
+          // Convertir updates a CreateGroupDto
+          const groupData: CreateGroupDto = {
+            name: updates.name || '',
+            periodId: updates.periodId || 0,
+            semester: updates.semester || 0
+          }
+          await handleUpdateGroup(id, groupData)
+          toast.success('Grupo actualizado exitosamente')
+          await getCombinedGroups()
+        } catch (error) {
+          console.error('Error actualizando grupo online:', error)
+          
+          // Si falla online, guardar offline
+          saveOfflineAction({
+            id,
+            type: 'group',
+            action: 'update',
+            data: { id, ...updates }
+          })
+          
+          // Actualizar lista local
+          const updatedGroups = groups.map(group => 
+            group.id?.toString() === id ? { ...group, ...updates } : group
+          )
+          setGroups(updatedGroups)
+          setOfflineGroups(updatedGroups)
+          localStorage.setItem('offline_groups', JSON.stringify(updatedGroups))
+          
+          toast.info('Cambios guardados offline. Se sincronizarán cuando haya conexión.')
         }
-        await handleUpdateGroup(id, groupData)
-        toast.success('Grupo actualizado exitosamente')
-        await getCombinedGroups()
-      } catch (error) {
-        console.error('Error actualizando grupo online:', error)
-        
-        // Detectar si es un error de red
-        const isNetworkError = error instanceof TypeError && 
-          (error.message.includes('fetch') || error.message.includes('Failed to fetch'))
-        
-        if (isNetworkError) {
-          console.log('Error de red detectado, guardando cambios offline')
-        }
-        
-        // Si falla online, guardar offline
+      } else {
+        // Servidor no disponible, guardar offline
         saveOfflineAction({
           id,
           type: 'group',
@@ -159,7 +261,7 @@ export function useOfflineGroup() {
         toast.info('Cambios guardados offline. Se sincronizarán cuando haya conexión.')
       }
     } else {
-      // Guardar offline
+      // Guardar offline directamente
       saveOfflineAction({
         id,
         type: 'group',
@@ -177,27 +279,39 @@ export function useOfflineGroup() {
       
       toast.info('Cambios guardados offline. Se sincronizarán cuando haya conexión.')
     }
-  }, [isOnline, handleUpdateGroup, groups, saveOfflineAction, getCombinedGroups])
+  }, [isOnline, handleUpdateGroup, groups, saveOfflineAction, getCombinedGroups, checkServerConnectivity])
 
   // Eliminar grupo con soporte offline
   const deleteGroup = useCallback(async (id: string) => {
     if (isOnline) {
-      try {
-        await handleDeleteGroup(id)
-        toast.success('Grupo eliminado exitosamente')
-        await getCombinedGroups()
-      } catch (error) {
-        console.error('Error eliminando grupo online:', error)
-        
-        // Detectar si es un error de red
-        const isNetworkError = error instanceof TypeError && 
-          (error.message.includes('fetch') || error.message.includes('Failed to fetch'))
-        
-        if (isNetworkError) {
-          console.log('Error de red detectado, guardando eliminación offline')
+      // Verificar conectividad real al servidor
+      const serverAvailable = await checkServerConnectivity()
+      if (serverAvailable) {
+        try {
+          await handleDeleteGroup(id)
+          toast.success('Grupo eliminado exitosamente')
+          await getCombinedGroups()
+        } catch (error) {
+          console.error('Error eliminando grupo online:', error)
+          
+          // Si falla online, guardar offline
+          saveOfflineAction({
+            id,
+            type: 'group',
+            action: 'delete',
+            data: { id }
+          })
+          
+          // Remover de lista local
+          const updatedGroups = groups.filter(group => group.id?.toString() !== id)
+          setGroups(updatedGroups)
+          setOfflineGroups(updatedGroups)
+          localStorage.setItem('offline_groups', JSON.stringify(updatedGroups))
+          
+          toast.info('Eliminación guardada offline. Se sincronizará cuando haya conexión.')
         }
-        
-        // Si falla online, guardar offline
+      } else {
+        // Servidor no disponible, guardar offline
         saveOfflineAction({
           id,
           type: 'group',
@@ -214,7 +328,7 @@ export function useOfflineGroup() {
         toast.info('Eliminación guardada offline. Se sincronizará cuando haya conexión.')
       }
     } else {
-      // Guardar offline
+      // Guardar offline directamente
       saveOfflineAction({
         id,
         type: 'group',
@@ -230,34 +344,72 @@ export function useOfflineGroup() {
       
       toast.info('Eliminación guardada offline. Se sincronizará cuando haya conexión.')
     }
-  }, [isOnline, handleDeleteGroup, groups, saveOfflineAction, getCombinedGroups])
+  }, [isOnline, handleDeleteGroup, groups, saveOfflineAction, getCombinedGroups, checkServerConnectivity])
 
   // Asignar estudiantes a grupo con soporte offline
   const assignStudentsToGroup = useCallback(async (groupId: string, studentIds: string[]) => {
     if (isOnline) {
-      try {
-        await handleAssignStudents(groupId, studentIds)
-        toast.success('Estudiantes asignados exitosamente')
-        await getCombinedGroups()
-      } catch (error) {
-        console.error('Error asignando estudiantes online:', error)
-        toast.error('Error asignando estudiantes. Se guardará offline.')
+      // Verificar conectividad real al servidor
+      const serverAvailable = await checkServerConnectivity()
+      if (serverAvailable) {
+        try {
+          await handleAssignStudents(groupId, studentIds)
+          toast.success('Estudiantes asignados exitosamente')
+          await getCombinedGroups()
+        } catch (error) {
+          console.error('Error asignando estudiantes online:', error)
+          
+          // Si falla online, guardar offline
+          saveOfflineAction({
+            id: groupId,
+            type: 'group',
+            action: 'update',
+            data: { groupId, studentIds, action: 'assign_students' }
+          })
+          
+          toast.info('Asignación guardada offline. Se sincronizará cuando haya conexión.')
+        }
+      } else {
+        // Servidor no disponible, guardar offline
+        saveOfflineAction({
+          id: groupId,
+          type: 'group',
+          action: 'update',
+          data: { groupId, studentIds, action: 'assign_students' }
+        })
+        
+        toast.info('Asignación guardada offline. Se sincronizará cuando haya conexión.')
       }
     } else {
+      // Guardar offline directamente
+      saveOfflineAction({
+        id: groupId,
+        type: 'group',
+        action: 'update',
+        data: { groupId, studentIds, action: 'assign_students' }
+      })
+      
       toast.info('Asignación guardada offline. Se sincronizará cuando haya conexión.')
     }
-  }, [isOnline, handleAssignStudents, getCombinedGroups])
+  }, [isOnline, handleAssignStudents, saveOfflineAction, getCombinedGroups, checkServerConnectivity])
+
+  // Sincronizar acciones offline cuando vuelve la conexión
+  useEffect(() => {
+    if (isOnline) {
+      syncOfflineActions()
+    }
+  }, [isOnline, syncOfflineActions])
 
   return {
-    loading: groupLoading,
-    error: groupError,
-    totalItems: groups.length, // Usar la longitud del estado local
     groups,
+    loading: loading || groupLoading,
+    error: groupError,
+    totalItems: groupTotalItems || offlineGroups.length, // Usar el total del hook useGroup o la longitud offline
+    isOnline,
     getCombinedGroups,
     createGroup,
     updateGroup,
     deleteGroup,
-    assignStudentsToGroup,
-    isOnline
+    assignStudentsToGroup
   }
 } 

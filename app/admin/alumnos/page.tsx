@@ -92,10 +92,15 @@ export default function AlumnosPage() {
 
   // Recargar cuando cambie la página
   useEffect(() => {
-    if (currentPage > 1) {
+    if (showGrupos) {
       loadItems();
     }
-  }, [currentPage]);
+  }, [currentPage, showGrupos]);
+
+  // Resetear la página cuando cambie la vista
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showGrupos]);
 
   useEffect(() => {
     if (openAssignStudents) {
@@ -122,7 +127,10 @@ export default function AlumnosPage() {
   const loadItems = async () => {
     try {
       if (showGrupos) {
-        await getCombinedGroups();
+        const offset = (currentPage - 1) * itemsPerPage;
+        console.log(`Cargando grupos - Página: ${currentPage}, Offset: ${offset}, Limit: ${itemsPerPage}`);
+        await getCombinedGroups(itemsPerPage, offset);
+        console.log(`Grupos cargados: ${groups.length}, Total: ${groupTotalItems}`);
       } else {
         await getCombinedStudents();
       }
@@ -481,10 +489,8 @@ export default function AlumnosPage() {
                 <TableBody>
                   {showGrupos ? (
                     groups.length > 0 ? (
-                      // Aplicar paginación a los grupos
-                      groups
-                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                        .map((grupo: Group) => (
+                      // Ya no aplicamos paginación local porque viene del servidor
+                      groups.map((grupo: Group) => (
                         <TableRow key={grupo.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium">{grupo.name}</TableCell>
                           <TableCell>
@@ -559,7 +565,7 @@ export default function AlumnosPage() {
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-gray-600">
                 Mostrando {showGrupos ? 
-                  Math.min(groups.length, itemsPerPage) : 
+                  groups.length : 
                   Math.min(students.length - (currentPage - 1) * itemsPerPage, itemsPerPage)
                 } de {showGrupos ? groupTotalItems : studentTotalItems} {showGrupos ? 'grupos' : 'alumnos'}
               </div>

@@ -15,19 +15,24 @@ const getAuthHeaders = () => {
 export const groupService = {
   async getGroups(limit: number = 20, offset: number = 0): Promise<Group[]> {
     try {
-      const response = await fetch(`${API_URL}/groups?limit=${limit}&offset=${offset}`, {
+      const url = new URL(`${API_URL}/groups`);
+      url.searchParams.append('limit', limit.toString());
+      url.searchParams.append('offset', offset.toString());
+      
+      const response = await fetch(url.toString(), {
         method: 'GET',
         headers: getAuthHeaders(),
       });
 
-      console.log(response)
+      console.log('URL de grupos:', url.toString());
+      console.log('Response status:', response.status);
 
       if (!response.ok) {
         throw new Error('Error al obtener los grupos');
       }
 
       const data = await response.json();
-      console.log(data)
+      console.log('Datos de grupos:', data);
       return data;
     } catch (error) {
       console.error('Error en getGroups:', error);
