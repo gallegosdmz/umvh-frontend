@@ -15,7 +15,7 @@ const getAuthHeaders = () => {
 
 export const CourseService = {
     async get(limit: number = 20, offset: number = 0) {
-        const response = await fetch(`${API_URL}/courses?limit=${limit}&offset=${offset}`, {
+        const response = await fetch(`${API_URL}/courses`, {
             headers: getAuthHeaders()
         });
 

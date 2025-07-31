@@ -32,7 +32,7 @@ interface ImportedStudent {
 
 export default function AsignaturasPage() {
   const router = useRouter();
-  const { loading: courseLoading, error: courseError, totalItems: courseTotalItems, handleGetCourses, handleCreateCourse, handleUpdateCourse, handleDeleteCourse } = useCourse();
+  const { loading: courseLoading, error: courseError, totalItems: courseTotalItems, handleGetCourses, handleCreateCourse, handleUpdateCourse, handleDeleteCourse, clearCache } = useCourse();
   const { loading: teacherLoading, error: teacherError, totalItems: teacherTotalItems, handleGetTeachers, handleCreateTeacher, handleUpdateTeacher, handleDeleteTeacher } = useTeacher();
   const { handleGetGroups } = useGroup();
   const { loading: studentLoading, error: studentError, totalItems: studentTotalItems, handleGetStudents, handleGetStudentsByGroup } = useStudent();
@@ -1369,7 +1369,7 @@ export default function AsignaturasPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={maestros.length < itemsPerPage}
+                  disabled={currentPage >= Math.ceil((showMaestros ? teacherTotalItems : courseTotalItems) / itemsPerPage)}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
