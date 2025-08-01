@@ -67,8 +67,7 @@ export default function AsignaturasPage() {
   const [currentAssignmentPage, setCurrentAssignmentPage] = useState(1);
   const [totalAssignments, setTotalAssignments] = useState(0);
   const assignmentsPerPage = 5;
-  const [schedule, setSchedule] = useState("");
-  const [scheduleError, setScheduleError] = useState("");
+
   const [openViewTeacherAssignmentsModal, setOpenViewTeacherAssignmentsModal] = useState(false);
   const [selectedTeacherAssignments, setSelectedTeacherAssignments] = useState<any[]>([]);
   const [currentTeacherAssignmentsPage, setCurrentTeacherAssignmentsPage] = useState(1);
@@ -361,25 +360,7 @@ export default function AsignaturasPage() {
     setCurrentStep('students');
   };
 
-  const validateSchedule = (value: string) => {
-    const scheduleRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]\s*-\s*([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!value) {
-      setScheduleError("El horario es requerido");
-      return false;
-    }
-    if (!scheduleRegex.test(value)) {
-      setScheduleError("Formato inválido. Use el formato HH:MM - HH:MM (ej: 8:00 - 9:00)");
-      return false;
-    }
-    setScheduleError("");
-    return true;
-  };
 
-  const handleScheduleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSchedule(value);
-    validateSchedule(value);
-  };
 
   const handleConfirmAssignment = async () => {
     if (!selectedCourse || !selectedGroup || !selectedTeacher) {
@@ -387,15 +368,10 @@ export default function AsignaturasPage() {
       return;
     }
 
-    if (!validateSchedule(schedule)) {
-      return;
-    }
-
     const assignmentData = {
       courseId: selectedCourse.id,
       groupId: selectedGroup.id,
-      userId: selectedTeacher.id,
-      schedule: schedule
+      userId: selectedTeacher.id
     };
 
     console.log('Datos de asignación:', assignmentData);
@@ -495,8 +471,6 @@ export default function AsignaturasPage() {
     setSelectedTeacher(null);
     setSelectedStudents(new Set());
     setCurrentStep('groups');
-    setSchedule("");
-    setScheduleError("");
     setImportedStudentsForSelection([]);
   };
 
@@ -1719,23 +1693,6 @@ export default function AsignaturasPage() {
             </div>
 
             <DialogFooter className="flex flex-col gap-4">
-              {(currentStep === 'teachers' || currentStep === 'students') && (
-                <div className="w-full space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="schedule">Horario de la clase</Label>
-                    <Input
-                      id="schedule"
-                      placeholder="Ej: 8:00 - 9:00"
-                      value={schedule}
-                      onChange={handleScheduleChange}
-                      className={scheduleError ? "border-red-500" : ""}
-                    />
-                    {scheduleError && (
-                      <p className="text-sm text-red-500">{scheduleError}</p>
-                    )}
-                  </div>
-                </div>
-              )}
               <div className="flex justify-end gap-2 w-full">
                 <Button variant="outline" onClick={() => setOpenAssignModal(false)}>
                   Cancelar
@@ -1744,7 +1701,7 @@ export default function AsignaturasPage() {
                   <Button 
                     onClick={handleConfirmAssignment}
                     className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
-                    disabled={!selectedTeacher || !!scheduleError}
+                    disabled={!selectedTeacher}
                   >
                     Confirmar Asignación
                     {currentStep === 'students' && selectedStudents.size > 0 && (
@@ -1776,7 +1733,6 @@ export default function AsignaturasPage() {
                     <TableHead>Período</TableHead>
                     <TableHead>Maestro</TableHead>
                     <TableHead>Correo del Maestro</TableHead>
-                    <TableHead>Horario</TableHead>
                     <TableHead className="text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1788,7 +1744,6 @@ export default function AsignaturasPage() {
                         <TableCell>{assignment.group?.period?.name || 'No asignado'}</TableCell>
                         <TableCell>{assignment.user?.fullName || 'N/A'}</TableCell>
                         <TableCell>{assignment.user?.email || 'N/A'}</TableCell>
-                        <TableCell>{assignment.schedule || 'No asignado'}</TableCell>
                         <TableCell className="text-center">
                           <div className="flex gap-2 justify-center">
                             <Button
@@ -1821,7 +1776,7 @@ export default function AsignaturasPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-gray-500">
+                      <TableCell colSpan={5} className="text-center text-gray-500">
                         No hay asignaciones registradas
                       </TableCell>
                     </TableRow>
@@ -1885,7 +1840,6 @@ export default function AsignaturasPage() {
                     <TableHead>Asignatura</TableHead>
                     <TableHead>Grupo</TableHead>
                     <TableHead>Período</TableHead>
-                    <TableHead>Horario</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1895,12 +1849,11 @@ export default function AsignaturasPage() {
                         <TableCell className="font-medium">{assignment.course?.name || 'N/A'}</TableCell>
                         <TableCell>{assignment.group?.name || 'N/A'}</TableCell>
                         <TableCell>{assignment.group?.period?.name || 'No asignado'}</TableCell>
-                        <TableCell>{assignment.schedule || 'No asignado'}</TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-gray-500">
+                      <TableCell colSpan={3} className="text-center text-gray-500">
                         No hay asignaciones registradas
                       </TableCell>
                     </TableRow>
