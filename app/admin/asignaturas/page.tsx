@@ -64,9 +64,7 @@ export default function AsignaturasPage() {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [openViewAssignmentsModal, setOpenViewAssignmentsModal] = useState(false);
   const [selectedCourseAssignments, setSelectedCourseAssignments] = useState<any[]>([]);
-  const [currentAssignmentPage, setCurrentAssignmentPage] = useState(1);
-  const [totalAssignments, setTotalAssignments] = useState(0);
-  const assignmentsPerPage = 5;
+
 
   const [openViewTeacherAssignmentsModal, setOpenViewTeacherAssignmentsModal] = useState(false);
   const [selectedTeacherAssignments, setSelectedTeacherAssignments] = useState<any[]>([]);
@@ -150,7 +148,7 @@ export default function AsignaturasPage() {
     if (openViewAssignmentsModal && selectedCourse?.id) {
       loadAssignmentsForCourse();
     }
-  }, [currentAssignmentPage, openViewAssignmentsModal, selectedCourse?.id]);
+  }, [openViewAssignmentsModal, selectedCourse?.id]);
 
   useEffect(() => {
     if (openViewStudentsModal && selectedCourseGroupForStudents?.id) {
@@ -564,39 +562,31 @@ export default function AsignaturasPage() {
     if (!selectedCourse?.id) return;
     
     try {
-      const offset = (currentAssignmentPage - 1) * assignmentsPerPage;
-      const response = await CourseService.getAssignments(selectedCourse.id, assignmentsPerPage, offset);
+      const response = await CourseService.getAssignments(selectedCourse.id, 1000, 0);
       console.log('Respuesta de asignaciones:', response);
       
       let assignments = [];
-      let total = 0;
       
       // Manejar diferentes formatos de respuesta
       if (Array.isArray(response)) {
         assignments = response;
-        total = response.length;
       } else if (response && typeof response === 'object') {
         if (response.items && Array.isArray(response.items)) {
           assignments = response.items;
-          total = response.total || response.items.length;
         } else if (response.data && Array.isArray(response.data)) {
           assignments = response.data;
-          total = response.total || response.data.length;
         } else {
           assignments = [];
-          total = 0;
         }
       }
       
       setSelectedCourseAssignments(assignments);
-      setTotalAssignments(total);
       
-      console.log('Asignaciones cargadas:', assignments.length, 'Total:', total);
+      console.log('Asignaciones cargadas:', assignments.length);
     } catch (err) {
       console.error('Error al cargar las asignaciones:', err);
       toast.error('Error al cargar las asignaciones');
       setSelectedCourseAssignments([]);
-      setTotalAssignments(0);
     }
   };
 
@@ -608,12 +598,9 @@ export default function AsignaturasPage() {
 
     setSelectedCourse(course);
     setOpenViewAssignmentsModal(true);
-    setCurrentAssignmentPage(1);
   };
 
-  const handleAssignmentPageChange = (newPage: number) => {
-    setCurrentAssignmentPage(newPage);
-  };
+
 
   const handleViewTeacherAssignments = (teacher: User) => {
     setSelectedTeacher(teacher);
@@ -641,8 +628,7 @@ export default function AsignaturasPage() {
       setAssignmentToDelete(null);
       // Recargar las asignaciones
       if (selectedCourse?.id) {
-        const offset = (currentAssignmentPage - 1) * assignmentsPerPage;
-        const response = await CourseService.getAssignments(selectedCourse.id, assignmentsPerPage, offset);
+        const response = await CourseService.getAssignments(selectedCourse.id, 1000, 0);
         setSelectedCourseAssignments(Array.isArray(response) ? response : []);
       }
     } catch (err) {
@@ -1717,7 +1703,7 @@ export default function AsignaturasPage() {
         </Dialog>
 
         <Dialog open={openViewAssignmentsModal} onOpenChange={setOpenViewAssignmentsModal}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Asignaciones de {selectedCourse?.name}</DialogTitle>
               <DialogDescription>
@@ -1725,7 +1711,7 @@ export default function AsignaturasPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="border rounded-lg">
+            <div className="border rounded-lg flex-1 overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1785,38 +1771,11 @@ export default function AsignaturasPage() {
               </Table>
             </div>
 
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-gray-600">
-                Mostrando {selectedCourseAssignments.length} de {totalAssignments} asignaciones
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleAssignmentPageChange(currentAssignmentPage - 1)}
-                  disabled={currentAssignmentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium">
-                  Página {currentAssignmentPage} de {Math.ceil(totalAssignments / assignmentsPerPage)}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleAssignmentPageChange(currentAssignmentPage + 1)}
-                  disabled={currentAssignmentPage >= Math.ceil(totalAssignments / assignmentsPerPage)}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+
 
             <DialogFooter>
               <Button variant="outline" onClick={() => {
                 setOpenViewAssignmentsModal(false);
-                setCurrentAssignmentPage(1);
-                setTotalAssignments(0);
               }}>
                 Cerrar
               </Button>
