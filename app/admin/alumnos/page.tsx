@@ -73,6 +73,8 @@ export default function AlumnosPage() {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
+  const [formLoading, setFormLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -84,13 +86,12 @@ export default function AlumnosPage() {
 
   // Recargar cuando cambie la vista
   useEffect(() => {
-    loadItems();
     if (showGrupos) {
       loadPeriods();
     }
   }, [showGrupos]);
 
-  // Recargar cuando cambie la página
+  // Recargar cuando cambie la página solo para grupos
   useEffect(() => {
     if (showGrupos) {
       loadItems();
@@ -132,7 +133,10 @@ export default function AlumnosPage() {
         await getCombinedGroups(itemsPerPage, offset);
         console.log(`Grupos cargados: ${groups.length}, Total: ${groupTotalItems}`);
       } else {
-        await getCombinedStudents();
+        // Solo cargar estudiantes si no están ya cargados o si es la primera carga
+        if (students.length === 0) {
+          await getCombinedStudents();
+        }
       }
     } catch (err) {
       console.error('Error al cargar los items:', err);
@@ -176,6 +180,8 @@ export default function AlumnosPage() {
       return;
     }
 
+    setFormLoading(true);
+
     try {
       if (showGrupos) {
         if (!periodoId || !semestre) {
@@ -198,6 +204,7 @@ export default function AlumnosPage() {
         }
         setOpen(false);
         resetForm();
+        // Recargar los grupos después de crear/editar
         await loadItems();
       } else {
         const studentData: Student = {
@@ -216,6 +223,8 @@ export default function AlumnosPage() {
       }
     } catch (err) {
       console.error('Error al guardar:', err);
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -241,6 +250,7 @@ export default function AlumnosPage() {
   const confirmDelete = async () => {
     if (!itemToDelete || !itemToDelete.id) return;
     
+    setDeleteLoading(true);
     try {
       if (showGrupos) {
         await deleteGroup(itemToDelete.id.toString());
@@ -249,9 +259,12 @@ export default function AlumnosPage() {
       }
       setOpenDelete(false);
       setItemToDelete(null);
+      // Recargar después de eliminar
       await loadItems();
     } catch (err) {
       console.error('Error al eliminar:', err);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -346,7 +359,9 @@ export default function AlumnosPage() {
 
         <Dialog open={open} onOpenChange={(isOpen: boolean) => {
           setOpen(isOpen);
-          if (!isOpen) resetForm();
+          if (!isOpen) {
+            resetForm();
+          }
         }}>
           <DialogContent>
             <DialogHeader>
@@ -426,9 +441,9 @@ export default function AlumnosPage() {
                 <Button 
                   type="submit" 
                   className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
-                  disabled={showGrupos ? groupLoading : studentLoading}
+                  disabled={formLoading}
                 >
-                  {showGrupos ? (groupLoading ? 'Guardando...' : 'Guardar') : (studentLoading ? 'Guardando...' : 'Guardar')}
+                  {formLoading ? 'Guardando...' : 'Guardar'}
                 </Button>
               </DialogFooter>
             </form>
@@ -453,9 +468,9 @@ export default function AlumnosPage() {
               <Button
                 variant="destructive"
                 onClick={confirmDelete}
-                disabled={showGrupos ? groupLoading : studentLoading}
+                disabled={deleteLoading}
               >
-                {showGrupos ? (groupLoading ? 'Eliminando...' : 'Eliminar') : (studentLoading ? 'Eliminando...' : 'Eliminar')}
+                {deleteLoading ? 'Eliminando...' : 'Eliminar'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -489,7 +504,7 @@ export default function AlumnosPage() {
                 <TableBody>
                   {showGrupos ? (
                     groups.length > 0 ? (
-                      // Ya no aplicamos paginación local porque viene del servidor
+                      // Los grupos ya vienen paginados del servidor
                       groups.map((grupo: Group) => (
                         <TableRow key={grupo.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium">{grupo.name}</TableCell>
@@ -524,7 +539,7 @@ export default function AlumnosPage() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-4">
+                        <TableCell colSpan={5} className="text-center py-4">
                           {groupLoading ? 'Cargando grupos...' : 'No hay grupos disponibles'}
                         </TableCell>
                       </TableRow>

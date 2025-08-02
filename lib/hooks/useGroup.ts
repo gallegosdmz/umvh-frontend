@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Group, CreateGroupDto } from '@/lib/mock-data';
 import { groupService } from '@/lib/services/group.service';
 
@@ -6,7 +6,7 @@ interface UseGroupReturn {
   loading: boolean;
   error: string | null;
   totalItems: number;
-  handleGetGroups: (limit?: number, offset?: number) => Promise<Group[]>;
+  handleGetGroups: (limit?: number, offset?: number) => Promise<{ groups: Group[], total: number }>;
   handleCreateGroup: (groupData: CreateGroupDto) => Promise<Group>;
   handleUpdateGroup: (id: string, groupData: CreateGroupDto) => Promise<Group>;
   handleDeleteGroup: (id: string) => Promise<void>;
@@ -18,7 +18,7 @@ export const useGroup = (): UseGroupReturn => {
   const [error, setError] = useState<string | null>(null);
   const [totalItems, setTotalItems] = useState(0);
 
-  const handleGetGroups = async (limit: number = 20, offset: number = 0): Promise<Group[]> => {
+  const handleGetGroups = useCallback(async (limit: number = 20, offset: number = 0): Promise<{ groups: Group[], total: number }> => {
     setLoading(true);
     console.log(`handleGetGroups - Limit: ${limit}, Offset: ${offset}`);
     try {
@@ -28,28 +28,36 @@ export const useGroup = (): UseGroupReturn => {
       // La respuesta del backend viene como un array directo
       if (Array.isArray(data)) {
         console.log(`Grupos recibidos: ${data.length}`);
-        // Si no hay límite o el límite es muy alto, usar la longitud de la respuesta
-        // como total (esto es para cuando se cargan todos los grupos)
-        if (!limit || limit >= 1000) {
+        
+        // Solo actualizar el total si es una llamada para obtener todos los grupos (limit alto)
+        // o si aún no se ha establecido un total
+        if (limit >= 1000 || totalItems === 0) {
           setTotalItems(data.length);
           console.log(`Total de grupos establecido: ${data.length}`);
         }
+        
+        return { groups: data, total: totalItems || data.length };
+      }
+      
+      // Si viene con la estructura { groups: [], total: number }
+      if (data && typeof data === 'object' && 'groups' in data && 'total' in data) {
+        console.log(`Grupos recibidos: ${data.groups.length}, Total: ${data.total}`);
+        setTotalItems(data.total);
         return data;
       }
       
-      // Si no tiene ninguna de las estructuras esperadas, devolver array vacío
+      // Si no tiene ninguna de las estructuras esperadas, devolver estructura por defecto
       console.warn('Formato de respuesta inesperado:', data);
-      setTotalItems(0);
-      return [];
+      return { groups: [], total: totalItems };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar los grupos');
-      return [];
+      return { groups: [], total: totalItems };
     } finally {
       setLoading(false);
     }
-  };
+  }, [totalItems]);
 
-  const handleCreateGroup = async (groupData: CreateGroupDto) => {
+  const handleCreateGroup = useCallback(async (groupData: CreateGroupDto) => {
     setLoading(true);
     try {
       return await groupService.createGroup(groupData);
@@ -59,9 +67,9 @@ export const useGroup = (): UseGroupReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleUpdateGroup = async (id: string, groupData: CreateGroupDto) => {
+  const handleUpdateGroup = useCallback(async (id: string, groupData: CreateGroupDto) => {
     setLoading(true);
     try {
       return await groupService.updateGroup(id, groupData);
@@ -71,9 +79,9 @@ export const useGroup = (): UseGroupReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleDeleteGroup = async (id: string) => {
+  const handleDeleteGroup = useCallback(async (id: string) => {
     setLoading(true);
     try {
       await groupService.deleteGroup(id);
@@ -83,9 +91,9 @@ export const useGroup = (): UseGroupReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleAssignStudents = async (groupId: string, studentIds: string[]) => {
+  const handleAssignStudents = useCallback(async (groupId: string, studentIds: string[]) => {
     setLoading(true);
     try {
       return await groupService.assignStudentsToGroup(groupId, studentIds);
@@ -95,7 +103,7 @@ export const useGroup = (): UseGroupReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   return {
     loading,

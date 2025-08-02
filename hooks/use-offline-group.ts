@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useGroup } from '@/lib/hooks/useGroup'
 import { useOfflineStorage } from './use-offline-storage'
 import { Group, CreateGroupDto } from '@/lib/mock-data'
@@ -32,6 +32,8 @@ export function useOfflineGroup() {
   const [offlineGroups, setOfflineGroups] = useState<Group[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
+  const lastLoadRef = useRef<{ limit?: number; offset?: number; timestamp: number }>({ timestamp: 0 })
 
   // Cargar grupos offline al inicializar
   useEffect(() => {
@@ -45,6 +47,7 @@ export function useOfflineGroup() {
         console.error('Error cargando grupos offline:', error)
       }
     }
+    setIsInitialized(true)
   }, [])
 
   // Verificar conectividad real al servidor
@@ -64,8 +67,18 @@ export function useOfflineGroup() {
 
   // Combinar datos online y offline
   const getCombinedGroups = useCallback(async (limit?: number, offset?: number) => {
+    // Evitar llamadas duplicadas en un corto período de tiempo
+    const now = Date.now()
+    const lastLoad = lastLoadRef.current
+    if (lastLoad.limit === limit && lastLoad.offset === offset && (now - lastLoad.timestamp) < 1000) {
+      console.log('Evitando llamada duplicada a getCombinedGroups')
+      return
+    }
+
+    lastLoadRef.current = { limit, offset, timestamp: now }
     setLoading(true)
     console.log(`getCombinedGroups - Limit: ${limit}, Offset: ${offset}, Online: ${isOnline}`)
+    
     try {
       if (isOnline) {
         // Verificar conectividad real al servidor
@@ -73,13 +86,17 @@ export function useOfflineGroup() {
         console.log(`Servidor disponible: ${serverAvailable}`)
         if (serverAvailable) {
           // Solo intentar cargar del servidor si está disponible
-          const onlineGroups = await handleGetGroups(limit, offset)
-          console.log(`Grupos online recibidos: ${onlineGroups.length}`)
-          if (Array.isArray(onlineGroups)) {
-            setGroups(onlineGroups)
+          const response = await handleGetGroups(limit, offset)
+          console.log(`Respuesta del servidor:`, response)
+          if (response && response.groups) {
+            setGroups(response.groups)
             // Guardar en localStorage para uso offline
-            localStorage.setItem('offline_groups', JSON.stringify(onlineGroups))
-            setOfflineGroups(onlineGroups)
+            localStorage.setItem('offline_groups', JSON.stringify(response.groups))
+            setOfflineGroups(response.groups)
+            // Actualizar el total si no se ha establecido
+            if (response.total > 0) {
+              console.log(`Total de grupos establecido: ${response.total}`)
+            }
           }
         } else {
           // Servidor no disponible, usar datos offline con paginación local
@@ -111,28 +128,32 @@ export function useOfflineGroup() {
     }
   }, [isOnline, handleGetGroups, offlineGroups, checkServerConnectivity])
 
-  // Cargar todos los grupos para obtener el total
+  // Cargar todos los grupos para obtener el total - solo una vez al inicializar
   const loadAllGroupsForTotal = useCallback(async () => {
+    if (!isInitialized) return
+    
     try {
       if (isOnline) {
         const serverAvailable = await checkServerConnectivity()
         if (serverAvailable) {
-          const allGroups = await handleGetGroups(1000, 0) // Obtener todos
-          if (Array.isArray(allGroups)) {
-            setOfflineGroups(allGroups)
-            localStorage.setItem('offline_groups', JSON.stringify(allGroups))
+          const response = await handleGetGroups(1000, 0) // Obtener todos
+          if (response && response.groups) {
+            setOfflineGroups(response.groups)
+            localStorage.setItem('offline_groups', JSON.stringify(response.groups))
           }
         }
       }
     } catch (error) {
       console.error('Error cargando todos los grupos:', error)
     }
-  }, [isOnline, handleGetGroups, checkServerConnectivity])
+  }, [isOnline, handleGetGroups, checkServerConnectivity, isInitialized])
 
-  // Cargar todos los grupos al inicializar para tener el total correcto
+  // Cargar todos los grupos solo una vez al inicializar
   useEffect(() => {
-    loadAllGroupsForTotal()
-  }, [loadAllGroupsForTotal])
+    if (isInitialized) {
+      loadAllGroupsForTotal()
+    }
+  }, [isInitialized, loadAllGroupsForTotal])
 
   // Crear grupo con soporte offline
   const createGroup = useCallback(async (groupData: CreateGroupDto) => {

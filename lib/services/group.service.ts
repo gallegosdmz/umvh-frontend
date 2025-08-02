@@ -33,7 +33,18 @@ export const groupService = {
 
       const data = await response.json();
       console.log('Datos de grupos:', data);
-      return data;
+      
+      // El endpoint retorna un array directo de grupos
+      if (Array.isArray(data)) {
+        return data;
+      }
+      
+      // Si por alguna razón retorna otra estructura, intentar extraer los grupos
+      if (data && typeof data === 'object' && 'groups' in data) {
+        return data.groups;
+      }
+      
+      return [];
     } catch (error) {
       console.error('Error en getGroups:', error);
       return [];
@@ -85,9 +96,7 @@ export const groupService = {
     try {
       const response = await fetch(`${API_URL}/groups/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
       });
 
       if (!response.ok) {
@@ -103,9 +112,7 @@ export const groupService = {
     try {
       const response = await fetch(`${API_URL}/groups/${groupId}/students`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ studentIds }),
       });
 
