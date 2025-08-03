@@ -22,6 +22,8 @@ export const useStudent = () => {
     }
   };
 
+
+
   const handleCreateStudent = async (student: Omit<Student, 'id'>) => {
     setLoading(true);
     setError(null);

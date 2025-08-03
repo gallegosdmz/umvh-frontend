@@ -15,7 +15,7 @@ const getAuthHeaders = () => {
 export const studentService = {
   async getStudents(limit: number = 1000, offset: number = 0): Promise<Student[]> {
     try {
-      const response = await fetch(`${API_URL}/students?limit=1000&offset=${offset}`, {
+      const response = await fetch(`${API_URL}/students?limit=${limit}&offset=${offset}`, {
         headers: getAuthHeaders()
       });
       if (!response.ok) throw new Error('Error al obtener los alumnos');
@@ -25,6 +25,8 @@ export const studentService = {
       throw error;
     }
   },
+
+
 
   async getStudentsNotInCourseGroup(courseGroupId: number, limit: number = 20, offset: number = 0, searchTerm?: string): Promise<Student[]> {
     try {

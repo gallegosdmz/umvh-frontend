@@ -90,7 +90,6 @@ export default function AsignaturasPage() {
   const [studentsForAssignment, setStudentsForAssignment] = useState<Student[]>([]);
   const [filteredStudentsForAssignment, setFilteredStudentsForAssignment] = useState<Student[]>([]);
   const [selectedStudentsForAssignment, setSelectedStudentsForAssignment] = useState<Set<string>>(new Set());
-  const [currentStudentsAssignmentPage, setCurrentStudentsAssignmentPage] = useState(1);
   const [searchTermForAssignment, setSearchTermForAssignment] = useState("");
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [assignedStudentsToCourseGroup, setAssignedStudentsToCourseGroup] = useState<Student[]>([]);
@@ -163,7 +162,7 @@ export default function AsignaturasPage() {
     if (openAssignStudentsModal && filteredStudentsForAssignment.length > 0) {
       filterStudentsForAssignment();
     }
-  }, [searchTermForAssignment]);
+  }, [searchTermForAssignment, filteredStudentsForAssignment]);
 
   const loadItems = async () => {
     try {
@@ -884,7 +883,6 @@ export default function AsignaturasPage() {
   const handleAssignStudentsToCourseGroup = async (assignment: any) => {
     setSelectedCourseGroupForAssignment(assignment);
     setOpenAssignStudentsModal(true);
-    setCurrentStudentsAssignmentPage(1);
     setSearchTermForAssignment("");
     setSelectedStudentsForAssignment(new Set());
     
@@ -939,14 +937,44 @@ export default function AsignaturasPage() {
 
   const loadStudentsForAssignment = async (assignedStudents: Student[]) => {
     try {
-      // Cargar TODOS los alumnos disponibles (sin paginación)
-      const data = await handleGetStudents(1000, 0); // Cargar hasta 1000 alumnos
-      const allStudents = Array.isArray(data) ? data : [];
+      // Cargar TODOS los alumnos disponibles usando paginación
+      console.log('Iniciando carga de TODOS los estudiantes...');
       
-      console.log('Todos los alumnos cargados:', allStudents.length);
+      let allStudents: Student[] = [];
+      let offset = 0;
+      const limit = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const data = await handleGetStudents(limit, offset);
+        const batchStudents = Array.isArray(data) ? data : [];
+        
+        console.log(`Cargando lote ${Math.floor(offset / limit) + 1}: ${batchStudents.length} estudiantes`);
+        
+        if (batchStudents.length === 0) {
+          hasMore = false;
+        } else {
+          allStudents = [...allStudents, ...batchStudents];
+          offset += limit;
+          
+          // Si recibimos menos estudiantes que el límite, significa que no hay más
+          if (batchStudents.length < limit) {
+            hasMore = false;
+          }
+        }
+      }
+      
+      // Ordenar todos los estudiantes por ID de menor a mayor
+      allStudents.sort((a, b) => {
+        const idA = a.id || 0;
+        const idB = b.id || 0;
+        return idA - idB;
+      });
+      
+      console.log('TODOS los alumnos cargados y ordenados:', allStudents.length);
       console.log('Alumnos asignados al CourseGroup:', assignedStudents.length);
       console.log('IDs de alumnos asignados:', assignedStudents.map(s => s.id));
-      console.log('Todos los alumnos disponibles:', allStudents.map(s => `${s.fullName} (ID: ${s.id})`));
+      console.log('Todos los alumnos disponibles (ordenados por ID):', allStudents.map(s => `${s.fullName} (ID: ${s.id})`));
       
       // Si no hay alumnos asignados, mostrar todos los alumnos
       if (assignedStudents.length === 0) {
@@ -966,16 +994,11 @@ export default function AsignaturasPage() {
       });
       
       console.log('Alumnos no asignados:', unassignedStudents.length);
-      console.log('Alumnos no asignados:', unassignedStudents.map(s => `${s.fullName} (ID: ${s.id})`));
+      console.log('Alumnos no asignados (ordenados por ID):', unassignedStudents.map(s => `${s.fullName} (ID: ${s.id})`));
       
-      // Guardar todos los alumnos no asignados en filteredStudentsForAssignment
+      // Guardar todos los alumnos no asignados (ya ordenados por ID)
+      setStudentsForAssignment(unassignedStudents);
       setFilteredStudentsForAssignment(unassignedStudents);
-      
-      // Aplicar paginación inicial
-      const startIndex = 0;
-      const endIndex = itemsPerPage;
-      const paginatedStudents = unassignedStudents.slice(startIndex, endIndex);
-      setStudentsForAssignment(paginatedStudents);
     } catch (err) {
       console.error('Error al cargar los alumnos para asignación:', err);
       toast.error('Error al cargar los alumnos');
@@ -983,16 +1006,12 @@ export default function AsignaturasPage() {
   };
 
   const filterStudentsForAssignment = () => {
-    // Usar los datos ya filtrados en filteredStudentsForAssignment
-    const allUnassignedStudents = filteredStudentsForAssignment;
+    // Obtener todos los alumnos no asignados del estado global
+    const allUnassignedStudents = studentsForAssignment;
 
     if (!searchTermForAssignment) {
-      // Aplicar paginación inicial
-      const startIndex = 0;
-      const endIndex = itemsPerPage;
-      const paginatedStudents = allUnassignedStudents.slice(startIndex, endIndex);
-      setStudentsForAssignment(paginatedStudents);
-      setCurrentStudentsAssignmentPage(1);
+      // Sin término de búsqueda, mostrar todos los alumnos no asignados
+      setFilteredStudentsForAssignment(allUnassignedStudents);
       return;
     }
 
@@ -1002,12 +1021,8 @@ export default function AsignaturasPage() {
       alumno.registrationNumber.toLowerCase().includes(searchLower)
     );
     
-    // Aplicar paginación a los resultados filtrados
-    const startIndex = 0;
-    const endIndex = itemsPerPage;
-    const paginatedStudents = filtered.slice(startIndex, endIndex);
-    setStudentsForAssignment(paginatedStudents);
-    setCurrentStudentsAssignmentPage(1);
+    // Actualizar la lista filtrada
+    setFilteredStudentsForAssignment(filtered);
   };
 
   const handleStudentAssignmentSelect = (student: Student) => {
@@ -1032,26 +1047,7 @@ export default function AsignaturasPage() {
     setSelectedStudentsForAssignment(new Set());
   };
 
-  const handleStudentsAssignmentPageChange = (newPage: number) => {
-    setCurrentStudentsAssignmentPage(newPage);
-    
-    // Aplicar búsqueda si hay término de búsqueda
-    let studentsToPaginate = filteredStudentsForAssignment;
-    
-    if (searchTermForAssignment) {
-      const searchLower = searchTermForAssignment.toLowerCase();
-      studentsToPaginate = filteredStudentsForAssignment.filter(alumno => 
-        alumno.fullName.toLowerCase().includes(searchLower) ||
-        alumno.registrationNumber.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    // Recalcular la paginación local
-    const startIndex = (newPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedStudents = studentsToPaginate.slice(startIndex, endIndex);
-    setStudentsForAssignment(paginatedStudents);
-  };
+  // Función eliminada ya que no necesitamos paginación en el modal de asignación de alumnos
 
   const handleConfirmStudentsAssignment = async () => {
     if (!selectedCourseGroupForAssignment?.id) {
@@ -1109,7 +1105,6 @@ export default function AsignaturasPage() {
   const resetStudentsAssignmentModal = () => {
     setSelectedCourseGroupForAssignment(null);
     setSelectedStudentsForAssignment(new Set());
-    setCurrentStudentsAssignmentPage(1);
     setSearchTermForAssignment("");
     setStudentsForAssignment([]);
     setFilteredStudentsForAssignment([]);
@@ -1415,7 +1410,7 @@ export default function AsignaturasPage() {
                       />
                     </div>
                   </div>
-                  <div className="border rounded-lg flex-1 overflow-auto">
+                  <div className="border rounded-lg flex-1 overflow-auto min-h-[300px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1495,7 +1490,7 @@ export default function AsignaturasPage() {
                       />
                     </div>
                   </div>
-                  <div className="border rounded-lg flex-1 overflow-auto">
+                  <div className="border rounded-lg flex-1 overflow-auto min-h-[300px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1640,7 +1635,7 @@ export default function AsignaturasPage() {
                       )}
                     </div>
                   </div>
-                  <div className="border rounded-lg flex-1 overflow-auto">
+                  <div className="border rounded-lg flex-1 overflow-auto min-h-[300px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -2098,10 +2093,10 @@ export default function AsignaturasPage() {
           }
           setOpenAssignStudentsModal(isOpen);
         }}>
-          <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-            <DialogHeader>
-              <DialogTitle>Asignar Alumnos a {selectedCourseGroupForAssignment?.group?.name}</DialogTitle>
-              <DialogDescription>
+          <DialogContent className="max-w-4xl max-h-[90vh] w-[95vw] flex flex-col p-6">
+            <DialogHeader className="pb-4">
+              <DialogTitle className="text-xl">Asignar Alumnos a {selectedCourseGroupForAssignment?.group?.name}</DialogTitle>
+              <DialogDescription className="text-sm">
                 Selecciona los alumnos que deseas asignar al grupo {selectedCourseGroupForAssignment?.group?.name} en la asignatura {selectedCourse?.name}
                 {assignedStudentsToCourseGroup.length > 0 && (
                   <span className="block mt-2 text-sm text-blue-600">
@@ -2111,9 +2106,10 @@ export default function AsignaturasPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex-1 flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Header con controles */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <h3 className="text-lg font-semibold flex-shrink-0">
                   Selecciona Alumnos
                   {selectedStudentsForAssignment.size > 0 && (
                     <span className="ml-2 text-sm text-blue-600 font-normal">
@@ -2121,21 +2117,25 @@ export default function AsignaturasPage() {
                     </span>
                   )}
                 </h3>
-                <div className="w-64">
+                <div className="w-full sm:w-64 flex-shrink-0">
                   <Input
                     placeholder="Buscar por nombre o matrícula..."
                     value={searchTermForAssignment}
                     onChange={(e) => setSearchTermForAssignment(e.target.value)}
+                    className="w-full"
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
+
+              {/* Controles de selección */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2 flex-wrap">
                   {selectedStudentsForAssignment.size > 0 ? (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={handleDeselectAllStudentsForAssignment}
+                      className="text-xs sm:text-sm"
                     >
                       Deseleccionar todos
                     </Button>
@@ -2144,12 +2144,13 @@ export default function AsignaturasPage() {
                       variant="outline"
                       size="sm"
                       onClick={handleSelectAllStudentsForAssignment}
+                      className="text-xs sm:text-sm"
                     >
                       Seleccionar todos
                     </Button>
                   )}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 text-right">
                   {selectedStudentsForAssignment.size > 0 && (
                     <span>
                       {selectedStudentsForAssignment.size} de {filteredStudentsForAssignment.length} alumnos seleccionado{selectedStudentsForAssignment.size !== 1 ? 's' : ''}
@@ -2158,76 +2159,89 @@ export default function AsignaturasPage() {
                 </div>
               </div>
               
-              <div className="border rounded-lg flex-1 overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead>Nombre Completo</TableHead>
-                      <TableHead>Matrícula</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredStudentsForAssignment.map((alumno) => (
-                      <TableRow 
-                        key={alumno.id}
-                        className={`cursor-pointer hover:bg-gray-50 ${selectedStudentsForAssignment.has(alumno.id?.toString() || '') ? 'bg-gray-50' : ''}`}
-                        onClick={() => handleStudentAssignmentSelect(alumno)}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedStudentsForAssignment.has(alumno.id?.toString() || '')}
-                            onCheckedChange={() => handleStudentAssignmentSelect(alumno)}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">{alumno.fullName}</TableCell>
-                        <TableCell>{alumno.registrationNumber}</TableCell>
+              {/* Tabla con scroll */}
+              <div className="border rounded-lg flex-1 overflow-hidden min-h-0">
+                <div className="overflow-y-auto overflow-x-auto h-full max-h-[400px]">
+                  <Table className="min-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12 bg-gray-50 sticky top-0"></TableHead>
+                        <TableHead className="bg-gray-50 sticky top-0">Nombre Completo</TableHead>
+                        <TableHead className="bg-gray-50 sticky top-0">Matrícula</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {(() => {
+                        console.log('=== CONSOLE.LOG DE ESTUDIANTES EN MODAL ASIGNAR ALUMNOS A GRUPO ===');
+                        console.log('filteredStudentsForAssignment:', filteredStudentsForAssignment);
+                        console.log('Cantidad de estudiantes mostrados:', filteredStudentsForAssignment.length);
+                        console.log('Detalle de cada estudiante:');
+                        filteredStudentsForAssignment.forEach((alumno, index) => {
+                          console.log(`Estudiante ${index + 1}:`, {
+                            id: alumno.id,
+                            fullName: alumno.fullName,
+                            registrationNumber: alumno.registrationNumber,
+                            isSelected: selectedStudentsForAssignment.has(alumno.id?.toString() || '')
+                          });
+                        });
+                        console.log('selectedStudentsForAssignment:', selectedStudentsForAssignment);
+                        console.log('searchTermForAssignment:', searchTermForAssignment);
+                        console.log('========================================================');
+                        return null;
+                      })()}
+                      {filteredStudentsForAssignment.map((alumno) => (
+                        <TableRow 
+                          key={alumno.id}
+                          className={`cursor-pointer hover:bg-gray-50 ${selectedStudentsForAssignment.has(alumno.id?.toString() || '') ? 'bg-gray-50' : ''}`}
+                          onClick={() => handleStudentAssignmentSelect(alumno)}
+                        >
+                          <TableCell className="w-12">
+                            <Checkbox
+                              checked={selectedStudentsForAssignment.has(alumno.id?.toString() || '')}
+                              onCheckedChange={() => handleStudentAssignmentSelect(alumno)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium max-w-0 truncate">
+                            <div className="truncate" title={alumno.fullName}>
+                              {alumno.fullName}
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-0 truncate">
+                            <div className="truncate" title={alumno.registrationNumber}>
+                              {alumno.registrationNumber}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
               
-              <div className="flex items-center justify-between mt-4">
+              {/* Footer de información */}
+              <div className="flex items-center justify-between mt-4 pt-2 border-t">
                 <div className="text-sm text-gray-600">
-                  Mostrando {studentsForAssignment.length} de {filteredStudentsForAssignment.length} alumnos disponibles para asignar
+                  Mostrando {filteredStudentsForAssignment.length} alumnos disponibles para asignar
                   {assignedStudentsToCourseGroup.length > 0 && (
                     <span className="text-blue-600 ml-2">
                       ({assignedStudentsToCourseGroup.length} ya asignado{assignedStudentsToCourseGroup.length !== 1 ? 's' : ''})
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleStudentsAssignmentPageChange(currentStudentsAssignmentPage - 1)}
-                    disabled={currentStudentsAssignmentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm font-medium">
-                    Página {currentStudentsAssignmentPage}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleStudentsAssignmentPageChange(currentStudentsAssignmentPage + 1)}
-                    disabled={currentStudentsAssignmentPage >= Math.ceil(filteredStudentsForAssignment.length / itemsPerPage)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
               </div>
             </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpenAssignStudentsModal(false)}>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => setOpenAssignStudentsModal(false)}
+                className="w-full sm:w-auto"
+              >
                 Cancelar
               </Button>
               <Button 
                 onClick={handleConfirmStudentsAssignment}
-                className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
+                className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold w-full sm:w-auto"
                 disabled={selectedStudentsForAssignment.size === 0 || assignmentLoading}
               >
                 {assignmentLoading ? 'Asignando...' : `Asignar ${selectedStudentsForAssignment.size} alumno${selectedStudentsForAssignment.size !== 1 ? 's' : ''}`}
