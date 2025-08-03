@@ -286,11 +286,28 @@ export default function AsignaturasPage() {
 
   const loadGroups = async () => {
     try {
+      console.log('loadGroups ejecutado - currentGroupPage:', currentGroupPage, 'itemsPerPage:', itemsPerPage);
       const offset = (currentGroupPage - 1) * itemsPerPage;
-      const data = await handleGetGroups(itemsPerPage, offset);
-      setGrupos(Array.isArray(data) ? data : []);
+      console.log('Offset calculado:', offset);
+      
+      const response = await handleGetGroups(itemsPerPage, offset);
+      console.log('Respuesta de loadGroups:', response);
+      
+      // El hook useGroup ahora retorna { groups: Group[], total: number }
+      if (response && response.groups) {
+        console.log('Grupos extraídos de response.groups:', response.groups.length);
+        setGrupos(response.groups);
+      } else if (Array.isArray(response)) {
+        // Fallback para compatibilidad
+        console.log('Respuesta es array directo:', response.length);
+        setGrupos(response);
+      } else {
+        console.log('Respuesta no válida, estableciendo grupos vacíos');
+        setGrupos([]);
+      }
     } catch (err) {
       console.error('Error al cargar los grupos:', err);
+      setGrupos([]);
     }
   };
 
@@ -473,7 +490,10 @@ export default function AsignaturasPage() {
   };
 
   const filterGroups = () => {
+    console.log('filterGroups ejecutado - searchTerm:', searchTerm, 'grupos.length:', grupos.length);
+    
     if (!searchTerm) {
+      console.log('Sin término de búsqueda, mostrando todos los grupos:', grupos.length);
       setFilteredGroups(grupos);
       return;
     }
@@ -483,6 +503,7 @@ export default function AsignaturasPage() {
       grupo.name.toLowerCase().includes(searchLower) ||
       grupo.period?.name?.toLowerCase().includes(searchLower)
     );
+    console.log('Grupos filtrados:', filtered.length);
     setFilteredGroups(filtered);
   };
 
@@ -1404,7 +1425,7 @@ export default function AsignaturasPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {grupos.map((grupo) => (
+                        {filteredGroups.map((grupo) => (
                           <TableRow 
                             key={grupo.id}
                             className={`cursor-pointer hover:bg-gray-50 ${selectedGroup?.id === grupo.id ? 'bg-gray-50' : ''}`}
@@ -1425,7 +1446,7 @@ export default function AsignaturasPage() {
                   </div>
                   <div className="flex items-center justify-between mt-4">
                     <div className="text-sm text-gray-600">
-                      Mostrando {grupos.length} grupos
+                      Mostrando {filteredGroups.length} grupos
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -1443,7 +1464,7 @@ export default function AsignaturasPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleGroupPageChange(currentGroupPage + 1)}
-                        disabled={grupos.length < itemsPerPage}
+                        disabled={filteredGroups.length < itemsPerPage}
                       >
                         <ChevronRight className="h-4 w-4" />
                       </Button>
