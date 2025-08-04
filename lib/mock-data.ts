@@ -4,7 +4,7 @@ export interface User {
   fullName: string
   email: string
   password?: string
-  role?: "administrador" | "maestro"
+  role?: "administrador" | "maestro" | "director"
   coursesGroups?: {
     course: {
       id: number

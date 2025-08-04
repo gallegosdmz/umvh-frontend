@@ -75,8 +75,8 @@ export default function AdminDashboard() {
       // Procesar datos de grupos
       const totalGrupos = Array.isArray(gruposData) ? gruposData.length : 0
       
-      // Procesar datos de alumnos
-      const totalAlumnos = Array.isArray(alumnosData) ? alumnosData.length : 0
+      // Procesar datos de alumnos (nueva estructura: { students: [], total: number })
+      const totalAlumnos = alumnosData?.students?.length || alumnosData?.total || (Array.isArray(alumnosData) ? alumnosData.length : 0)
       
       // Procesar datos de periodos activos
       const periodosActivos = Array.isArray(periodosData) 

@@ -13,13 +13,32 @@ const getAuthHeaders = () => {
 }
 
 export const studentService = {
-  async getStudents(limit: number = 1000, offset: number = 0): Promise<Student[]> {
+  async getStudents(limit: number = 1000, offset: number = 0): Promise<{ students: Student[], total: number }> {
     try {
       const response = await fetch(`${API_URL}/students?limit=${limit}&offset=${offset}`, {
         headers: getAuthHeaders()
       });
       if (!response.ok) throw new Error('Error al obtener los alumnos');
-      return await response.json();
+      const data = await response.json();
+      
+      // Manejar la nueva estructura del endpoint
+      if (data && typeof data === 'object' && data.students && Array.isArray(data.students)) {
+        return {
+          students: data.students,
+          total: data.total || 0
+        };
+      } else if (Array.isArray(data)) {
+        // Fallback para compatibilidad con la estructura anterior
+        return {
+          students: data,
+          total: data.length
+        };
+      } else {
+        return {
+          students: [],
+          total: 0
+        };
+      }
     } catch (error) {
       console.error('Error en getStudents:', error);
       throw error;
@@ -28,7 +47,7 @@ export const studentService = {
 
 
 
-  async getStudentsNotInCourseGroup(courseGroupId: number, limit: number = 20, offset: number = 0, searchTerm?: string): Promise<Student[]> {
+  async getStudentsNotInCourseGroup(courseGroupId: number, limit: number = 20, offset: number = 0, searchTerm?: string): Promise<{ students: Student[], total: number, limit: number, offset: number }> {
     try {
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : '';
       const url = `${API_URL}/students/not-in-course-group/${courseGroupId}?limit=${limit}&offset=${offset}${searchParam}`;
@@ -41,9 +60,34 @@ export const studentService = {
         throw new Error('Error al obtener los alumnos');
       }
       
-      return await response.json();
+      const data = await response.json();
+      
+      // Manejar la nueva estructura del endpoint
+      if (data && typeof data === 'object' && data.students && Array.isArray(data.students)) {
+        return {
+          students: data.students,
+          total: data.total || 0,
+          limit: data.limit || limit,
+          offset: data.offset || offset
+        };
+      } else if (Array.isArray(data)) {
+        // Fallback para compatibilidad con la estructura anterior
+        return {
+          students: data,
+          total: data.length,
+          limit: limit,
+          offset: offset
+        };
+      } else {
+        return {
+          students: [],
+          total: 0,
+          limit: limit,
+          offset: offset
+        };
+      }
     } catch (error) {
-      console.error('Error en getStudents:', error);
+      console.error('Error en getStudentsNotInCourseGroup:', error);
       throw error;
     }
   },

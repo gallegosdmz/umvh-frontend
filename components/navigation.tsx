@@ -16,7 +16,8 @@ export function Navigation() {
   if (!user || pathname === "/auth/signin") return null
 
   const isAdmin = user.role === "administrador"
-  const dashboardPath = isAdmin ? "/admin/dashboard" : "/maestro/dashboard"
+  const isDirector = user.role === "director"
+  const dashboardPath = isAdmin ? "/admin/dashboard" : isDirector ? "/director" : "/maestro/dashboard"
 
   const handleLogout = () => {
     logout()
@@ -36,7 +37,9 @@ export function Navigation() {
                 <span className="text-xl font-bold bg-gradient-to-r from-[#bc4b26] to-[#d05f27] bg-clip-text text-transparent">
                   Sistema Escolar
                 </span>
-                <div className="text-xs text-gray-500">{isAdmin ? "Panel de Administración" : "Panel del Maestro"}</div>
+                <div className="text-xs text-gray-500">
+                  {isAdmin ? "Panel de Administración" : isDirector ? "Panel del Director" : "Panel del Maestro"}
+                </div>
               </div>
             </Link>
           </div>

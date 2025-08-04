@@ -12,11 +12,11 @@ export const useStudent = () => {
     setError(null);
     try {
       const data = await studentService.getStudents(limit, offset);
-      setTotalItems(data.length);
+      setTotalItems(data.total);
       return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al obtener los alumnos');
-      return [];
+      return { students: [], total: 0 };
     } finally {
       setLoading(false);
     }
@@ -78,6 +78,21 @@ export const useStudent = () => {
     }
   };
 
+  const handleGetStudentsNotInCourseGroup = async (courseGroupId: number, limit: number = 20, offset: number = 0, searchTerm?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await studentService.getStudentsNotInCourseGroup(courseGroupId, limit, offset, searchTerm);
+      setTotalItems(data.total);
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al obtener los alumnos no asignados');
+      return { students: [], total: 0, limit, offset };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     loading,
     error,
@@ -87,5 +102,6 @@ export const useStudent = () => {
     handleUpdateStudent,
     handleDeleteStudent,
     handleGetStudentsByGroup,
+    handleGetStudentsNotInCourseGroup,
   };
 }; 
