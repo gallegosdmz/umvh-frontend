@@ -1369,7 +1369,7 @@ export default function AsignaturasPage() {
           }
           setOpenAssignModal(isOpen);
         }}>
-          <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+          <DialogContent className="max-w-4xl max-h-[90vh] h-[80vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Asignar Grupo, Maestro y Alumnos a {selectedCourse?.name}</DialogTitle>
               <DialogDescription>
@@ -1399,12 +1399,12 @@ export default function AsignaturasPage() {
               </div>
             </DialogHeader>
 
-            <div className="relative flex-1 overflow-hidden">
+            <div className="relative flex-1 overflow-hidden min-h-0">
               <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'groups' ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                     <h3 className="text-lg font-semibold">Selecciona un Grupo</h3>
-                    <div className="w-64">
+                    <div className="w-full sm:w-64">
                       <Input
                         placeholder="Buscar grupo..."
                         value={searchTerm}
@@ -1412,7 +1412,7 @@ export default function AsignaturasPage() {
                       />
                     </div>
                   </div>
-                  <div className="border rounded-lg flex-1 overflow-auto min-h-[300px]">
+                  <div className="border rounded-lg flex-1 overflow-auto min-h-[200px] max-h-[400px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1441,7 +1441,7 @@ export default function AsignaturasPage() {
                       </TableBody>
                     </Table>
                   </div>
-                  <div className="flex items-center justify-between mt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-4">
                     <div className="text-sm text-gray-600">
                       Mostrando {filteredGroups.length} grupos
                     </div>
@@ -1472,7 +1472,7 @@ export default function AsignaturasPage() {
 
               <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'teachers' ? 'translate-x-0' : currentStep === 'groups' ? 'translate-x-full' : '-translate-x-full'}`}>
                 <div className="h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
@@ -1484,7 +1484,7 @@ export default function AsignaturasPage() {
                       </Button>
                       <h3 className="text-lg font-semibold">Selecciona un Maestro</h3>
                     </div>
-                    <div className="w-64">
+                    <div className="w-full sm:w-64">
                       <Input
                         placeholder="Buscar por nombre o correo..."
                         value={searchTerm}
@@ -1492,7 +1492,7 @@ export default function AsignaturasPage() {
                       />
                     </div>
                   </div>
-                  <div className="border rounded-lg flex-1 overflow-auto min-h-[300px]">
+                  <div className="border rounded-lg flex-1 overflow-auto min-h-[200px] max-h-[400px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1521,7 +1521,7 @@ export default function AsignaturasPage() {
                       </TableBody>
                     </Table>
                   </div>
-                  <div className="flex items-center justify-between mt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-4">
                     <div className="text-sm text-gray-600">
                       Mostrando {filteredTeachers.length} maestros
                     </div>
@@ -1552,7 +1552,7 @@ export default function AsignaturasPage() {
 
               <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'students' ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col gap-4 mb-4">
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
@@ -1571,7 +1571,7 @@ export default function AsignaturasPage() {
                         )}
                       </h3>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                       {importedStudentsForSelection.length > 0 && (
                         <Button
                           variant="outline"
@@ -1600,7 +1600,7 @@ export default function AsignaturasPage() {
                         <FileSpreadsheet className="h-4 w-4 mr-2" />
                         Importar alumnos
                       </Button>
-                      <div className="w-64">
+                      <div className="w-full sm:w-64">
                         <Input
                           placeholder="Buscar por nombre o matrícula..."
                           value={searchTerm}
@@ -1609,7 +1609,7 @@ export default function AsignaturasPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2">
                       {selectedStudents.size > 0 ? (
                         <Button
@@ -1637,7 +1637,7 @@ export default function AsignaturasPage() {
                       )}
                     </div>
                   </div>
-                  <div className="border rounded-lg flex-1 overflow-auto min-h-[300px]">
+                  <div className="border rounded-lg flex-1 overflow-auto min-h-[200px] max-h-[400px]">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1666,7 +1666,7 @@ export default function AsignaturasPage() {
                       </TableBody>
                     </Table>
                   </div>
-                  <div className="flex items-center justify-between mt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-4">
                     <div className="text-sm text-gray-600">
                       Mostrando {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : `del grupo ${selectedGroup?.name}`}
                     </div>
@@ -1696,8 +1696,8 @@ export default function AsignaturasPage() {
               </div>
             </div>
 
-            <DialogFooter className="flex flex-col gap-4">
-              <div className="flex justify-end gap-2 w-full">
+            <DialogFooter className="flex flex-col gap-4 mt-4">
+              <div className="flex flex-col sm:flex-row sm:justify-end gap-2 w-full">
                 <Button variant="outline" onClick={() => setOpenAssignModal(false)}>
                   Cancelar
                 </Button>
