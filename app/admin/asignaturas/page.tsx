@@ -1369,7 +1369,7 @@ export default function AsignaturasPage() {
           }
           setOpenAssignModal(isOpen);
         }}>
-          <DialogContent className="max-w-5xl max-h-[95vh] h-[85vh] flex flex-col">
+          <DialogContent className="max-w-6xl max-h-[98vh] h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Asignar Grupo, Maestro y Alumnos a {selectedCourse?.name}</DialogTitle>
               <DialogDescription>
@@ -1552,10 +1552,10 @@ export default function AsignaturasPage() {
 
               <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'students' ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="h-full flex flex-col">
-                  {/* Header section - fixed height */}
-                  <div className="flex-shrink-0">
-                    <div className="flex flex-col gap-4 mb-4">
-                      <div className="flex items-center gap-2">
+                  {/* Header section - compact */}
+                  <div className="flex-shrink-0 mb-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
                         <Button
                           variant="outline"
                           size="sm"
@@ -1573,7 +1573,7 @@ export default function AsignaturasPage() {
                           )}
                         </h3>
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="flex items-center gap-2">
                         {importedStudentsForSelection.length > 0 && (
                           <Button
                             variant="outline"
@@ -1602,17 +1602,6 @@ export default function AsignaturasPage() {
                           <FileSpreadsheet className="h-4 w-4 mr-2" />
                           Importar alumnos
                         </Button>
-                        <div className="w-full sm:w-64">
-                          <Input
-                            placeholder="Buscar por nombre o matrícula..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2">
                         {selectedStudents.size > 0 ? (
                           <Button
                             variant="outline"
@@ -1631,28 +1620,26 @@ export default function AsignaturasPage() {
                           </Button>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600">
-                        {selectedStudents.size > 0 && (
-                          <span>
-                            {selectedStudents.size} de {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : 'del grupo seleccionado'}{selectedStudents.size !== 1 ? 's' : ''}
-                          </span>
-                        )}
-                      </div>
                     </div>
+                    {selectedStudents.size > 0 && (
+                      <div className="text-sm text-gray-600 mt-2">
+                        {selectedStudents.size} de {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : 'del grupo seleccionado'}{selectedStudents.size !== 1 ? 's' : ''}
+                      </div>
+                    )}
                   </div>
                   
-                  {/* Table section - flexible height */}
+                  {/* Table section - more space */}
                   <div className="flex-1 min-h-0 border rounded-lg overflow-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12"></TableHead>
-                          <TableHead>Nombre Completo</TableHead>
-                          <TableHead>Matrícula</TableHead>
+                          <TableHead className="w-12 bg-gray-50 sticky top-0 z-10"></TableHead>
+                          <TableHead className="bg-gray-50 sticky top-0 z-10">Nombre Completo</TableHead>
+                          <TableHead className="bg-gray-50 sticky top-0 z-10">Matrícula</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredStudents.map((alumno) => (
+                        {filteredStudents.map((alumno, index) => (
                           <TableRow 
                             key={alumno.id}
                             className={`cursor-pointer hover:bg-gray-50 ${selectedStudents.has(alumno.id?.toString() || '') ? 'bg-gray-50' : ''}`}
@@ -1664,7 +1651,11 @@ export default function AsignaturasPage() {
                                 onCheckedChange={() => handleStudentSelect(alumno)}
                               />
                             </TableCell>
-                            <TableCell className="font-medium">{alumno.fullName}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="truncate" title={alumno.fullName}>
+                                {index + 1}. {alumno.fullName}
+                              </div>
+                            </TableCell>
                             <TableCell>{alumno.registrationNumber}</TableCell>
                           </TableRow>
                         ))}
@@ -2102,7 +2093,7 @@ export default function AsignaturasPage() {
           }
           setOpenAssignStudentsModal(isOpen);
         }}>
-          <DialogContent className="max-w-4xl max-h-[98vh] w-[98vw] sm:w-[95vw] flex flex-col p-3">
+          <DialogContent className="max-w-6xl max-h-[98vh] w-[98vw] sm:w-[95vw] flex flex-col p-3">
             <DialogHeader className="pb-3 flex-shrink-0">
               <DialogTitle className="text-lg sm:text-xl">Asignar Alumnos a {selectedCourseGroupForAssignment?.group?.name}</DialogTitle>
               <DialogDescription className="text-xs sm:text-sm">
