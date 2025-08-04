@@ -1369,7 +1369,7 @@ export default function AsignaturasPage() {
           }
           setOpenAssignModal(isOpen);
         }}>
-          <DialogContent className="max-w-4xl max-h-[90vh] h-[80vh] flex flex-col">
+          <DialogContent className="max-w-5xl max-h-[95vh] h-[85vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Asignar Grupo, Maestro y Alumnos a {selectedCourse?.name}</DialogTitle>
               <DialogDescription>
@@ -1552,92 +1552,97 @@ export default function AsignaturasPage() {
 
               <div className={`absolute inset-0 transition-transform duration-300 ${currentStep === 'students' ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="h-full flex flex-col">
-                  <div className="flex flex-col gap-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentStep('teachers')}
-                      >
-                        <ChevronLeft className="h-4 w-4 mr-2" />
-                        Volver
-                      </Button>
-                      <h3 className="text-lg font-semibold">
-                        Selecciona Alumnos {importedStudentsForSelection.length > 0 ? 'Importados' : `del Grupo ${selectedGroup?.name}`} (Opcional)
-                        {selectedStudents.size > 0 && (
-                          <span className="ml-2 text-sm text-blue-600 font-normal">
-                            ({selectedStudents.size} seleccionado{selectedStudents.size !== 1 ? 's' : ''})
-                          </span>
+                  {/* Header section - fixed height */}
+                  <div className="flex-shrink-0">
+                    <div className="flex flex-col gap-4 mb-4">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentStep('teachers')}
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-2" />
+                          Volver
+                        </Button>
+                        <h3 className="text-lg font-semibold">
+                          Selecciona Alumnos {importedStudentsForSelection.length > 0 ? 'Importados' : `del Grupo ${selectedGroup?.name}`} (Opcional)
+                          {selectedStudents.size > 0 && (
+                            <span className="ml-2 text-sm text-blue-600 font-normal">
+                              ({selectedStudents.size} seleccionado{selectedStudents.size !== 1 ? 's' : ''})
+                            </span>
+                          )}
+                        </h3>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        {importedStudentsForSelection.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setImportedStudentsForSelection([]);
+                              // Recargar los alumnos del grupo
+                              if (selectedGroup?.id) {
+                                loadStudents();
+                              }
+                              // Limpiar también filteredStudents para que se recargue
+                              setFilteredStudents([]);
+                            }}
+                          >
+                            <Users className="h-4 w-4 mr-2" />
+                            Ver alumnos del grupo
+                          </Button>
                         )}
-                      </h3>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                      {importedStudentsForSelection.length > 0 && (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setImportedStudentsForSelection([]);
-                            // Recargar los alumnos del grupo
-                            if (selectedGroup?.id) {
-                              loadStudents();
-                            }
-                            // Limpiar también filteredStudents para que se recargue
-                            setFilteredStudents([]);
+                            setOpenImportModal(true);
                           }}
                         >
-                          <Users className="h-4 w-4 mr-2" />
-                          Ver alumnos del grupo
+                          <FileSpreadsheet className="h-4 w-4 mr-2" />
+                          Importar alumnos
                         </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setOpenImportModal(true);
-                        }}
-                      >
-                        <FileSpreadsheet className="h-4 w-4 mr-2" />
-                        Importar alumnos
-                      </Button>
-                      <div className="w-full sm:w-64">
-                        <Input
-                          placeholder="Buscar por nombre o matrícula..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                        <div className="w-full sm:w-64">
+                          <Input
+                            placeholder="Buscar por nombre o matrícula..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        {selectedStudents.size > 0 ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDeselectAllStudents}
+                          >
+                            Deseleccionar todos
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleSelectAllStudents}
+                          >
+                            Seleccionar todos
+                          </Button>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {selectedStudents.size > 0 && (
+                          <span>
+                            {selectedStudents.size} de {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : 'del grupo seleccionado'}{selectedStudents.size !== 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      {selectedStudents.size > 0 ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDeselectAllStudents}
-                        >
-                          Deseleccionar todos
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleSelectAllStudents}
-                        >
-                          Seleccionar todos
-                        </Button>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {selectedStudents.size > 0 && (
-                        <span>
-                          {selectedStudents.size} de {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : 'del grupo seleccionado'}{selectedStudents.size !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="border rounded-lg flex-1 overflow-auto min-h-[200px] max-h-[400px]">
+                  
+                  {/* Table section - flexible height */}
+                  <div className="flex-1 min-h-0 border rounded-lg overflow-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -1666,30 +1671,34 @@ export default function AsignaturasPage() {
                       </TableBody>
                     </Table>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-4">
-                    <div className="text-sm text-gray-600">
-                      Mostrando {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : `del grupo ${selectedGroup?.name}`}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStudentPageChange(currentStudentPage - 1)}
-                        disabled={currentStudentPage === 1}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <span className="text-sm font-medium">
-                        Página {currentStudentPage}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStudentPageChange(currentStudentPage + 1)}
-                        disabled={filteredStudents.length < itemsPerPage}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
+                  
+                  {/* Footer section - fixed height */}
+                  <div className="flex-shrink-0 mt-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="text-sm text-gray-600">
+                        Mostrando {filteredStudents.length} alumnos {importedStudentsForSelection.length > 0 ? 'importados' : `del grupo ${selectedGroup?.name}`}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleStudentPageChange(currentStudentPage - 1)}
+                          disabled={currentStudentPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-sm font-medium">
+                          Página {currentStudentPage}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleStudentPageChange(currentStudentPage + 1)}
+                          disabled={filteredStudents.length < itemsPerPage}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
