@@ -33,6 +33,8 @@ export default function SignIn() {
         const user = JSON.parse(localStorage.getItem("currentUser") || "{}")
         if (user.role === "administrador") {
           router.push("/admin/dashboard")
+        } else if (user.role === "director") {
+          router.push("/director")
         } else {
           router.push("/maestro/asignaturas")
         }
