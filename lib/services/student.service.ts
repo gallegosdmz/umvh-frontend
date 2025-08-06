@@ -181,12 +181,34 @@ export const studentService = {
     try {
       const response = await fetch(`${API_URL}/students/${id}`, {
         method: 'DELETE',
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
       });
-      if (!response.ok) throw new Error('Error al eliminar el alumno');
+
+      if (!response.ok) {
+        throw new Error('Error al eliminar el alumno');
+      }
     } catch (error) {
       console.error('Error en deleteStudent:', error);
       throw error;
+    }
+  },
+
+  async getStudentsCount(): Promise<number> {
+    try {
+      const response = await fetch(`${API_URL}/students/count`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al obtener el conteo de estudiantes');
+      }
+
+      const data = await response.json();
+      return data || 0;
+    } catch (error) {
+      console.error('Error en getStudentsCount:', error);
+      return 0;
     }
   },
 }; 

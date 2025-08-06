@@ -8,6 +8,7 @@ interface UseGroupReturn {
   totalItems: number;
   handleGetGroups: (limit?: number, offset?: number) => Promise<{ groups: Group[], total: number }>;
   handleGetGroupsForDirector: (limit?: number, offset?: number) => Promise<GroupsResponse>;
+  handleGetGroupsCount: () => Promise<number>;
   handleCreateGroup: (groupData: CreateGroupDto) => Promise<Group>;
   handleUpdateGroup: (id: string, groupData: CreateGroupDto) => Promise<Group>;
   handleDeleteGroup: (id: string) => Promise<void>;
@@ -74,6 +75,16 @@ export const useGroup = (): UseGroupReturn => {
     }
   }, []);
 
+  const handleGetGroupsCount = useCallback(async (): Promise<number> => {
+    try {
+      const count = await groupService.getGroupsCount();
+      return count;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al obtener el conteo de grupos');
+      return 0;
+    }
+  }, []);
+
   const handleCreateGroup = useCallback(async (groupData: CreateGroupDto) => {
     setLoading(true);
     try {
@@ -128,6 +139,7 @@ export const useGroup = (): UseGroupReturn => {
     totalItems,
     handleGetGroups,
     handleGetGroupsForDirector,
+    handleGetGroupsCount,
     handleCreateGroup,
     handleUpdateGroup,
     handleDeleteGroup,

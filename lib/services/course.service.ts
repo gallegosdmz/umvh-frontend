@@ -464,4 +464,24 @@ export const CourseService = {
       console.log('🔍 DEBUG getPartialGradesByStudentAndPartial - Success, returning:', data);
       return data;
     },
+
+    async getCoursesCount(): Promise<number> {
+        try {
+            const response = await fetch(`${API_URL}/courses/count`, {
+                method: 'GET',
+                headers: getAuthHeaders(),
+            });
+
+            if (!response.ok) {
+                throw new Error('Error al obtener el conteo de cursos');
+            }
+
+            const data = await response.json();
+            console.log(data)
+            return data || 0;
+        } catch (error) {
+            console.error('Error en getCoursesCount:', error);
+            return 0;
+        }
+    },
 }; 

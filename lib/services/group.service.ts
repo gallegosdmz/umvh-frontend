@@ -82,6 +82,25 @@ export const groupService = {
     }
   },
 
+  async getGroupsCount(): Promise<number> {
+    try {
+      const response = await fetch(`${API_URL}/groups/count`, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al obtener el conteo de grupos');
+      }
+
+      const data = await response.json();
+      return data || 0;
+    } catch (error) {
+      console.error('Error en getGroupsCount:', error);
+      return 0;
+    }
+  },
+
   async createGroup(groupData: CreateGroupDto): Promise<Group> {
     try {
       const response = await fetch(`${API_URL}/groups`, {

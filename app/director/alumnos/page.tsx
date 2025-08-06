@@ -13,7 +13,10 @@ import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { useGroup } from "@/lib/hooks/useGroup"
 import { GroupForDirector, CourseGroupForDirector, CourseGroupStudent } from "@/lib/mock-data"
+import { CourseService } from "@/lib/services/course.service"
+import { studentService } from "@/lib/services/student.service"
 import { toast } from "@/hooks/use-toast"
+import { groupService } from "@/lib/services/group.service"
 
 interface Estadisticas {
   totalGrupos: number
@@ -24,7 +27,7 @@ interface Estadisticas {
 
 export default function AlumnosPage() {
   const { user } = useAuth()
-  const { handleGetGroupsForDirector, loading, error, totalItems } = useGroup()
+  const { handleGetGroupsForDirector, handleGetGroupsCount, loading, error, totalItems } = useGroup()
   
   const [grupos, setGrupos] = useState<GroupForDirector[]>([])
   const [filteredGrupos, setFilteredGrupos] = useState<GroupForDirector[]>([])
@@ -53,11 +56,24 @@ export default function AlumnosPage() {
       try {
         const offset = (currentPage - 1) * itemsPerPage
         const data = await handleGetGroupsForDirector(itemsPerPage, offset)
+        console.log('Datos recibidos del backend:', data)
+        console.log('Grupos recibidos:', data.groups)
+        
+        // Log detallado de la estructura de datos
+        if (data.groups && data.groups.length > 0) {
+          console.log('Primer grupo:', data.groups[0])
+          if (data.groups[0].coursesGroups && data.groups[0].coursesGroups.length > 0) {
+            console.log('Primera asignatura del primer grupo:', data.groups[0].coursesGroups[0])
+            if (data.groups[0].coursesGroups[0].coursesGroupsStudents) {
+              console.log('Estudiantes de la primera asignatura:', data.groups[0].coursesGroups[0].coursesGroupsStudents)
+            }
+          }
+        }
+        
         setGrupos(data.groups)
         
-        // Calcular estadísticas
-        const stats = calcularEstadisticas(data.groups)
-        setEstadisticas(stats)
+        // Cargar estadísticas desde los endpoints de conteo
+        await cargarEstadisticas()
 
       } catch (error) {
         console.error('Error al cargar datos:', error)
@@ -71,6 +87,63 @@ export default function AlumnosPage() {
 
     cargarDatos()
   }, [currentPage, itemsPerPage])
+
+  // Cargar estadísticas desde los endpoints de conteo
+  const cargarEstadisticas = async () => {
+    try {
+      const [totalGrupos, totalAsignaturas, totalAlumnos] = await Promise.all([
+        groupService.getGroupsCount(),
+        CourseService.getCoursesCount(),
+        studentService.getStudentsCount()
+      ])
+
+      console.log('Totales')
+      console.log(totalGrupos)
+      console.log(totalAsignaturas)
+      console.log(totalAlumnos)
+
+      // Calcular promedio general usando los datos de los grupos cargados
+      let sumaPromedios = 0
+      let contadorAlumnos = 0
+
+      grupos.forEach(grupo => {
+        grupo.coursesGroups?.forEach(courseGroup => {
+          courseGroup.coursesGroupsStudents?.forEach(student => {
+            const calificaciones = [
+              ...(student.finalGrades || []),
+              ...(student.partialGrades || [])
+            ]
+            
+            if (calificaciones.length > 0) {
+              const promedio = calificaciones.reduce((sum, cal) => sum + (cal.grade || 0), 0) / calificaciones.length
+              sumaPromedios += promedio
+              contadorAlumnos++
+            }
+          })
+        })
+      })
+
+      setEstadisticas({
+        totalGrupos,
+        totalAsignaturas,
+        totalAlumnos,
+        promedioGeneral: contadorAlumnos > 0 ? sumaPromedios / contadorAlumnos : 0
+      })
+
+    } catch (error) {
+      console.error('Error al cargar estadísticas:', error)
+      // En caso de error, usar los datos calculados localmente
+      const stats = calcularEstadisticas(grupos)
+      setEstadisticas(stats)
+    }
+  }
+
+  // Cargar estadísticas cuando cambien los grupos
+  useEffect(() => {
+    if (grupos.length > 0) {
+      cargarEstadisticas()
+    }
+  }, [grupos])
 
   // Calcular estadísticas
   const calcularEstadisticas = (gruposData: GroupForDirector[]): Estadisticas => {
@@ -160,12 +233,6 @@ export default function AlumnosPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Link href="/director/dashboard">
-                <Button variant="outline" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Volver
-                </Button>
-              </Link>
               <div>
                 <h1 className="text-4xl font-bold text-gray-900 mb-2">Alumnos</h1>
                 <p className="text-gray-600 text-lg">
@@ -242,7 +309,7 @@ export default function AlumnosPage() {
         </div>
 
         {/* Filtros y Búsqueda */}
-        <Card className="mb-6 border-0 shadow-lg bg-white">
+        {/*<Card className="mb-6 border-0 shadow-lg bg-white">
           <CardHeader>
             <CardTitle className="flex items-center text-xl font-bold text-gray-900">
               <Filter className="h-5 w-5 mr-2 text-[#bc4b26]" />
@@ -276,6 +343,7 @@ export default function AlumnosPage() {
             </div>
           </CardContent>
         </Card>
+        */}
 
         {/* Tabla de Grupos */}
         <Card className="border-0 shadow-lg bg-white">
@@ -299,7 +367,6 @@ export default function AlumnosPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Grupo</TableHead>
-                      <TableHead>Período</TableHead>
                       <TableHead>Semestre</TableHead>
                       <TableHead>Asignaturas</TableHead>
                       <TableHead>Alumnos</TableHead>
@@ -318,11 +385,6 @@ export default function AlumnosPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="font-medium">
-                            {grupo.period?.name || 'Sin período'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
                           <Badge variant="secondary">
                             {grupo.semester || 'N/A'}
                           </Badge>
@@ -335,7 +397,7 @@ export default function AlumnosPage() {
                         <TableCell>
                           <Badge variant="outline">
                             {grupo.coursesGroups?.reduce((total, courseGroup) => 
-                              total + (courseGroup.coursesGroupsStudents?.length || 0), 0
+                              courseGroup.coursesGroupsStudents?.length, 0
                             ) || 0} alumnos
                           </Badge>
                         </TableCell>
@@ -456,6 +518,8 @@ export default function AlumnosPage() {
                           variant="outline" 
                           size="sm"
                           onClick={() => {
+                            console.log('Asignatura seleccionada:', courseGroup)
+                            console.log('Estudiantes de esta asignatura:', courseGroup.coursesGroupsStudents)
                             setSelectedCourseGroup(courseGroup)
                             setShowAlumnosModal(true)
                             setShowAsignaturasModal(false)
@@ -486,69 +550,92 @@ export default function AlumnosPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="mt-6">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Alumno</TableHead>
-                    <TableHead>Matrícula</TableHead>
-                    <TableHead>Promedio</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Asistencia</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedCourseGroup?.coursesGroupsStudents?.map((student) => {
-                    const promedio = calcularPromedioAlumno(student)
-                    const estado = getEstadoAlumno(promedio)
-                    const asistencias = student.coursesGroupsAttendances || []
-                    const asistenciasPresentes = asistencias.filter(a => a.isPresent).length
-                    const porcentajeAsistencia = asistencias.length > 0 
-                      ? (asistenciasPresentes / asistencias.length) * 100 
-                      : 0
+              {/* Debug info - remover en producción */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm">
+                <p><strong>Debug:</strong> Total de alumnos en esta asignatura: {selectedCourseGroup?.coursesGroupsStudents?.length || 0}</p>
+                <p><strong>Asignatura ID:</strong> {selectedCourseGroup?.id}</p>
+                <p><strong>Asignatura:</strong> {selectedCourseGroup?.course?.name}</p>
+              </div>
 
-                    return (
-                      <TableRow key={student.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">
-                              {student.student?.fullName}
+              {selectedCourseGroup?.coursesGroupsStudents && selectedCourseGroup.coursesGroupsStudents.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Alumno</TableHead>
+                      <TableHead>Matrícula</TableHead>
+                      <TableHead>Promedio</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Asistencia</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedCourseGroup.coursesGroupsStudents.map((student) => {
+                      const promedio = calcularPromedioAlumno(student)
+                      const estado = getEstadoAlumno(promedio)
+                      const asistencias = student.coursesGroupsAttendances || []
+                      const asistenciasPresentes = asistencias.filter(a => a.isPresent).length
+                      const porcentajeAsistencia = asistencias.length > 0 
+                        ? (asistenciasPresentes / asistencias.length) * 100 
+                        : 0
+
+                      return (
+                        <TableRow key={student.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">
+                                {student.student?.fullName || 'Sin nombre'}
+                              </div>
+                              <div className="text-sm text-gray-500">ID: {student.student?.id || 'N/A'}</div>
                             </div>
-                            <div className="text-sm text-gray-500">ID: {student.student?.id}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {student.student?.registrationNumber}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-lg">{promedio.toFixed(1)}</span>
-                            {promedio >= 8.0 ? (
-                              <TrendingUp className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <TrendingDown className="h-4 w-4 text-red-600" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={estado.color}>
-                            {estado.text}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">{porcentajeAsistencia.toFixed(1)}%</span>
+                          </TableCell>
+                          <TableCell>
                             <Badge variant="outline">
-                              {asistenciasPresentes}/{asistencias.length}
+                              {student.student?.registrationNumber || 'Sin matrícula'}
                             </Badge>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-bold text-lg">{promedio.toFixed(1)}</span>
+                              {promedio >= 8.0 ? (
+                                <TrendingUp className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <TrendingDown className="h-4 w-4 text-red-600" />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={estado.color}>
+                              {estado.text}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium">{porcentajeAsistencia.toFixed(1)}%</span>
+                              <Badge variant="outline">
+                                {asistenciasPresentes}/{asistencias.length}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-12">
+                  <GraduationCap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No hay alumnos registrados</h3>
+                  <p className="text-gray-500">
+                    No se encontraron alumnos en esta asignatura.
+                  </p>
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm">
+                    <p><strong>Información de depuración:</strong></p>
+                    <p>• Asignatura: {selectedCourseGroup?.course?.name}</p>
+                    <p>• ID de asignatura: {selectedCourseGroup?.id}</p>
+                    <p>• Array de estudiantes: {JSON.stringify(selectedCourseGroup?.coursesGroupsStudents)}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>
