@@ -6,7 +6,7 @@ import { useEffect } from "react"
 
 interface RouteGuardProps {
   children: React.ReactNode
-  allowedRoles: ("administrador" | "maestro")[]
+  allowedRoles: ("administrador" | "maestro" | "director")[]
 }
 
 export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
@@ -23,11 +23,13 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
       }
 
       // Si el usuario no tiene el rol permitido, redirigir según su rol
-      if (!allowedRoles.includes(user.role as "administrador" | "maestro")) {
+      if (!allowedRoles.includes(user.role as "administrador" | "maestro" | "director")) {
         if (user.role === "administrador") {
           router.push("/admin/dashboard")
         } else if (user.role === "maestro") {
           router.push("/maestro/dashboard")
+        } else if (user.role === "director") {
+          router.push("/director/dashboard")
         } else {
           router.push("/auth/signin")
         }
@@ -46,7 +48,7 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
   }
 
   // Si no hay usuario o no tiene el rol correcto, no mostrar contenido
-  if (!user || !allowedRoles.includes(user.role as "administrador" | "maestro")) {
+  if (!user || !allowedRoles.includes(user.role as "administrador" | "maestro" | "director")) {
     return null
   }
 

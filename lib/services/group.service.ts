@@ -51,6 +51,37 @@ export const groupService = {
     }
   },
 
+  async getGroupsForDirector(limit: number = 10, offset: number = 0): Promise<{ groups: any[], total: number }> {
+    try {
+      const url = new URL(`${API_URL}/groups/findAllForDirector`);
+      url.searchParams.append('limit', limit.toString());
+      url.searchParams.append('offset', offset.toString());
+      
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+
+      console.log('URL de grupos para director:', url.toString());
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error('Error al obtener los grupos para director');
+      }
+
+      const data = await response.json();
+      console.log('Datos de grupos para director:', data);
+      
+      return {
+        groups: data.groups || [],
+        total: data.total || 0
+      };
+    } catch (error) {
+      console.error('Error en getGroupsForDirector:', error);
+      return { groups: [], total: 0 };
+    }
+  },
+
   async createGroup(groupData: CreateGroupDto): Promise<Group> {
     try {
       const response = await fetch(`${API_URL}/groups`, {

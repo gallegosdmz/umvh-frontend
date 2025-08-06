@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Group, CreateGroupDto } from '@/lib/mock-data';
+import { Group, CreateGroupDto, GroupForDirector, GroupsResponse } from '@/lib/mock-data';
 import { groupService } from '@/lib/services/group.service';
 
 interface UseGroupReturn {
@@ -7,6 +7,7 @@ interface UseGroupReturn {
   error: string | null;
   totalItems: number;
   handleGetGroups: (limit?: number, offset?: number) => Promise<{ groups: Group[], total: number }>;
+  handleGetGroupsForDirector: (limit?: number, offset?: number) => Promise<GroupsResponse>;
   handleCreateGroup: (groupData: CreateGroupDto) => Promise<Group>;
   handleUpdateGroup: (id: string, groupData: CreateGroupDto) => Promise<Group>;
   handleDeleteGroup: (id: string) => Promise<void>;
@@ -56,6 +57,22 @@ export const useGroup = (): UseGroupReturn => {
       setLoading(false);
     }
   }, [totalItems]);
+
+  const handleGetGroupsForDirector = useCallback(async (limit: number = 10, offset: number = 0): Promise<GroupsResponse> => {
+    setLoading(true);
+    console.log(`handleGetGroupsForDirector - Limit: ${limit}, Offset: ${offset}`);
+    try {
+      const data = await groupService.getGroupsForDirector(limit, offset);
+      console.log('Respuesta del servicio de grupos para director:', data);
+      setTotalItems(data.total);
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar los grupos para director');
+      return { groups: [], total: 0 };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handleCreateGroup = useCallback(async (groupData: CreateGroupDto) => {
     setLoading(true);
@@ -110,6 +127,7 @@ export const useGroup = (): UseGroupReturn => {
     error,
     totalItems,
     handleGetGroups,
+    handleGetGroupsForDirector,
     handleCreateGroup,
     handleUpdateGroup,
     handleDeleteGroup,
