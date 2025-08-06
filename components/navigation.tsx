@@ -17,7 +17,7 @@ export function Navigation() {
 
   const isAdmin = user.role === "administrador"
   const isDirector = user.role === "director"
-  const dashboardPath = isAdmin ? "/admin/dashboard" : isDirector ? "/director" : "/maestro/dashboard"
+  const dashboardPath = isAdmin ? "/admin/dashboard" : isDirector ? "/director/alumnos" : "/maestro/dashboard"
 
   const handleLogout = () => {
     logout()

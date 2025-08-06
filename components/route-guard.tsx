@@ -29,7 +29,7 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
         } else if (user.role === "maestro") {
           router.push("/maestro/dashboard")
         } else if (user.role === "director") {
-          router.push("/director/dashboard")
+          router.push("/director/alumnos")
         } else {
           router.push("/auth/signin")
         }

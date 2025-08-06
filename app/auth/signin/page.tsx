@@ -34,7 +34,7 @@ export default function SignIn() {
         if (user.role === "administrador") {
           router.push("/admin/dashboard")
         } else if (user.role === "director") {
-          router.push("/director")
+          router.push("/director/alumnos")
         } else {
           router.push("/maestro/asignaturas")
         }
