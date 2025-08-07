@@ -721,7 +721,7 @@ export default function MaestroAsignaturas() {
       }
       
       // Recalcular calificaciones parciales después de cambiar ponderaciones
-      await calcularCalificacionesParcialesTodosAlumnos(selectedPartial);
+      await calcularCalificacionesParcialesTodosAlumnos(selectedPartial, calificacionesMap);
       
     } catch (error) {
       console.error('Error al guardar la ponderación:', error)
@@ -941,13 +941,13 @@ export default function MaestroAsignaturas() {
       // Desbloquear el botón inmediatamente después de guardar las asistencias
       setIsSavingAttendance(false)
       
-      // Recalcular calificaciones parciales después de guardar asistencias (en segundo plano)
-      try {
-        await calcularCalificacionesParcialesTodosAlumnos(selectedPartial);
-      } catch (error) {
-        console.error('Error al recalcular calificaciones:', error)
-        // No mostrar error al usuario ya que las asistencias ya se guardaron correctamente
-      }
+              // Recalcular calificaciones parciales después de guardar asistencias (en segundo plano)
+        try {
+          await calcularCalificacionesParcialesTodosAlumnos(selectedPartial, calificacionesMap);
+        } catch (error) {
+          console.error('Error al recalcular calificaciones:', error)
+          // No mostrar error al usuario ya que las asistencias ya se guardaron correctamente
+        }
       
     } catch (error) {
       
@@ -2075,7 +2075,7 @@ export default function MaestroAsignaturas() {
     }
   }, [calificacionesLoaded]); // Solo depende de calificacionesLoaded
 
-  // LIMPIEZA ESPECÍFICA PARA EL PROBLEMA DEL PRIMER AL SEGUNDO PARCIAL
+  // LIMPIEZA ESPECÍFICA PARA EL PROBLEMA DEL CAMBIO ENTRE PARCIALES
   useEffect(() => {
     // Si estamos en el segundo parcial y hay calificaciones del primer parcial, limpiarlas
     if (selectedPartial === 2 && Object.keys(calificacionesAlumnos).length > 0) {
@@ -2091,6 +2091,27 @@ export default function MaestroAsignaturas() {
       
       if (hasFirstPartialGrades) {
         console.log('🧹 LIMPIANDO CALIFICACIONES DEL PRIMER PARCIAL');
+        setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
+        setCalificacionesParcialesAlumnos({});
+        setCalificacionesMap({});
+        setAsistenciasMap({});
+      }
+    }
+    
+    // Si estamos en el tercer parcial y hay calificaciones de parciales anteriores, limpiarlas
+    if (selectedPartial === 3 && Object.keys(calificacionesAlumnos).length > 0) {
+      console.log('🎯 DETECTADO CAMBIO A TERCER PARCIAL - LIMPIEZA ESPECÍFICA');
+      
+      // Verificar si las calificaciones son de parciales anteriores
+      const hasPreviousPartialGrades = Object.values(calificacionesAlumnos).some((studentGrades: any) => {
+        return studentGrades.actividades.some((act: any) => act.grade > 0) ||
+               studentGrades.evidencias.some((ev: any) => ev.grade > 0) ||
+               studentGrades.producto.grade > 0 ||
+               studentGrades.examen.grade > 0;
+      });
+      
+      if (hasPreviousPartialGrades) {
+        console.log('🧹 LIMPIANDO CALIFICACIONES DE PARCIALES ANTERIORES');
         setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         setCalificacionesParcialesAlumnos({});
         setCalificacionesMap({});
@@ -2239,7 +2260,7 @@ export default function MaestroAsignaturas() {
       }
 
       // Recalcular calificaciones parciales de todos los alumnos
-      await calcularCalificacionesParcialesTodosAlumnos(selectedPartial);
+      await calcularCalificacionesParcialesTodosAlumnos(selectedPartial, calificacionesMap);
 
     } catch (error) {
       console.error('Error al guardar calificación:', error);
@@ -2609,9 +2630,12 @@ export default function MaestroAsignaturas() {
     await actualizarCalificacionesParcialesEnBD(nuevasCalificacionesParciales);
   };
 
-  const calcularCalificacionesParcialesTodosAlumnos = async (parcialSeleccionado?: number) => {
+  const calcularCalificacionesParcialesTodosAlumnos = async (parcialSeleccionado?: number, calificacionesMapParam?: {[key: number]: {[key: number]: number}}) => {
     // Usar el parcial pasado como parámetro o el estado actual
     const parcialActual = parcialSeleccionado || selectedPartial;
+    
+    // Usar el mapa de calificaciones pasado como parámetro o el estado actual
+    const calificacionesMapToUse = calificacionesMapParam || calificacionesMap;
     
     if (!ponderacionesCurso || !alumnos.length) {
       
@@ -2765,10 +2789,11 @@ export default function MaestroAsignaturas() {
         porcentajeAsistencia: porcentajeAsistencia.toFixed(2)
       });
       
-      // Obtener los parciales individuales para este alumno
-      const parcial1 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 1);
-      const parcial2 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 2);
-      const parcial3 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 3);
+      // Usar los datos ya cargados en lugar de hacer llamadas adicionales
+      const studentGrades = calificacionesMapToUse[alumno.courseGroupStudentId!] || {};
+      const parcial1 = studentGrades[1] || 0;
+      const parcial2 = studentGrades[2] || 0;
+      const parcial3 = studentGrades[3] || 0;
       
       nuevasCalificacionesParciales[alumno.courseGroupStudentId!] = {
         calificacion: Math.round(calificacionParcialFinal * 100) / 100,
@@ -2935,7 +2960,7 @@ export default function MaestroAsignaturas() {
       setCalificacionesAlumnos(nuevasCalificaciones);
       
       // Calcular calificaciones parciales después de cargar las calificaciones
-      await calcularCalificacionesParcialesTodosAlumnos(selectedPartial);
+      await calcularCalificacionesParcialesTodosAlumnos(selectedPartial, calificacionesMap);
       
       // Cargar calificaciones finales de todos los alumnos
       await cargarCalificacionesFinalesAlumnos();
