@@ -210,6 +210,20 @@ export default function MaestroAsignaturas() {
   const [asistenciasMap, setAsistenciasMap] = useState<{[key: number]: {[key: number]: any[]}}>({})
   const [calificacionesMap, setCalificacionesMap] = useState<{[key: number]: {[key: number]: number}}>({})
 
+  // Función helper para crear estructura vacía de calificaciones
+  const crearEstructuraVaciaCalificaciones = () => {
+    const estructuraVacia: {[key: number]: any} = {};
+    alumnos.forEach(alumno => {
+      estructuraVacia[alumno.courseGroupStudentId!] = {
+        actividades: Array(18).fill({ grade: 0, id: null }),
+        evidencias: Array(18).fill({ grade: 0, id: null }),
+        producto: { grade: 0, id: null },
+        examen: { grade: 0, id: null }
+      };
+    });
+    return estructuraVacia;
+  };
+
   const loadAsignaturas = async (page = 1) => {
     try {
       const limit = itemsPerPage
@@ -2025,7 +2039,7 @@ export default function MaestroAsignaturas() {
         calcularCalificacionesParcialesOptimizado(alumnos, calificacionesMap, asistenciasMap);
       }
     }
-  }, [ponderacionesCurso, selectedPartial, calificacionesLoaded, calificacionesMap, asistenciasMap]);
+  }, [isModalOpen, ponderacionesCurso, calificacionesLoaded]); // Removidas dependencias problemáticas
 
   // Recargar actividades cuando se cierre el modal de actividades (para reflejar cambios)
   useEffect(() => {
@@ -2046,22 +2060,15 @@ export default function MaestroAsignaturas() {
 
   // MONITOREO AGRESIVO - Forzar limpieza si detecta calificaciones incorrectas
   useEffect(() => {
-    console.log('🔍 MONITOREO AGRESIVO:', {
-      selectedPartial,
-      calificacionesLength: Object.keys(calificacionesAlumnos).length,
-      calificacionesLoaded,
-      timestamp: new Date().toISOString()
-    });
-    
     // Si hay calificaciones pero no están cargadas, limpiarlas inmediatamente
     if (Object.keys(calificacionesAlumnos).length > 0 && !calificacionesLoaded) {
       console.log('⚠️ DETECTADAS CALIFICACIONES INCORRECTAS - LIMPIANDO INMEDIATAMENTE');
-      setCalificacionesAlumnos({});
+      setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
       setCalificacionesParcialesAlumnos({});
       setCalificacionesMap({});
       setAsistenciasMap({});
     }
-  }, [calificacionesAlumnos, selectedPartial, calificacionesLoaded]);
+  }, [calificacionesLoaded]); // Solo depende de calificacionesLoaded
 
   // LIMPIEZA ESPECÍFICA PARA EL PROBLEMA DEL PRIMER AL SEGUNDO PARCIAL
   useEffect(() => {
@@ -2079,34 +2086,16 @@ export default function MaestroAsignaturas() {
       
       if (hasFirstPartialGrades) {
         console.log('🧹 LIMPIANDO CALIFICACIONES DEL PRIMER PARCIAL');
-        setCalificacionesAlumnos({});
+        setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         setCalificacionesParcialesAlumnos({});
         setCalificacionesMap({});
         setAsistenciasMap({});
-        
-        // Limpieza adicional con timeout
-        setTimeout(() => {
-          console.log('🧹 LIMPIEZA ADICIONAL CON TIMEOUT');
-          setCalificacionesAlumnos({});
-        }, 0);
       }
     }
-  }, [selectedPartial, calificacionesAlumnos]);
+  }, [selectedPartial]); // Solo depende de selectedPartial
 
   // FUNCIÓN DE LIMPIEZA FORZADA - SE EJECUTA CADA 500ms PARA VERIFICAR
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (selectedPartial === 2 && Object.keys(calificacionesAlumnos).length > 0 && !calificacionesLoaded) {
-        console.log('🔄 LIMPIEZA PERIÓDICA - FORZANDO LIMPIEZA');
-        setCalificacionesAlumnos({});
-        setCalificacionesParcialesAlumnos({});
-        setCalificacionesMap({});
-        setAsistenciasMap({});
-      }
-    }, 500);
-    
-    return () => clearInterval(interval);
-  }, [selectedPartial, calificacionesAlumnos, calificacionesLoaded]);
+  // ELIMINADO: Este useEffect estaba causando el bucle infinito
 
   // Función para manejar el cambio de parcial en la tabla de evaluaciones (OPTIMIZADO)
   const handleParcialChangeEvaluaciones = async (newParcial: number) => {
@@ -2120,7 +2109,10 @@ export default function MaestroAsignaturas() {
         // 1. Limpiar TODOS los estados relacionados con calificaciones
         setCalificacionesLoaded(false);
         setCalificacionesParcialesAlumnos({});
-        setCalificacionesAlumnos({});
+        
+        // Inicializar calificacionesAlumnos con estructura vacía pero válida
+        setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
+        
         setCalificacionesMap({});
         setAsistenciasMap({});
         
@@ -2137,17 +2129,17 @@ export default function MaestroAsignaturas() {
         // 3. Forzar múltiples limpiezas con diferentes timing
         setTimeout(() => {
           console.log('🧹 Limpieza adicional 1');
-          setCalificacionesAlumnos({});
+          setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         }, 0);
         
         setTimeout(() => {
           console.log('🧹 Limpieza adicional 2');
-          setCalificacionesAlumnos({});
+          setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         }, 50);
         
         setTimeout(() => {
           console.log('🧹 Limpieza adicional 3');
-          setCalificacionesAlumnos({});
+          setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         }, 100);
         
         // 4. Esperar a que se complete la limpieza
@@ -2481,15 +2473,15 @@ export default function MaestroAsignaturas() {
       if (ponderacionesCurso.asistencia > 0) {
         const asistenciasAlumno = asistenciasMap[courseGroupStudentId]?.[selectedPartial] || [];
         
-        console.log('🔍 Calculando asistencia para alumno:', {
-          courseGroupStudentId,
-          selectedPartial,
-          asistenciasAlumno,
-          ponderacionAsistencia: ponderacionesCurso.asistencia,
-          todasLasAsistenciasDelAlumno: asistenciasMap[courseGroupStudentId] || {},
-          asistenciasMapKeys: Object.keys(asistenciasMap),
-          asistenciasMapValues: Object.values(asistenciasMap).slice(0, 3) // Mostrar solo los primeros 3 para no saturar
-        });
+        // Log reducido para evitar spam en consola
+        if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
+          console.log('🔍 Calculando asistencia para primer alumno:', {
+            courseGroupStudentId,
+            selectedPartial,
+            asistenciasAlumnoLength: asistenciasAlumno.length,
+            ponderacionAsistencia: ponderacionesCurso.asistencia
+          });
+        }
         
         if (asistenciasAlumno.length > 0) {
           const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
@@ -2498,21 +2490,30 @@ export default function MaestroAsignaturas() {
           const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
           const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
           
-          console.log('🔍 Resultados del cálculo de asistencia:', {
-            asistenciasPresentes,
-            totalAsistencias,
-            porcentajeAsistencia,
-            asistenciaPromedio,
-            calificacionAsistencia
-          });
+          // Log reducido para evitar spam en consola
+          if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
+            console.log('🔍 Resultados del cálculo de asistencia:', {
+              asistenciasPresentes,
+              totalAsistencias,
+              porcentajeAsistencia,
+              asistenciaPromedio,
+              calificacionAsistencia
+            });
+          }
           
           calificacionFinal += calificacionAsistencia;
           totalPonderacion += ponderacionesCurso.asistencia;
         } else {
-          console.log('⚠️ No hay asistencias registradas para este alumno en el parcial seleccionado');
+          // Log reducido para evitar spam en consola
+          if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
+            console.log('⚠️ No hay asistencias registradas para este alumno en el parcial seleccionado');
+          }
         }
       } else {
-        console.log('⚠️ La ponderación de asistencia es 0, no se calcula');
+        // Log reducido para evitar spam en consola
+        if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
+          console.log('⚠️ La ponderación de asistencia es 0, no se calcula');
+        }
       }
       
       // 2. Cálculo de Actividades
@@ -3375,7 +3376,7 @@ export default function MaestroAsignaturas() {
                                     min={0}
                                     max={10}
                                     step={0.1}
-                                    value={calificacionesAlumnos[alumno.courseGroupStudentId!]?.actividades[i]?.grade || ''}
+                                    value={calificacionesAlumnos[alumno.courseGroupStudentId!]?.actividades?.[i]?.grade || ''}
                                     className="w-12 text-center border-none bg-transparent focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
                                     placeholder="0.0"
                                     onChange={(e) => {
@@ -3403,7 +3404,7 @@ export default function MaestroAsignaturas() {
                                     min={0}
                                     max={10}
                                     step={0.1}
-                                    value={calificacionesAlumnos[alumno.courseGroupStudentId!]?.evidencias[i]?.grade || ''}
+                                    value={calificacionesAlumnos[alumno.courseGroupStudentId!]?.evidencias?.[i]?.grade || ''}
                                     className="w-12 text-center border-none bg-transparent focus:outline-none focus:ring-1 focus:ring-green-500 rounded"
                                     placeholder="0.0"
                                     onChange={(e) => {
