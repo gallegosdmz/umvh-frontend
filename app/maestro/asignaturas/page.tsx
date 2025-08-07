@@ -161,6 +161,9 @@ export default function MaestroAsignaturas() {
     parcial3?: number
   }}>({})
   
+  // Estado para controlar si ya se han cargado las calificaciones y evitar bucles infinitos
+  const [calificacionesLoaded, setCalificacionesLoaded] = useState(false)
+  
   // Estado para el modal general
   const [isGeneralModalOpen, setIsGeneralModalOpen] = useState(false)
   const [selectedCourseForGeneral, setSelectedCourseForGeneral] = useState<Course | null>(null)
@@ -914,13 +917,20 @@ export default function MaestroAsignaturas() {
       
       toast.success('Asistencia guardada correctamente')
       
-      // Recalcular calificaciones parciales después de guardar asistencias
-      await calcularCalificacionesParcialesTodosAlumnos();
+      // Desbloquear el botón inmediatamente después de guardar las asistencias
+      setIsSavingAttendance(false)
+      
+      // Recalcular calificaciones parciales después de guardar asistencias (en segundo plano)
+      try {
+        await calcularCalificacionesParcialesTodosAlumnos();
+      } catch (error) {
+        console.error('Error al recalcular calificaciones:', error)
+        // No mostrar error al usuario ya que las asistencias ya se guardaron correctamente
+      }
       
     } catch (error) {
       
       toast.error('Error al guardar la asistencia')
-    } finally {
       setIsSavingAttendance(false)
     }
   }
@@ -1677,17 +1687,22 @@ export default function MaestroAsignaturas() {
 
   // Cargar calificaciones cuando se abra el modal de alumnos
   useEffect(() => {
-    if (isModalOpen && selectedCourseGroup && alumnos.length > 0) {
+    if (isModalOpen && selectedCourseGroup && alumnos.length > 0 && !calificacionesLoaded) {
       cargarCalificacionesAlumnos();
+      setCalificacionesLoaded(true);
     }
-  }, [isModalOpen, selectedCourseGroup, alumnos, selectedPartial, actividadesDefinidas]);
+  }, [isModalOpen, selectedCourseGroup, alumnos, selectedPartial, calificacionesLoaded]);
 
-  // Recalcular calificaciones parciales cuando cambien las ponderaciones
+  // Recalcular calificaciones parciales cuando cambien las ponderaciones (solo una vez al cargar)
   useEffect(() => {
-    if (isModalOpen && ponderacionesCurso && Object.keys(calificacionesAlumnos).length > 0) {
-      calcularCalificacionesParcialesTodosAlumnos();
+    if (isModalOpen && ponderacionesCurso && Object.keys(calificacionesAlumnos).length > 0 && calificacionesLoaded) {
+      // Solo recalcular si no se han calculado las calificaciones parciales aún
+      const shouldRecalculate = Object.keys(calificacionesParcialesAlumnos).length === 0;
+      if (shouldRecalculate) {
+        calcularCalificacionesParcialesTodosAlumnos();
+      }
     }
-  }, [ponderacionesCurso, calificacionesAlumnos, selectedPartial]);
+  }, [ponderacionesCurso, selectedPartial, calificacionesLoaded]);
 
   // Recargar actividades cuando se cierre el modal de actividades (para reflejar cambios)
   useEffect(() => {
@@ -1712,6 +1727,10 @@ export default function MaestroAsignaturas() {
     
     if (selectedCourseGroup) {
       try {
+        // Resetear el estado de calificaciones cargadas para el nuevo parcial
+        setCalificacionesLoaded(false);
+        setCalificacionesParcialesAlumnos({});
+        
         // Recargar las actividades del nuevo parcial
         const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup.id!)
         const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, newParcial)
@@ -2627,7 +2646,19 @@ export default function MaestroAsignaturas() {
             </div>
 
             {/* Modal de Alumnos con Tabla de Evaluaciones */}
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <Dialog open={isModalOpen} onOpenChange={(open) => {
+              setIsModalOpen(open);
+              if (!open) {
+                // Resetear estados cuando se cierre el modal
+                setCalificacionesLoaded(false);
+                setCalificacionesAlumnos({});
+                setCalificacionesParcialesAlumnos({});
+                setAlumnos([]);
+                setSelectedCourse(null);
+                setSelectedCourseGroup(null);
+                setSelectedGroupId(null);
+              }
+            }}>
               <DialogContent className="max-w-[95vw] h-[90vh] flex flex-col">
                 <DialogHeader>
                   <div>
