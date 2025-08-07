@@ -206,6 +206,10 @@ export default function MaestroAsignaturas() {
     extraordinario: number | null;
   }}>({});
 
+  // Estado para almacenar los mapas optimizados de asistencias y calificaciones
+  const [asistenciasMap, setAsistenciasMap] = useState<{[key: number]: {[key: number]: any[]}}>({})
+  const [calificacionesMap, setCalificacionesMap] = useState<{[key: number]: {[key: number]: number}}>({})
+
   const loadAsignaturas = async (page = 1) => {
     try {
       const limit = itemsPerPage
@@ -1376,38 +1380,79 @@ export default function MaestroAsignaturas() {
       const { partialGrades, attendances, partialEvaluations, partialEvaluationGrades } = evaluationsData;
       
       // Crear mapas optimizados para calificaciones parciales
-      const calificacionesMap: {[key: number]: {[key: number]: number}} = {};
+      const calificacionesMapTemp: {[key: number]: {[key: number]: number}} = {};
       if (partialGrades && Array.isArray(partialGrades)) {
         partialGrades.forEach((grade: any) => {
           const courseGroupStudentId = grade.courseGroupStudentId;
           const partial = grade.partial;
           const gradeValue = grade.grade || 0;
           
-          if (!calificacionesMap[courseGroupStudentId]) {
-            calificacionesMap[courseGroupStudentId] = {};
+          if (!calificacionesMapTemp[courseGroupStudentId]) {
+            calificacionesMapTemp[courseGroupStudentId] = {};
           }
-          calificacionesMap[courseGroupStudentId][partial] = gradeValue;
+          calificacionesMapTemp[courseGroupStudentId][partial] = gradeValue;
         });
       }
       
+      // Guardar en el estado
+      setCalificacionesMap(calificacionesMapTemp);
+      console.log('🔍 Estado de calificaciones guardado:', {
+        calificacionesMapTempKeys: Object.keys(calificacionesMapTemp),
+        calificacionesMapTempSample: Object.entries(calificacionesMapTemp).slice(0, 3)
+      });
+      
       // Crear mapas optimizados para asistencias
-      const asistenciasMap: {[key: number]: {[key: number]: any[]}} = {};
+      const asistenciasMapTemp: {[key: number]: {[key: number]: any[]}} = {};
+      console.log('🔍 Procesando attendances:', {
+        exists: !!attendances,
+        isArray: Array.isArray(attendances),
+        length: attendances?.length || 0,
+        data: attendances
+      });
+      
       if (attendances && Array.isArray(attendances)) {
+        // Agrupar asistencias por courseGroupStudentId y partial
+        const asistenciasPorEstudiante: {[key: number]: {[key: number]: any[]}} = {};
+        
         attendances.forEach((attendance: any) => {
           const courseGroupStudentId = attendance.courseGroupStudentId;
           const partial = attendance.partial;
           
-          if (!asistenciasMap[courseGroupStudentId]) {
-            asistenciasMap[courseGroupStudentId] = {};
+          if (!asistenciasPorEstudiante[courseGroupStudentId]) {
+            asistenciasPorEstudiante[courseGroupStudentId] = {};
           }
           
-          if (!asistenciasMap[courseGroupStudentId][partial]) {
-            asistenciasMap[courseGroupStudentId][partial] = [];
+          if (!asistenciasPorEstudiante[courseGroupStudentId][partial]) {
+            asistenciasPorEstudiante[courseGroupStudentId][partial] = [];
           }
           
-          asistenciasMap[courseGroupStudentId][partial].push(attendance);
+          asistenciasPorEstudiante[courseGroupStudentId][partial].push(attendance);
         });
+        
+        // Crear el mapa final
+        Object.keys(asistenciasPorEstudiante).forEach(courseGroupStudentId => {
+          const studentId = parseInt(courseGroupStudentId);
+          asistenciasMapTemp[studentId] = asistenciasPorEstudiante[studentId];
+        });
+        
+        console.log('🔍 Mapa de asistencias creado:', asistenciasMapTemp);
+        console.log('🔍 Resumen de asistencias por estudiante:', Object.keys(asistenciasMapTemp).map(id => ({
+          courseGroupStudentId: id,
+          parciales: Object.keys(asistenciasMapTemp[parseInt(id)]).map(partial => ({
+            partial: parseInt(partial),
+            count: asistenciasMapTemp[parseInt(id)][parseInt(partial)].length
+          }))
+        })));
+      } else {
+        console.log('⚠️ No se encontraron attendances o no es un array');
       }
+      
+      // Guardar en el estado
+      setAsistenciasMap(asistenciasMapTemp);
+      console.log('🔍 Estado de asistencias guardado:', {
+        asistenciasMapTempKeys: Object.keys(asistenciasMapTemp),
+        asistenciasMapTempSample: Object.entries(asistenciasMapTemp).slice(0, 3)
+      });
       
       // Crear mapa de calificaciones de actividades por estudiante y evaluación
       const calificacionesActividadesMap: {[key: number]: {[key: number]: any}} = {};
@@ -1496,19 +1541,19 @@ export default function MaestroAsignaturas() {
       }
       
       console.log('🔍 Calificaciones procesadas:', nuevasCalificaciones);
-      console.log('🔍 Calificaciones parciales:', calificacionesMap);
+      console.log('🔍 Calificaciones parciales:', calificacionesMapTemp);
       console.log('🔍 Resumen del procesamiento:', {
         estudiantesProcesados: students.length,
         calificacionesProcesadas: Object.keys(nuevasCalificaciones).length,
-        calificacionesParciales: Object.keys(calificacionesMap).length,
-        asistencias: Object.keys(asistenciasMap).length
+        calificacionesParciales: Object.keys(calificacionesMapTemp).length,
+        asistencias: Object.keys(asistenciasMapTemp).length
       });
       
       // Establecer los datos procesados
       setCalificacionesAlumnos(nuevasCalificaciones);
       
       // Calcular calificaciones parciales usando los datos ya cargados
-      await calcularCalificacionesParcialesOptimizado(students, calificacionesMap, asistenciasMap);
+      await calcularCalificacionesParcialesOptimizado(students, calificacionesMapTemp, asistenciasMapTemp);
       
       // Marcar como cargadas para evitar bucles
       setCalificacionesLoaded(true);
@@ -1976,11 +2021,11 @@ export default function MaestroAsignaturas() {
       // Solo recalcular si no se han calculado las calificaciones parciales aún
       const shouldRecalculate = Object.keys(calificacionesParcialesAlumnos).length === 0;
       if (shouldRecalculate) {
-        // Usar la función optimizada en lugar de la que hace peticiones individuales
-        calcularCalificacionesParcialesOptimizado(alumnos, {}, {});
+        // Usar la función optimizada con los mapas del estado
+        calcularCalificacionesParcialesOptimizado(alumnos, calificacionesMap, asistenciasMap);
       }
     }
-  }, [ponderacionesCurso, selectedPartial, calificacionesLoaded]);
+  }, [ponderacionesCurso, selectedPartial, calificacionesLoaded, calificacionesMap, asistenciasMap]);
 
   // Recargar actividades cuando se cierre el modal de actividades (para reflejar cambios)
   useEffect(() => {
@@ -2293,7 +2338,18 @@ export default function MaestroAsignaturas() {
     calificacionesMap: {[key: number]: {[key: number]: number}}, 
     asistenciasMap: {[key: number]: {[key: number]: any[]}}
   ) => {
+    console.log('🔍 Iniciando cálculo de calificaciones parciales:', {
+      ponderacionesCurso,
+      studentsCount: students.length,
+      selectedPartial,
+      asistenciasMapKeys: Object.keys(asistenciasMap),
+      calificacionesMapKeys: Object.keys(calificacionesMap),
+      asistenciasMapSample: Object.entries(asistenciasMap).slice(0, 2),
+      calificacionesMapSample: Object.entries(calificacionesMap).slice(0, 2)
+    });
+    
     if (!ponderacionesCurso || !students.length) {
+      console.log('⚠️ No se pueden calcular calificaciones: ponderacionesCurso o students vacíos');
       return;
     }
     
@@ -2322,6 +2378,16 @@ export default function MaestroAsignaturas() {
       if (ponderacionesCurso.asistencia > 0) {
         const asistenciasAlumno = asistenciasMap[courseGroupStudentId]?.[selectedPartial] || [];
         
+        console.log('🔍 Calculando asistencia para alumno:', {
+          courseGroupStudentId,
+          selectedPartial,
+          asistenciasAlumno,
+          ponderacionAsistencia: ponderacionesCurso.asistencia,
+          todasLasAsistenciasDelAlumno: asistenciasMap[courseGroupStudentId] || {},
+          asistenciasMapKeys: Object.keys(asistenciasMap),
+          asistenciasMapValues: Object.values(asistenciasMap).slice(0, 3) // Mostrar solo los primeros 3 para no saturar
+        });
+        
         if (asistenciasAlumno.length > 0) {
           const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
           const totalAsistencias = asistenciasAlumno.length;
@@ -2329,9 +2395,21 @@ export default function MaestroAsignaturas() {
           const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
           const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
           
+          console.log('🔍 Resultados del cálculo de asistencia:', {
+            asistenciasPresentes,
+            totalAsistencias,
+            porcentajeAsistencia,
+            asistenciaPromedio,
+            calificacionAsistencia
+          });
+          
           calificacionFinal += calificacionAsistencia;
           totalPonderacion += ponderacionesCurso.asistencia;
+        } else {
+          console.log('⚠️ No hay asistencias registradas para este alumno en el parcial seleccionado');
         }
+      } else {
+        console.log('⚠️ La ponderación de asistencia es 0, no se calcula');
       }
       
       // 2. Cálculo de Actividades
@@ -2403,6 +2481,13 @@ export default function MaestroAsignaturas() {
         parcial2: parcial2,
         parcial3: parcial3
       };
+      
+      console.log('🔍 Calificación parcial calculada para alumno:', {
+        courseGroupStudentId,
+        calificacion: Math.round(calificacionParcialFinal * 100) / 100,
+        porcentajeAsistencia: Math.round(porcentajeAsistencia * 100) / 100,
+        totalPonderacion
+      });
     }
     
     setCalificacionesParcialesAlumnos(nuevasCalificacionesParciales);
