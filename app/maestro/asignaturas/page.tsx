@@ -2044,26 +2044,129 @@ export default function MaestroAsignaturas() {
     }
   }, [isActividadesModalOpen, selectedCourseGroup, selectedPartial, isModalOpen])
 
+  // MONITOREO AGRESIVO - Forzar limpieza si detecta calificaciones incorrectas
+  useEffect(() => {
+    console.log('🔍 MONITOREO AGRESIVO:', {
+      selectedPartial,
+      calificacionesLength: Object.keys(calificacionesAlumnos).length,
+      calificacionesLoaded,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Si hay calificaciones pero no están cargadas, limpiarlas inmediatamente
+    if (Object.keys(calificacionesAlumnos).length > 0 && !calificacionesLoaded) {
+      console.log('⚠️ DETECTADAS CALIFICACIONES INCORRECTAS - LIMPIANDO INMEDIATAMENTE');
+      setCalificacionesAlumnos({});
+      setCalificacionesParcialesAlumnos({});
+      setCalificacionesMap({});
+      setAsistenciasMap({});
+    }
+  }, [calificacionesAlumnos, selectedPartial, calificacionesLoaded]);
+
+  // LIMPIEZA ESPECÍFICA PARA EL PROBLEMA DEL PRIMER AL SEGUNDO PARCIAL
+  useEffect(() => {
+    // Si estamos en el segundo parcial y hay calificaciones del primer parcial, limpiarlas
+    if (selectedPartial === 2 && Object.keys(calificacionesAlumnos).length > 0) {
+      console.log('🎯 DETECTADO CAMBIO A SEGUNDO PARCIAL - LIMPIEZA ESPECÍFICA');
+      
+      // Verificar si las calificaciones son del parcial anterior
+      const hasFirstPartialGrades = Object.values(calificacionesAlumnos).some((studentGrades: any) => {
+        return studentGrades.actividades.some((act: any) => act.grade > 0) ||
+               studentGrades.evidencias.some((ev: any) => ev.grade > 0) ||
+               studentGrades.producto.grade > 0 ||
+               studentGrades.examen.grade > 0;
+      });
+      
+      if (hasFirstPartialGrades) {
+        console.log('🧹 LIMPIANDO CALIFICACIONES DEL PRIMER PARCIAL');
+        setCalificacionesAlumnos({});
+        setCalificacionesParcialesAlumnos({});
+        setCalificacionesMap({});
+        setAsistenciasMap({});
+        
+        // Limpieza adicional con timeout
+        setTimeout(() => {
+          console.log('🧹 LIMPIEZA ADICIONAL CON TIMEOUT');
+          setCalificacionesAlumnos({});
+        }, 0);
+      }
+    }
+  }, [selectedPartial, calificacionesAlumnos]);
+
+  // FUNCIÓN DE LIMPIEZA FORZADA - SE EJECUTA CADA 500ms PARA VERIFICAR
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (selectedPartial === 2 && Object.keys(calificacionesAlumnos).length > 0 && !calificacionesLoaded) {
+        console.log('🔄 LIMPIEZA PERIÓDICA - FORZANDO LIMPIEZA');
+        setCalificacionesAlumnos({});
+        setCalificacionesParcialesAlumnos({});
+        setCalificacionesMap({});
+        setAsistenciasMap({});
+      }
+    }, 500);
+    
+    return () => clearInterval(interval);
+  }, [selectedPartial, calificacionesAlumnos, calificacionesLoaded]);
+
   // Función para manejar el cambio de parcial en la tabla de evaluaciones (OPTIMIZADO)
   const handleParcialChangeEvaluaciones = async (newParcial: number) => {
     setSelectedPartial(newParcial);
     
     if (selectedCourseGroup) {
       try {
-        // Resetear el estado de calificaciones cargadas para el nuevo parcial
+        // LIMPIEZA AGRESIVA - SOLUCIÓN DIRECTA AL PROBLEMA
+        console.log('🧹 LIMPIEZA AGRESIVA INICIADA');
+        
+        // 1. Limpiar TODOS los estados relacionados con calificaciones
         setCalificacionesLoaded(false);
         setCalificacionesParcialesAlumnos({});
+        setCalificacionesAlumnos({});
+        setCalificacionesMap({});
+        setAsistenciasMap({});
         
-        // Recargar las actividades del nuevo parcial usando el endpoint optimizado
+        // 2. Limpiar evaluaciones parciales si el modal está abierto
+        if (isEvaluacionesModalOpen) {
+          setEvaluacionesParciales({
+            actividades: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+            evidencias: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+            producto: { name: '', grade: 0, id: null, partialEvaluationId: null },
+            examen: { name: '', grade: 0, id: null, partialEvaluationId: null },
+          });
+        }
+        
+        // 3. Forzar múltiples limpiezas con diferentes timing
+        setTimeout(() => {
+          console.log('🧹 Limpieza adicional 1');
+          setCalificacionesAlumnos({});
+        }, 0);
+        
+        setTimeout(() => {
+          console.log('🧹 Limpieza adicional 2');
+          setCalificacionesAlumnos({});
+        }, 50);
+        
+        setTimeout(() => {
+          console.log('🧹 Limpieza adicional 3');
+          setCalificacionesAlumnos({});
+        }, 100);
+        
+        // 4. Esperar a que se complete la limpieza
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // 5. Actualizar el parcial seleccionado
+        setSelectedPartial(newParcial);
+        
+        // 6. Cargar los datos del nuevo parcial
+        console.log('📡 Cargando datos del nuevo parcial:', newParcial);
         const evaluationsData = await CourseService.getCourseGroupEvaluationsData(selectedCourseGroup.id!)
         const actividadesDefinidasData = evaluationsData.partialEvaluations || []
         const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, newParcial)
         setActividadesDefinidas(actividadesFiltradas)
         
-        // Procesar los datos optimizados para el nuevo parcial
+        // 7. Procesar los datos optimizados para el nuevo parcial
         await procesarDatosOptimizados(evaluationsData, alumnos);
         
-        console.log('✅ Parcial cambiado optimizadamente - 1 petición en lugar de múltiples')
+        console.log('✅ Parcial cambiado con limpieza agresiva completada')
       } catch (error) {
         console.error('Error al cambiar parcial:', error)
         toast.error('Error al cambiar de parcial')
