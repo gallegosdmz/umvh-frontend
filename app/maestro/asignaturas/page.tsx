@@ -180,6 +180,14 @@ export default function MaestroAsignaturas() {
     promedio: number
   }}>({})
   
+  // Estados separados para el modal de General (NO afectan otros modales)
+  const [alumnosGenerales, setAlumnosGenerales] = useState<(Student & { courseGroupStudentId?: number })[]>([])
+  const [calificacionesFinalesGenerales, setCalificacionesFinalesGenerales] = useState<{[key: number]: {
+    ordinario: number | null;
+    extraordinario: number | null;
+  }}>({})
+  const [isLoadingGenerales, setIsLoadingGenerales] = useState(false)
+  
   // 1. Agregar estados para el modal de calificación final
   const [isCalificacionFinalModalOpen, setIsCalificacionFinalModalOpen] = useState(false);
   const [alumnoCalificacionFinal, setAlumnoCalificacionFinal] = useState<any | null>(null);
@@ -1666,17 +1674,18 @@ export default function MaestroAsignaturas() {
 
   // Función para abrir el modal general
   const handleOpenGeneralModal = async (course: Course, courseGroup: any) => {
-    
+    console.log('🚀 Abriendo modal general para:', { course: course.name, courseGroup: courseGroup.id });
     
     setSelectedCourseForGeneral(course);
     setSelectedCourseGroupForGeneral(courseGroup);
     setIsGeneralModalOpen(true);
+    setIsLoadingGenerales(true);
     
     try {
       // Cargar todos los datos del grupo en una sola llamada (SUPER OPTIMIZADO)
       const datosCompletos = await obtenerDatosCompletosGrupo(courseGroup.id);
       
-      // Mapear estudiantes
+      // Mapear estudiantes para el modal de General (estado separado)
       const mappedStudents = datosCompletos.students.map((item: any) => ({
         id: item.student.id,
         fullName: item.student.fullName,
@@ -1684,7 +1693,7 @@ export default function MaestroAsignaturas() {
         registrationNumber: item.student.registrationNumber,
         courseGroupStudentId: item.id
       }));
-      setAlumnos(mappedStudents);
+      setAlumnosGenerales(mappedStudents); // Usar estado separado
       
       // Usar los datos ya cargados
       const { calificacionesMap, asistenciasMap, calificacionesFinalesMap } = datosCompletos;
@@ -1705,7 +1714,12 @@ export default function MaestroAsignaturas() {
         const parcial2 = studentGrades[2] || 0;
         const parcial3 = studentGrades[3] || 0;
         
-        const promedio = ((parcial1 + parcial2 + parcial3) / 3);
+        // Calcular promedio solo con parciales válidos
+        const parcialesValidos = [parcial1, parcial2, parcial3]
+          .filter(p => p > 0 && typeof p === 'number' && !isNaN(p));
+        const promedio = parcialesValidos.length > 0 
+          ? Math.round((parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) * 100) / 100
+          : 0;
         
         calificacionesTemp[courseGroupStudentId] = {
           parcial1,
@@ -1716,11 +1730,75 @@ export default function MaestroAsignaturas() {
       }
       
       setCalificacionesGenerales(calificacionesTemp);
-      setCalificacionesFinalesAlumnos(calificacionesFinalesMap);
+      setCalificacionesFinalesGenerales(calificacionesFinalesMap); // Usar estado separado
+      
+      // CALCULAR Y GUARDAR AUTOMÁTICAMENTE LAS CALIFICACIONES FINALES
+      console.log('🚀 Iniciando cálculo automático de calificaciones finales...');
+      for (const alumno of mappedStudents) {
+        const courseGroupStudentId = alumno.courseGroupStudentId!;
+        const calificacion = calificacionesTemp[courseGroupStudentId];
+        
+        if (calificacion && calificacion.promedio > 0) {
+          // Calcular automáticamente la calificación final
+          await calcularYGuardarCalificacionesFinales(courseGroupStudentId, calificacion.promedio);
+        }
+      }
+      
+      console.log('✅ Datos cargados para modal general:', {
+        estudiantes: mappedStudents.length,
+        calificaciones: Object.keys(calificacionesTemp).length,
+        calificacionesFinales: Object.keys(calificacionesFinalesMap).length
+      });
       
     } catch (error) {
       console.error('Error al cargar datos para el modal general:', error);
       toast.error('Error al cargar los datos');
+    } finally {
+      setIsLoadingGenerales(false);
+    }
+  };
+
+  // Función para calcular y guardar automáticamente las calificaciones finales
+  const calcularYGuardarCalificacionesFinales = async (courseGroupStudentId: number, promedio: number) => {
+    if (promedio <= 0) return;
+    
+    try {
+      console.log('🔍 Calculando calificación final para estudiante:', courseGroupStudentId, 'promedio:', promedio);
+      
+      // Buscar si ya existe una calificación final
+      const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+      
+      if (finalGrades && finalGrades.length > 0) {
+        // Actualizar la calificación final existente
+        await CourseService.updateFinalGrade(finalGrades[0].id, { 
+          grade: promedio,
+          gradeOrdinary: promedio 
+        });
+        console.log('✅ Calificación final actualizada:', promedio);
+      } else {
+        // Crear nueva calificación final
+        await CourseService.createFinalGrade({
+          grade: promedio,
+          gradeOrdinary: promedio,
+          gradeExtraordinary: null,
+          date: new Date().toISOString(),
+          type: 'final',
+          courseGroupStudentId: courseGroupStudentId
+        });
+        console.log('✅ Nueva calificación final creada:', promedio);
+      }
+      
+      // Actualizar el estado local
+      setCalificacionesFinalesGenerales(prev => ({
+        ...prev,
+        [courseGroupStudentId]: {
+          ...prev[courseGroupStudentId],
+          ordinario: promedio
+        }
+      }));
+      
+    } catch (error) {
+      console.error('Error al calcular/guardar calificación final:', error);
     }
   };
 
@@ -2119,6 +2197,26 @@ export default function MaestroAsignaturas() {
       }
     }
   }, [selectedPartial]); // Solo depende de selectedPartial
+
+  // useEffect para recalcular automáticamente calificaciones finales cuando se carguen los datos del modal general
+  useEffect(() => {
+    if (isGeneralModalOpen && alumnosGenerales.length > 0 && Object.keys(calificacionesGenerales).length > 0) {
+      console.log('🔄 Recalculando calificaciones finales automáticamente...');
+      
+      const recalcularFinales = async () => {
+        for (const alumno of alumnosGenerales) {
+          const courseGroupStudentId = alumno.courseGroupStudentId!;
+          const calificacion = calificacionesGenerales[courseGroupStudentId];
+          
+          if (calificacion && calificacion.promedio > 0) {
+            await calcularYGuardarCalificacionesFinales(courseGroupStudentId, calificacion.promedio);
+          }
+        }
+      };
+      
+      recalcularFinales();
+    }
+  }, [isGeneralModalOpen, alumnosGenerales, calificacionesGenerales]);
 
   // FUNCIÓN DE LIMPIEZA FORZADA - SE EJECUTA CADA 500ms PARA VERIFICAR
   // ELIMINADO: Este useEffect estaba causando el bucle infinito
@@ -3564,25 +3662,58 @@ export default function MaestroAsignaturas() {
             </Dialog>
 
             {/* Modal General */}
-            <Dialog open={isGeneralModalOpen} onOpenChange={setIsGeneralModalOpen}>
+            <Dialog open={isGeneralModalOpen} onOpenChange={(open) => {
+              setIsGeneralModalOpen(open);
+              if (!open) {
+                // Limpiar estados del modal de General cuando se cierre
+                setAlumnosGenerales([]);
+                setCalificacionesFinalesGenerales({});
+                setCalificacionesGenerales({});
+                setIsLoadingGenerales(false);
+              }
+            }}>
               <DialogContent className="max-w-[95vw] h-[90vh] flex flex-col">
                 <DialogHeader>
-                  <div>
-                    <DialogTitle>Reporte General - {selectedCourseForGeneral?.name}</DialogTitle>
-                    <DialogDescription>
-                      Promedio final de todos los alumnos del grupo
-                    </DialogDescription>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <DialogTitle>Reporte General - {selectedCourseForGeneral?.name}</DialogTitle>
+                      <DialogDescription>
+                        Promedio final de todos los alumnos del grupo
+                      </DialogDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                        💡 Las calificaciones finales se calculan automáticamente basadas en el promedio de los 3 parciales
+                      </div>
+                      <Button
+                        onClick={async () => {
+                          console.log('🔄 Recalculando calificaciones finales...');
+                          for (const alumno of alumnosGenerales) {
+                            const courseGroupStudentId = alumno.courseGroupStudentId!;
+                            const calificacion = calificacionesGenerales[courseGroupStudentId];
+                            
+                            if (calificacion && calificacion.promedio > 0) {
+                              await calcularYGuardarCalificacionesFinales(courseGroupStudentId, calificacion.promedio);
+                            }
+                          }
+                          toast.success('Calificaciones finales recalculadas automáticamente');
+                        }}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        🔄 Recalcular Finales
+                      </Button>
+                    </div>
                   </div>
                 </DialogHeader>
                 
-                {isLoadingAlumnos ? (
+                {isLoadingGenerales ? (
                   <div className="flex-1 flex items-center justify-center">
                     <div className="flex flex-col items-center justify-center text-gray-500">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
                       <p>Cargando datos...</p>
                     </div>
                   </div>
-                ) : alumnos.length === 0 ? (
+                ) : alumnosGenerales.length === 0 ? (
                   <div className="flex-1 flex items-center justify-center">
                     <div className="flex flex-col items-center justify-center text-gray-500">
                       <Users className="h-12 w-12 mb-4" />
@@ -3611,13 +3742,11 @@ export default function MaestroAsignaturas() {
                           </tr>
                         </thead>
                         <tbody>
-                          {alumnos.map((alumno, index) => {
+                          {alumnosGenerales.map((alumno, index) => {
                             // Obtener calificaciones de los 3 parciales desde la base de datos
                             const calificacionParcial1 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial1 || 0;
                             const calificacionParcial2 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial2 || 0;
                             const calificacionParcial3 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial3 || 0;
-                            
-                            
                             
                             // Calcular promedio general solo con parciales válidos
                             const parcialesValidos = [calificacionParcial1, calificacionParcial2, calificacionParcial3]
@@ -3626,11 +3755,11 @@ export default function MaestroAsignaturas() {
                               ? Math.round((parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) * 100) / 100
                               : 0;
                             
-                            // Obtener porcentaje de asistencia
-                            const asistencia = calificacionesParcialesAlumnos[alumno.courseGroupStudentId!]?.porcentajeAsistencia || 0;
+                            // Obtener porcentaje de asistencia (usar datos del modal de General)
+                            const asistencia = 0; // TODO: Implementar cálculo de asistencia para el modal general
                             
-                            // Obtener calificaciones finales
-                            const calificacionesFinales = calificacionesFinalesAlumnos[alumno.courseGroupStudentId!];
+                            // Obtener calificaciones finales del estado separado
+                            const calificacionesFinales = calificacionesFinalesGenerales[alumno.courseGroupStudentId!];
                             const ordinario = calificacionesFinales?.ordinario;
                             const extraordinario = calificacionesFinales?.extraordinario;
                             
@@ -3667,7 +3796,7 @@ export default function MaestroAsignaturas() {
                                       const courseGroupStudentId = alumno.courseGroupStudentId!;
                                       
                                       // Actualizar estado local inmediatamente
-                                      setCalificacionesFinalesAlumnos(prev => ({
+                                      setCalificacionesFinalesGenerales(prev => ({
                                         ...prev,
                                         [courseGroupStudentId]: {
                                           ...prev[courseGroupStudentId],
@@ -3713,7 +3842,7 @@ export default function MaestroAsignaturas() {
                                         const courseGroupStudentId = alumno.courseGroupStudentId!;
                                         
                                         // Actualizar estado local inmediatamente
-                                        setCalificacionesFinalesAlumnos(prev => ({
+                                        setCalificacionesFinalesGenerales(prev => ({
                                           ...prev,
                                           [courseGroupStudentId]: {
                                             ...prev[courseGroupStudentId],
