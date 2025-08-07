@@ -1,5 +1,6 @@
 import { Course, Group, Student } from "../mock-data";
 import { handleError } from "../utils";
+import { EvaluationsDataResponse } from "../../types/api-responses";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -463,6 +464,82 @@ export const CourseService = {
       
       console.log('🔍 DEBUG getPartialGradesByStudentAndPartial - Success, returning:', data);
       return data;
+    },
+
+    // MÉTODO OPTIMIZADO: Obtener todas las calificaciones parciales de un grupo de estudiantes
+    async getPartialGradesByCourseGroup(courseGroupId: number) {
+      console.log('🔍 DEBUG getPartialGradesByCourseGroup - courseGroupId:', courseGroupId);
+      
+      const response = await fetch(`${API_URL}/partial-grades/by-course-group/${courseGroupId}`, {
+        headers: getAuthHeaders(),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('🔍 DEBUG getPartialGradesByCourseGroup - Error response:', data);
+        throw new Error(data.message || 'Error al obtener calificaciones parciales del grupo');
+      }
+      
+      console.log('🔍 DEBUG getPartialGradesByCourseGroup - Success, returning:', data);
+      return data;
+    },
+
+    // MÉTODO OPTIMIZADO: Obtener todas las asistencias de un grupo de estudiantes
+    async getAttendancesByCourseGroup(courseGroupId: number) {
+      console.log('🔍 DEBUG getAttendancesByCourseGroup - courseGroupId:', courseGroupId);
+      
+      const response = await fetch(`${API_URL}/attendances/by-course-group/${courseGroupId}`, {
+        headers: getAuthHeaders(),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('🔍 DEBUG getAttendancesByCourseGroup - Error response:', data);
+        throw new Error(data.message || 'Error al obtener asistencias del grupo');
+      }
+      
+      console.log('🔍 DEBUG getAttendancesByCourseGroup - Success, returning:', data);
+      return data;
+    },
+
+    // MÉTODO SUPER OPTIMIZADO: Obtener toda la información de un grupo en una sola llamada
+    async getCourseGroupCompleteData(courseGroupId: number) {
+      console.log('🔍 DEBUG getCourseGroupCompleteData - courseGroupId:', courseGroupId);
+      
+      const response = await fetch(`${API_URL}/courses-groups/${courseGroupId}/complete-data`, {
+        headers: getAuthHeaders(),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('🔍 DEBUG getCourseGroupCompleteData - Error response:', data);
+        throw new Error(data.message || 'Error al obtener datos completos del grupo');
+      }
+      
+      console.log('🔍 DEBUG getCourseGroupCompleteData - Success, returning:', data);
+      return data;
+    },
+
+    // MÉTODO ULTRA OPTIMIZADO: Obtener todos los datos de evaluaciones en una sola petición
+    async getCourseGroupEvaluationsData(courseGroupId: number): Promise<EvaluationsDataResponse> {
+      console.log('🔍 DEBUG getCourseGroupEvaluationsData - courseGroupId:', courseGroupId);
+      
+      const response = await fetch(`${API_URL}/courses-groups/${courseGroupId}/evaluations-data`, {
+        headers: getAuthHeaders(),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('🔍 DEBUG getCourseGroupEvaluationsData - Error response:', data);
+        throw new Error(data.message || 'Error al obtener datos de evaluaciones del grupo');
+      }
+      
+      console.log('🔍 DEBUG getCourseGroupEvaluationsData - Success, returning:', data);
+      return data as EvaluationsDataResponse;
     },
 
     async getCoursesCount(): Promise<number> {

@@ -1,5 +1,9 @@
 "use client"
 
+// 🚀 OPTIMIZACIÓN: Este componente ahora usa un endpoint optimizado que trae todos los datos
+// en una sola petición en lugar de hacer 99+ peticiones individuales.
+// Endpoint: /api/course-groups/{courseGroupId}/evaluations-data
+
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,6 +30,7 @@ import { useCourse } from "@/lib/hooks/useCourse"
 import { useGroup } from "@/lib/hooks/useGroup"
 import { CourseService } from "@/lib/services/course.service"
 import { Course, CourseGroup, Student } from "@/lib/mock-data"
+import { EvaluationsDataResponse } from "@/types/api-responses"
 import { Users, BookOpen, Calendar, GraduationCap, Plus, BarChart3, Clock, Search, Trash2, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { useStudent } from "@/lib/hooks/useStudent"
@@ -256,98 +261,96 @@ export default function MaestroAsignaturas() {
     setSelectedCourseGroup(courseGroup)
     setIsModalOpen(true)
     setIsLoadingAlumnos(true)
-    try {
-      const response = await handleGetStudentsByCourseGroup(courseGroup.id!, 100, 0) // Cargar todos los alumnos
-      
-      
-      // Extraer estudiantes de la estructura anidada
-      let students = []
-      if (Array.isArray(response)) {
-        // Si es un array directo de courseGroupStudents
-        students = response
-      } else if (response && response.items) {
-        // Si tiene estructura { items: [...] }
-        students = response.items
-      } else if (response && response.coursesGroupsStudents) {
-        // Si tiene estructura anidada con coursesGroupsStudents
-        students = response.coursesGroupsStudents
-      } else {
-        students = []
-      }
     
+    try {
+      // USAR EL NUEVO ENDPOINT OPTIMIZADO - UNA SOLA PETICIÓN
+      console.log('🚀 Cargando datos optimizados para el grupo:', courseGroup.id)
+      const evaluationsData = await CourseService.getCourseGroupEvaluationsData(courseGroup.id!)
       
+      console.log('📊 Datos recibidos del endpoint:', evaluationsData)
+      console.log('👥 Estudiantes:', evaluationsData.students)
+      console.log('📝 Evaluaciones parciales:', evaluationsData.partialEvaluations)
+      console.log('📊 Calificaciones de actividades:', evaluationsData.partialEvaluationGrades)
+      console.log('📈 Calificaciones parciales:', evaluationsData.partialGrades)
+      console.log('🔍 Verificando partialEvaluationGrades:', {
+        exists: !!evaluationsData.partialEvaluationGrades,
+        isArray: Array.isArray(evaluationsData.partialEvaluationGrades),
+        length: evaluationsData.partialEvaluationGrades?.length || 0,
+        data: evaluationsData.partialEvaluationGrades
+      })
+      
+      // Verificar estructura de los datos si existen
+      if (evaluationsData.partialEvaluationGrades && evaluationsData.partialEvaluationGrades.length > 0) {
+        console.log('📋 Estructura del primer partialEvaluationGrade:', evaluationsData.partialEvaluationGrades[0]);
+        console.log('🔗 Relación partialEvaluation:', evaluationsData.partialEvaluationGrades[0]?.partialEvaluation);
+      }
+      
+      // Extraer estudiantes
+      const students = evaluationsData.students || []
       const mappedStudents = students.map((item: any) => ({
-        id: item.student.id,
-        fullName: item.student.fullName,
-        semester: item.student.semester,
-        registrationNumber: item.student.registrationNumber,
-        courseGroupStudentId: item.id
+        id: item.id,
+        fullName: item.fullName,
+        semester: item.semester,
+        registrationNumber: item.registrationNumber,
+        courseGroupStudentId: item.courseGroupStudentId
       }))
       setAlumnos(mappedStudents)
       setCurrentAlumnosPage(1)
       
-      // Cargar las ponderaciones del curso
-      try {
-        const courseGroupWithPonderaciones = await CourseService.getCourseGroupIndividual(courseGroup.id!)
-        const gradingschemes = courseGroupWithPonderaciones.coursesGroupsGradingschemes || []
-        
-        const ponderaciones = {
-          asistencia: 0,
-          actividades: 0,
-          evidencias: 0,
-          producto: 0,
-          examen: 0
-        }
-        
-        const ids: {
-          asistencia?: number,
-          actividades?: number,
-          evidencias?: number,
-          producto?: number,
-          examen?: number
-        } = {}
-        
-        gradingschemes.forEach((scheme: any) => {
-          const type = scheme.type.toLowerCase()
-          if (type === 'asistencia') {
-            ponderaciones.asistencia = scheme.percentage
-            ids.asistencia = scheme.id
-          } else if (type === 'actividades') {
-            ponderaciones.actividades = scheme.percentage
-            ids.actividades = scheme.id
-          } else if (type === 'evidencias') {
-            ponderaciones.evidencias = scheme.percentage
-            ids.evidencias = scheme.id
-          } else if (type === 'producto') {
-            ponderaciones.producto = scheme.percentage
-            ids.producto = scheme.id
-          } else if (type === 'examen') {
-            ponderaciones.examen = scheme.percentage
-            ids.examen = scheme.id
-          }
-        })
-        
-        setPonderacionesCurso(ponderaciones)
-        setPonderacionesIds(ids)
-      } catch (error) {
-        console.error('Error al cargar las ponderaciones:', error)
+      // Procesar ponderaciones
+      const gradingschemes = evaluationsData.gradingSchemes || []
+      const ponderaciones = {
+        asistencia: 0,
+        actividades: 0,
+        evidencias: 0,
+        producto: 0,
+        examen: 0
       }
       
-      // Cargar las actividades definidas para el curso
-      try {
-        const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(courseGroup.id!)
-        
-        // Usar la función filtrarActividadesPorParcial para obtener las actividades del parcial seleccionado
-        const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, selectedPartial)
-        setActividadesDefinidas(actividadesFiltradas)
-      } catch (error) {
-        console.error('Error al cargar actividades definidas:', error)
-        toast.error('Error al cargar las actividades del curso')
-      }
+      const ids: {
+        asistencia?: number,
+        actividades?: number,
+        evidencias?: number,
+        producto?: number,
+        examen?: number
+      } = {}
+      
+      gradingschemes.forEach((scheme: any) => {
+        const type = scheme.type.toLowerCase()
+        if (type === 'asistencia') {
+          ponderaciones.asistencia = scheme.percentage
+          ids.asistencia = scheme.id
+        } else if (type === 'actividades') {
+          ponderaciones.actividades = scheme.percentage
+          ids.actividades = scheme.id
+        } else if (type === 'evidencias') {
+          ponderaciones.evidencias = scheme.percentage
+          ids.evidencias = scheme.id
+        } else if (type === 'producto') {
+          ponderaciones.producto = scheme.percentage
+          ids.producto = scheme.id
+        } else if (type === 'examen') {
+          ponderaciones.examen = scheme.percentage
+          ids.examen = scheme.id
+        }
+      })
+      
+      setPonderacionesCurso(ponderaciones)
+      setPonderacionesIds(ids)
+      
+      // Procesar actividades definidas
+      const actividadesDefinidasData = evaluationsData.partialEvaluations || []
+      const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, selectedPartial)
+      setActividadesDefinidas(actividadesFiltradas)
+      
+      // Procesar calificaciones y asistencias para evitar peticiones individuales
+      await procesarDatosOptimizados(evaluationsData, mappedStudents)
+      
+      console.log('✅ Datos cargados optimizadamente - 1 petición en lugar de 99+')
       
     } catch (error) {
-      console.error('Error al cargar los alumnos:', error)
-      toast.error('Error al cargar los alumnos')
+      console.error('Error al cargar los datos optimizados:', error)
+      toast.error('Error al cargar los datos del grupo')
     } finally {
       setIsLoadingAlumnos(false)
     }
@@ -1283,7 +1286,7 @@ export default function MaestroAsignaturas() {
     }
   };
 
-  // Función para obtener calificación de un parcial específico
+  // Función para obtener calificación de un parcial específico (método individual)
   const obtenerCalificacionParcial = async (courseGroupStudentId: number, parcial: number) => {
     try {
       const response = await CourseService.getPartialGradesByStudentAndPartial(courseGroupStudentId, parcial);
@@ -1304,6 +1307,299 @@ export default function MaestroAsignaturas() {
     }
   };
 
+  // Función optimizada para obtener todas las calificaciones parciales de un grupo
+  const obtenerCalificacionesParcialesOptimizado = async (courseGroupId: number) => {
+    try {
+      const response = await CourseService.getPartialGradesByCourseGroup(courseGroupId);
+      
+      // Crear un mapa de calificaciones por estudiante y parcial
+      const calificacionesMap: {[key: number]: {[key: number]: number}} = {};
+      
+      if (response && Array.isArray(response)) {
+        response.forEach((grade: any) => {
+          const courseGroupStudentId = grade.courseGroupStudentId;
+          const partial = grade.partial;
+          const gradeValue = grade.grade || 0;
+          
+          if (!calificacionesMap[courseGroupStudentId]) {
+            calificacionesMap[courseGroupStudentId] = {};
+          }
+          
+          calificacionesMap[courseGroupStudentId][partial] = gradeValue;
+        });
+      }
+      
+      return calificacionesMap;
+    } catch (error) {
+      console.error('Error al obtener calificaciones parciales optimizado:', error);
+      return {};
+    }
+  };
+
+  // Función optimizada para obtener todas las asistencias de un grupo
+  const obtenerAsistenciasOptimizado = async (courseGroupId: number) => {
+    try {
+      const response = await CourseService.getAttendancesByCourseGroup(courseGroupId);
+      
+      // Crear un mapa de asistencias por estudiante y parcial
+      const asistenciasMap: {[key: number]: {[key: number]: any[]}} = {};
+      
+      if (response && Array.isArray(response)) {
+        response.forEach((attendance: any) => {
+          const courseGroupStudentId = attendance.courseGroupStudentId;
+          const partial = attendance.partial;
+          
+          if (!asistenciasMap[courseGroupStudentId]) {
+            asistenciasMap[courseGroupStudentId] = {};
+          }
+          
+          if (!asistenciasMap[courseGroupStudentId][partial]) {
+            asistenciasMap[courseGroupStudentId][partial] = [];
+          }
+          
+          asistenciasMap[courseGroupStudentId][partial].push(attendance);
+        });
+      }
+      
+      return asistenciasMap;
+    } catch (error) {
+      console.error('Error al obtener asistencias optimizado:', error);
+      return {};
+    }
+  };
+
+  // Función para procesar los datos optimizados del endpoint
+  const procesarDatosOptimizados = async (evaluationsData: EvaluationsDataResponse, students: any[]) => {
+    try {
+      console.log('🔍 Procesando datos optimizados:', evaluationsData);
+      
+      const { partialGrades, attendances, partialEvaluations, partialEvaluationGrades } = evaluationsData;
+      
+      // Crear mapas optimizados para calificaciones parciales
+      const calificacionesMap: {[key: number]: {[key: number]: number}} = {};
+      if (partialGrades && Array.isArray(partialGrades)) {
+        partialGrades.forEach((grade: any) => {
+          const courseGroupStudentId = grade.courseGroupStudentId;
+          const partial = grade.partial;
+          const gradeValue = grade.grade || 0;
+          
+          if (!calificacionesMap[courseGroupStudentId]) {
+            calificacionesMap[courseGroupStudentId] = {};
+          }
+          calificacionesMap[courseGroupStudentId][partial] = gradeValue;
+        });
+      }
+      
+      // Crear mapas optimizados para asistencias
+      const asistenciasMap: {[key: number]: {[key: number]: any[]}} = {};
+      if (attendances && Array.isArray(attendances)) {
+        attendances.forEach((attendance: any) => {
+          const courseGroupStudentId = attendance.courseGroupStudentId;
+          const partial = attendance.partial;
+          
+          if (!asistenciasMap[courseGroupStudentId]) {
+            asistenciasMap[courseGroupStudentId] = {};
+          }
+          
+          if (!asistenciasMap[courseGroupStudentId][partial]) {
+            asistenciasMap[courseGroupStudentId][partial] = [];
+          }
+          
+          asistenciasMap[courseGroupStudentId][partial].push(attendance);
+        });
+      }
+      
+      // Crear mapa de calificaciones de actividades por estudiante y evaluación
+      const calificacionesActividadesMap: {[key: number]: {[key: number]: any}} = {};
+      console.log('🔍 Procesando partialEvaluationGrades:', {
+        exists: !!partialEvaluationGrades,
+        isArray: Array.isArray(partialEvaluationGrades),
+        length: partialEvaluationGrades?.length || 0,
+        data: partialEvaluationGrades
+      });
+      
+      if (partialEvaluationGrades && Array.isArray(partialEvaluationGrades)) {
+        partialEvaluationGrades.forEach((grade: any) => {
+          const courseGroupStudentId = grade.courseGroupStudentId;
+          const partialEvaluationId = grade.partialEvaluationId;
+          
+          console.log('🔍 Procesando calificación:', {
+            courseGroupStudentId,
+            partialEvaluationId,
+            grade: grade.grade,
+            id: grade.id,
+            partialEvaluation: grade.partialEvaluation
+          });
+          
+          if (!calificacionesActividadesMap[courseGroupStudentId]) {
+            calificacionesActividadesMap[courseGroupStudentId] = {};
+          }
+          
+          calificacionesActividadesMap[courseGroupStudentId][partialEvaluationId] = {
+            grade: grade.grade || 0,
+            id: grade.id,
+            partialEvaluation: grade.partialEvaluation // Guardar la relación completa
+          };
+        });
+        
+        console.log('🔍 Mapa de calificaciones de actividades creado:', calificacionesActividadesMap);
+      } else {
+        console.log('⚠️ No se encontraron partialEvaluationGrades o no es un array');
+      }
+      
+      // Procesar calificaciones de actividades para el parcial seleccionado
+      const nuevasCalificaciones: {[key: number]: any} = {};
+      
+      for (const student of students) {
+        const courseGroupStudentId = student.courseGroupStudentId;
+        
+        // Inicializar estructura para el alumno
+        nuevasCalificaciones[courseGroupStudentId] = {
+          actividades: Array(18).fill(null).map(() => ({grade: 0, id: null})),
+          evidencias: Array(18).fill(null).map(() => ({grade: 0, id: null})),
+          producto: {grade: 0, id: null},
+          examen: {grade: 0, id: null}
+        };
+        
+        // Procesar calificaciones de actividades del parcial seleccionado
+        if (partialEvaluations && Array.isArray(partialEvaluations)) {
+          partialEvaluations.forEach((evaluation: any) => {
+            if (evaluation.partial === selectedPartial) {
+              // Buscar la calificación específica para esta actividad y estudiante
+              const studentGrades = calificacionesActividadesMap[courseGroupStudentId] || {};
+              const grade = studentGrades[evaluation.id];
+              
+              if (evaluation.type === 'Actividades' && typeof evaluation.slot === 'number' && evaluation.slot < 18) {
+                nuevasCalificaciones[courseGroupStudentId].actividades[evaluation.slot] = {
+                  grade: grade?.grade || 0,
+                  id: grade?.id || null
+                };
+              } else if (evaluation.type === 'Evidencias' && typeof evaluation.slot === 'number' && evaluation.slot < 18) {
+                nuevasCalificaciones[courseGroupStudentId].evidencias[evaluation.slot] = {
+                  grade: grade?.grade || 0,
+                  id: grade?.id || null
+                };
+              } else if (evaluation.type === 'Producto') {
+                nuevasCalificaciones[courseGroupStudentId].producto = {
+                  grade: grade?.grade || 0,
+                  id: grade?.id || null
+                };
+              } else if (evaluation.type === 'Examen') {
+                nuevasCalificaciones[courseGroupStudentId].examen = {
+                  grade: grade?.grade || 0,
+                  id: grade?.id || null
+                };
+              }
+            }
+          });
+        }
+      }
+      
+      console.log('🔍 Calificaciones procesadas:', nuevasCalificaciones);
+      console.log('🔍 Calificaciones parciales:', calificacionesMap);
+      console.log('🔍 Resumen del procesamiento:', {
+        estudiantesProcesados: students.length,
+        calificacionesProcesadas: Object.keys(nuevasCalificaciones).length,
+        calificacionesParciales: Object.keys(calificacionesMap).length,
+        asistencias: Object.keys(asistenciasMap).length
+      });
+      
+      // Establecer los datos procesados
+      setCalificacionesAlumnos(nuevasCalificaciones);
+      
+      // Calcular calificaciones parciales usando los datos ya cargados
+      await calcularCalificacionesParcialesOptimizado(students, calificacionesMap, asistenciasMap);
+      
+      // Marcar como cargadas para evitar bucles
+      setCalificacionesLoaded(true);
+      
+    } catch (error) {
+      console.error('Error al procesar datos optimizados:', error);
+    }
+  };
+
+  // Función super optimizada para obtener todos los datos de un grupo en una sola llamada
+  const obtenerDatosCompletosGrupo = async (courseGroupId: number) => {
+    try {
+      const response = await CourseService.getCourseGroupCompleteData(courseGroupId);
+      
+      // Procesar los datos recibidos
+      const {
+        students,
+        partialGrades,
+        attendances,
+        finalGrades,
+        partialEvaluations
+      } = response;
+      
+      // Crear mapas optimizados
+      const calificacionesMap: {[key: number]: {[key: number]: number}} = {};
+      const asistenciasMap: {[key: number]: {[key: number]: any[]}} = {};
+      const calificacionesFinalesMap: {[key: number]: any} = {};
+      
+      // Procesar calificaciones parciales
+      if (partialGrades && Array.isArray(partialGrades)) {
+        partialGrades.forEach((grade: any) => {
+          const courseGroupStudentId = grade.courseGroupStudentId;
+          const partial = grade.partial;
+          const gradeValue = grade.grade || 0;
+          
+          if (!calificacionesMap[courseGroupStudentId]) {
+            calificacionesMap[courseGroupStudentId] = {};
+          }
+          
+          calificacionesMap[courseGroupStudentId][partial] = gradeValue;
+        });
+      }
+      
+      // Procesar asistencias
+      if (attendances && Array.isArray(attendances)) {
+        attendances.forEach((attendance: any) => {
+          const courseGroupStudentId = attendance.courseGroupStudentId;
+          const partial = attendance.partial;
+          
+          if (!asistenciasMap[courseGroupStudentId]) {
+            asistenciasMap[courseGroupStudentId] = {};
+          }
+          
+          if (!asistenciasMap[courseGroupStudentId][partial]) {
+            asistenciasMap[courseGroupStudentId][partial] = [];
+          }
+          
+          asistenciasMap[courseGroupStudentId][partial].push(attendance);
+        });
+      }
+      
+      // Procesar calificaciones finales
+      if (finalGrades && Array.isArray(finalGrades)) {
+        finalGrades.forEach((finalGrade: any) => {
+          const courseGroupStudentId = finalGrade.courseGroupStudentId;
+          calificacionesFinalesMap[courseGroupStudentId] = {
+            ordinario: finalGrade.gradeOrdinary,
+            extraordinario: finalGrade.gradeExtraordinary
+          };
+        });
+      }
+      
+      return {
+        students: students || [],
+        calificacionesMap,
+        asistenciasMap,
+        calificacionesFinalesMap,
+        partialEvaluations: partialEvaluations || []
+      };
+    } catch (error) {
+      console.error('Error al obtener datos completos del grupo:', error);
+      return {
+        students: [],
+        calificacionesMap: {},
+        asistenciasMap: {},
+        calificacionesFinalesMap: {},
+        partialEvaluations: []
+      };
+    }
+  };
+
   // Función para abrir el modal general
   const handleOpenGeneralModal = async (course: Course, courseGroup: any) => {
     
@@ -1313,38 +1609,21 @@ export default function MaestroAsignaturas() {
     setIsGeneralModalOpen(true);
     
     try {
-      // Cargar los alumnos del grupo
-      const response = await handleGetStudentsByCourseGroup(courseGroup.id, 100, 0);
+      // Cargar todos los datos del grupo en una sola llamada (SUPER OPTIMIZADO)
+      const datosCompletos = await obtenerDatosCompletosGrupo(courseGroup.id);
       
-      // Extraer estudiantes de la estructura anidada
-      let students = []
-      if (Array.isArray(response)) {
-        students = response
-      } else if (response && response.items) {
-        students = response.items
-      } else if (response && response.coursesGroupsStudents) {
-        students = response.coursesGroupsStudents
-      } else {
-        students = []
-      }
-      
-      const mappedStudents = students.map((item: any) => ({
+      // Mapear estudiantes
+      const mappedStudents = datosCompletos.students.map((item: any) => ({
         id: item.student.id,
         fullName: item.student.fullName,
         semester: item.student.semester,
         registrationNumber: item.student.registrationNumber,
         courseGroupStudentId: item.id
-      }))
-      setAlumnos(mappedStudents)
+      }));
+      setAlumnos(mappedStudents);
       
-      // Cargar las calificaciones de todos los alumnos
-      await cargarCalificacionesAlumnos();
-      
-      // Calcular las calificaciones parciales de todos los alumnos
-      await calcularCalificacionesParcialesTodosAlumnos();
-      
-      // Cargar calificaciones finales de todos los alumnos
-      await cargarCalificacionesFinalesAlumnos();
+      // Usar los datos ya cargados
+      const { calificacionesMap, asistenciasMap, calificacionesFinalesMap } = datosCompletos;
       
       // Cargar calificaciones de los 3 parciales para cada alumno
       const calificacionesTemp: {[key: number]: {
@@ -1355,27 +1634,25 @@ export default function MaestroAsignaturas() {
       }} = {};
       
       for (const alumno of mappedStudents) {
+        const courseGroupStudentId = alumno.courseGroupStudentId!;
+        const studentGrades = calificacionesMap[courseGroupStudentId] || {};
         
-        
-        const parcial1 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 1);
-        const parcial2 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 2);
-        const parcial3 = await obtenerCalificacionParcial(alumno.courseGroupStudentId!, 3);
-        
-        
+        const parcial1 = studentGrades[1] || 0;
+        const parcial2 = studentGrades[2] || 0;
+        const parcial3 = studentGrades[3] || 0;
         
         const promedio = ((parcial1 + parcial2 + parcial3) / 3);
         
-        calificacionesTemp[alumno.courseGroupStudentId!] = {
+        calificacionesTemp[courseGroupStudentId] = {
           parcial1,
           parcial2,
           parcial3,
           promedio
         };
-        
-        
       }
       
       setCalificacionesGenerales(calificacionesTemp);
+      setCalificacionesFinalesAlumnos(calificacionesFinalesMap);
       
     } catch (error) {
       console.error('Error al cargar datos para el modal general:', error);
@@ -1685,21 +1962,22 @@ export default function MaestroAsignaturas() {
     }
   }, [evaluacionesParciales, ponderacionesCurso, selectedPartial]);
 
-  // Cargar calificaciones cuando se abra el modal de alumnos
+  // Cargar calificaciones cuando se abra el modal de alumnos (OPTIMIZADO)
   useEffect(() => {
     if (isModalOpen && selectedCourseGroup && alumnos.length > 0 && !calificacionesLoaded) {
-      cargarCalificacionesAlumnos();
+      // Ya no necesitamos cargar calificaciones aquí porque se hace en procesarDatosOptimizados
       setCalificacionesLoaded(true);
     }
-  }, [isModalOpen, selectedCourseGroup, alumnos, selectedPartial, calificacionesLoaded]);
+  }, [isModalOpen, selectedCourseGroup, alumnos, calificacionesLoaded]);
 
-  // Recalcular calificaciones parciales cuando cambien las ponderaciones (solo una vez al cargar)
+  // Recalcular calificaciones parciales cuando cambien las ponderaciones (OPTIMIZADO)
   useEffect(() => {
     if (isModalOpen && ponderacionesCurso && Object.keys(calificacionesAlumnos).length > 0 && calificacionesLoaded) {
       // Solo recalcular si no se han calculado las calificaciones parciales aún
       const shouldRecalculate = Object.keys(calificacionesParcialesAlumnos).length === 0;
       if (shouldRecalculate) {
-        calcularCalificacionesParcialesTodosAlumnos();
+        // Usar la función optimizada en lugar de la que hace peticiones individuales
+        calcularCalificacionesParcialesOptimizado(alumnos, {}, {});
       }
     }
   }, [ponderacionesCurso, selectedPartial, calificacionesLoaded]);
@@ -1721,7 +1999,7 @@ export default function MaestroAsignaturas() {
     }
   }, [isActividadesModalOpen, selectedCourseGroup, selectedPartial, isModalOpen])
 
-  // Función para manejar el cambio de parcial en la tabla de evaluaciones
+  // Función para manejar el cambio de parcial en la tabla de evaluaciones (OPTIMIZADO)
   const handleParcialChangeEvaluaciones = async (newParcial: number) => {
     setSelectedPartial(newParcial);
     
@@ -1731,16 +2009,16 @@ export default function MaestroAsignaturas() {
         setCalificacionesLoaded(false);
         setCalificacionesParcialesAlumnos({});
         
-        // Recargar las actividades del nuevo parcial
-        const actividadesDefinidasData = await CourseService.getPartialEvaluationsByCourseGroupId(selectedCourseGroup.id!)
+        // Recargar las actividades del nuevo parcial usando el endpoint optimizado
+        const evaluationsData = await CourseService.getCourseGroupEvaluationsData(selectedCourseGroup.id!)
+        const actividadesDefinidasData = evaluationsData.partialEvaluations || []
         const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, newParcial)
         setActividadesDefinidas(actividadesFiltradas)
         
-        // Limpiar calificaciones anteriores
-        setCalificacionesAlumnos({});
+        // Procesar los datos optimizados para el nuevo parcial
+        await procesarDatosOptimizados(evaluationsData, alumnos);
         
-        // Recargar las calificaciones del nuevo parcial
-        await cargarCalificacionesAlumnos();
+        console.log('✅ Parcial cambiado optimizadamente - 1 petición en lugar de múltiples')
       } catch (error) {
         console.error('Error al cambiar parcial:', error)
         toast.error('Error al cambiar de parcial')
@@ -1972,25 +2250,33 @@ export default function MaestroAsignaturas() {
         
         
         
-        // Verificar si ya existe una calificación parcial para este alumno y parcial
-        const existingPartialGrades = await CourseService.getPartialGradesByStudentAndPartial(
-          courseGroupStudentId, 
-          selectedPartial
-        );
+        // Verificar si ya existe una calificación parcial para este alumno y parcial (OPTIMIZADO)
+        // Usar el mapa de calificaciones ya cargado en lugar de hacer una nueva llamada
+        const calificacionesMap = await obtenerCalificacionesParcialesOptimizado(selectedCourseGroup?.id || 0);
+        const studentGrades = calificacionesMap[courseGroupStudentId] || {};
+        const existingGrade = studentGrades[selectedPartial];
+        
+        // Buscar el ID de la calificación existente si existe
+        let existingPartialGradeId: number | null = null;
+        if (existingGrade !== undefined) {
+          // Si existe la calificación, necesitamos obtener el ID para actualizar
+          const existingPartialGrades = await CourseService.getPartialGradesByStudentAndPartial(
+            courseGroupStudentId, 
+            selectedPartial
+          );
+          if (existingPartialGrades && existingPartialGrades.length > 0) {
+            existingPartialGradeId = existingPartialGrades[0].id;
+          }
+        }
         
         
         
-        if (existingPartialGrades && existingPartialGrades.length > 0) {
+        if (existingPartialGradeId !== null) {
           // Actualizar la calificación parcial existente
-          const existingPartialGrade = existingPartialGrades[0]; // Tomar la primera
-          
-          
-          const result = await CourseService.updatePartialGrade(existingPartialGrade.id, partialGradeDto);
+          const result = await CourseService.updatePartialGrade(existingPartialGradeId, partialGradeDto);
           
         } else {
           // Crear nueva calificación parcial
-          
-          
           const result = await CourseService.createPartialGrade(partialGradeDto);
           
         }
@@ -1999,6 +2285,130 @@ export default function MaestroAsignaturas() {
         
       }
     }
+  };
+
+  // Función optimizada para calcular calificaciones parciales usando datos ya cargados
+  const calcularCalificacionesParcialesOptimizado = async (
+    students: any[], 
+    calificacionesMap: {[key: number]: {[key: number]: number}}, 
+    asistenciasMap: {[key: number]: {[key: number]: any[]}}
+  ) => {
+    if (!ponderacionesCurso || !students.length) {
+      return;
+    }
+    
+    const nuevasCalificacionesParciales: {[key: number]: {
+      calificacion: number,
+      porcentajeAsistencia: number,
+      parcial1?: number,
+      parcial2?: number,
+      parcial3?: number
+    }} = {};
+    
+    for (const student of students) {
+      const courseGroupStudentId = student.courseGroupStudentId;
+      const calificacionesAlumno = calificacionesAlumnos[courseGroupStudentId];
+      
+      if (!calificacionesAlumno) {
+        nuevasCalificacionesParciales[courseGroupStudentId] = { calificacion: 0, porcentajeAsistencia: 0 };
+        continue;
+      }
+      
+      let calificacionFinal = 0;
+      let totalPonderacion = 0;
+      let porcentajeAsistencia = 0;
+      
+      // 1. Cálculo de Asistencia usando datos ya cargados
+      if (ponderacionesCurso.asistencia > 0) {
+        const asistenciasAlumno = asistenciasMap[courseGroupStudentId]?.[selectedPartial] || [];
+        
+        if (asistenciasAlumno.length > 0) {
+          const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
+          const totalAsistencias = asistenciasAlumno.length;
+          porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
+          const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
+          const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
+          
+          calificacionFinal += calificacionAsistencia;
+          totalPonderacion += ponderacionesCurso.asistencia;
+        }
+      }
+      
+      // 2. Cálculo de Actividades
+      const actividadesValores = calificacionesAlumno.actividades
+        .filter(item => item.grade > 0)
+        .map(item => item.grade);
+      
+      if (actividadesValores.length > 0) {
+        const promedioActividades = actividadesValores.reduce((sum, grade) => sum + grade, 0) / actividadesValores.length;
+        const calificacionActividades = (promedioActividades * ponderacionesCurso.actividades) / 100;
+        
+        if (ponderacionesCurso.actividades > 0) {
+          calificacionFinal += calificacionActividades;
+          totalPonderacion += ponderacionesCurso.actividades;
+        }
+      }
+      
+      // 3. Cálculo de Evidencias
+      const evidenciasValores = calificacionesAlumno.evidencias
+        .filter(item => item.grade > 0)
+        .map(item => item.grade);
+      
+      if (evidenciasValores.length > 0) {
+        const promedioEvidencias = evidenciasValores.reduce((sum, grade) => sum + grade, 0) / evidenciasValores.length;
+        const calificacionEvidencias = (promedioEvidencias * ponderacionesCurso.evidencias) / 100;
+        
+        if (ponderacionesCurso.evidencias > 0) {
+          calificacionFinal += calificacionEvidencias;
+          totalPonderacion += ponderacionesCurso.evidencias;
+        }
+      }
+      
+      // 4. Cálculo de Producto
+      if (calificacionesAlumno.producto.grade > 0) {
+        const calificacionProducto = (calificacionesAlumno.producto.grade * ponderacionesCurso.producto) / 100;
+        
+        if (ponderacionesCurso.producto > 0) {
+          calificacionFinal += calificacionProducto;
+          totalPonderacion += ponderacionesCurso.producto;
+        }
+      }
+      
+      // 5. Cálculo de Examen
+      if (calificacionesAlumno.examen.grade > 0) {
+        const calificacionExamen = (calificacionesAlumno.examen.grade * ponderacionesCurso.examen) / 100;
+        
+        if (ponderacionesCurso.examen > 0) {
+          calificacionFinal += calificacionExamen;
+          totalPonderacion += ponderacionesCurso.examen;
+        }
+      }
+      
+      // 6. Cálculo Final
+      let calificacionParcialFinal = 0;
+      if (totalPonderacion > 0) {
+        calificacionParcialFinal = (calificacionFinal / totalPonderacion) * 100;
+      }
+      
+      // Obtener los parciales individuales usando datos ya cargados
+      const studentGrades = calificacionesMap[courseGroupStudentId] || {};
+      const parcial1 = studentGrades[1] || 0;
+      const parcial2 = studentGrades[2] || 0;
+      const parcial3 = studentGrades[3] || 0;
+      
+      nuevasCalificacionesParciales[courseGroupStudentId] = {
+        calificacion: Math.round(calificacionParcialFinal * 100) / 100,
+        porcentajeAsistencia: Math.round(porcentajeAsistencia * 100) / 100,
+        parcial1: parcial1,
+        parcial2: parcial2,
+        parcial3: parcial3
+      };
+    }
+    
+    setCalificacionesParcialesAlumnos(nuevasCalificacionesParciales);
+    
+    // Actualizar calificaciones parciales en la base de datos
+    await actualizarCalificacionesParcialesEnBD(nuevasCalificacionesParciales);
   };
 
   const calcularCalificacionesParcialesTodosAlumnos = async () => {
@@ -2353,25 +2763,16 @@ export default function MaestroAsignaturas() {
     setAlumnoCalificacionFinal(alumno);
     setIsCalificacionFinalModalOpen(true);
     try {
-      // Obtener calificaciones parciales desde la base de datos
+      // Obtener calificaciones parciales desde la base de datos (OPTIMIZADO)
       let parciales: (number | null)[] = [];
+      
+      // Obtener todas las calificaciones parciales del estudiante en una sola llamada
+      const calificacionesMap = await obtenerCalificacionesParcialesOptimizado(selectedCourseGroup.id);
+      const studentGrades = calificacionesMap[alumno.courseGroupStudentId] || {};
+      
       for (let parcial = 1; parcial <= 3; parcial++) {
-        try {
-          
-          const partialGrades = await CourseService.getPartialGradesByStudentAndPartial(alumno.courseGroupStudentId, parcial);
-          
-          if (partialGrades && partialGrades.length > 0) {
-            const partialGrade = partialGrades[0]; // Tomar la primera calificación parcial
-            
-            parciales.push(partialGrade.grade);
-          } else {
-            
-            parciales.push(null);
-          }
-        } catch (error) {
-          
-          parciales.push(null);
-        }
+        const grade = studentGrades[parcial];
+        parciales.push(grade !== undefined ? grade : null);
       }
       
       
@@ -2382,17 +2783,16 @@ export default function MaestroAsignaturas() {
       
       
       
-      // Calcular asistencia de los 3 parciales
+      // Calcular asistencia de los 3 parciales (OPTIMIZADO)
       let asistenciasParciales: any[] = [];
+      
+      // Obtener todas las asistencias del estudiante en una sola llamada
+      const asistenciasMap = await obtenerAsistenciasOptimizado(selectedCourseGroup.id);
+      const studentAttendances = asistenciasMap[alumno.courseGroupStudentId] || {};
+      
       for (let parcial = 1; parcial <= 3; parcial++) {
-        try {
-          const asistenciasDelParcial = await CourseService.getAttendancesByCourseGroupStudentAndPartial(alumno.courseGroupStudentId, parcial);
-          if (Array.isArray(asistenciasDelParcial)) {
-            asistenciasParciales = asistenciasParciales.concat(asistenciasDelParcial);
-          }
-        } catch (error) {
-          
-        }
+        const asistenciasDelParcial = studentAttendances[parcial] || [];
+        asistenciasParciales = asistenciasParciales.concat(asistenciasDelParcial);
       }
       
       
