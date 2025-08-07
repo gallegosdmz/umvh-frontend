@@ -1765,7 +1765,8 @@ export default function MaestroAsignaturas() {
     try {
       console.log('🔍 Calculando calificación final para estudiante:', courseGroupStudentId, 'promedio:', promedio);
       
-      // Convertir a entero (el backend espera números enteros)
+      // Convertir a entero con redondeo matemático estándar (el backend espera números enteros)
+      // 8.50 sube a 9, 8.49 baja a 8
       const promedioEntero = Math.round(promedio);
       
       // Buscar si ya existe una calificación final
@@ -3194,10 +3195,10 @@ export default function MaestroAsignaturas() {
           setFinalGradeId(existingFinalGrade.id);
           
           // Usar los valores existentes del FinalGrade
-          setInputOrdinario(existingFinalGrade.gradeOrdinary?.toString() || "");
-          setInputExtraordinario(existingFinalGrade.gradeExtraordinary?.toString() || "");
-          setOrdinarioGuardado(existingFinalGrade.gradeOrdinary || null);
-          setExtraordinarioGuardado(existingFinalGrade.gradeExtraordinary || null);
+          setInputOrdinario(existingFinalGrade.gradeOrdinary && existingFinalGrade.gradeOrdinary > 0 ? existingFinalGrade.gradeOrdinary.toString() : "");
+          setInputExtraordinario(existingFinalGrade.gradeExtraordinary && existingFinalGrade.gradeExtraordinary > 0 ? existingFinalGrade.gradeExtraordinary.toString() : "");
+          setOrdinarioGuardado(existingFinalGrade.gradeOrdinary && existingFinalGrade.gradeOrdinary > 0 ? existingFinalGrade.gradeOrdinary : null);
+          setExtraordinarioGuardado(existingFinalGrade.gradeExtraordinary && existingFinalGrade.gradeExtraordinary > 0 ? existingFinalGrade.gradeExtraordinary : null);
           
         }
       } catch (err) {
@@ -3483,7 +3484,7 @@ export default function MaestroAsignaturas() {
                             <th colSpan={18} className="bg-blue-100 font-semibold border border-gray-300">Actividades de Aprendizaje</th>
                             <th colSpan={18} className="bg-green-100 font-semibold border border-gray-300">Evidencias de Aprendizaje</th>
                             <th colSpan={2} className="bg-purple-100 font-semibold border border-gray-300">Calificaciones Parciales</th>
-                            <th colSpan={2} className="bg-yellow-100 font-semibold border border-gray-300">Calificación Final</th>
+                            <th colSpan={3} className="bg-yellow-100 font-semibold border border-gray-300">Calificación Final</th>
                           </tr>
                           
                           {/* Segunda fila - Nombres de actividades */}
@@ -3502,6 +3503,7 @@ export default function MaestroAsignaturas() {
                             <th className="bg-gray-50 border border-gray-300 px-1 py-1 text-xs">Examen</th>
                             <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Calificación</th>
                             <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">% Asistencia</th>
+                            <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Final</th>
                           </tr>
                           
                           {/* Tercera fila - Porcentajes de ponderación */}
@@ -3524,6 +3526,7 @@ export default function MaestroAsignaturas() {
                             </th>
                             <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Final</th>
                             <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Total</th>
+                            <th className="bg-yellow-50 border border-gray-300 px-1 py-1 text-xs">Acción</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3654,6 +3657,17 @@ export default function MaestroAsignaturas() {
                                   : '--'
                                 }
                               </td>
+                              <td className="border border-gray-300 px-1 py-1 text-center">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleVerCalificacionFinal(alumno)}
+                                  className="h-6 px-2 text-xs bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+                                >
+                                  <BarChart3 className="h-3 w-3 mr-1" />
+                                  Final
+                                </Button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -3783,111 +3797,118 @@ export default function MaestroAsignaturas() {
                                 <td className="border border-gray-300 px-2 py-1">{calificacionParcial3 > 0 ? calificacionParcial3.toFixed(2) : '--'}</td>
                                 <td className="border border-gray-300 px-2 py-1 font-semibold">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
                                 <td className="border border-gray-300 px-2 py-1">{asistencia > 0 ? `${asistencia.toFixed(0)}%` : '--'}</td>
-                                <td className="border border-gray-300 px-2 py-1 bg-green-100">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
-                                <td className="border border-gray-300 px-2 py-1">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
-                                <td className="border border-gray-300 px-2 py-1">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="10"
-                                    step="0.01"
-                                    className="w-16 text-center border rounded px-1 py-1 text-sm"
-                                    placeholder="--"
-                                    value={ordinario !== null && ordinario !== undefined ? ordinario : ''}
-                                    onChange={async (e) => {
-                                      const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
-                                      const courseGroupStudentId = alumno.courseGroupStudentId!;
-                                      
-                                      // Actualizar estado local inmediatamente
-                                      setCalificacionesFinalesGenerales(prev => ({
-                                        ...prev,
-                                        [courseGroupStudentId]: {
-                                          ...prev[courseGroupStudentId],
-                                          ordinario: value
-                                        }
-                                      }));
-                                      
-                                      // Guardar en la base de datos
-                                      try {
-                                        const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
-                                        if (finalGrades && finalGrades.length > 0) {
-                                          await CourseService.updateFinalGrade(finalGrades[0].id, { gradeOrdinary: value });
-                                        } else {
-                                          await CourseService.createFinalGrade({
-                                            grade: 0,
-                                            gradeOrdinary: value,
-                                            gradeExtraordinary: 0, // Enviar 0 en lugar de null
-                                            date: new Date().toISOString(),
-                                            type: 'final',
-                                            courseGroupStudentId: courseGroupStudentId
-                                          });
-                                        }
-                                        toast.success('Calificación ordinaria guardada');
-                                      } catch (error) {
-                                        console.error('Error al guardar calificación ordinaria:', error);
-                                        toast.error('Error al guardar calificación ordinaria');
-                                      }
-                                    }}
-                                  />
+                                <td className={`border border-gray-300 px-2 py-1 font-bold ${
+                                  promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800" : "bg-green-100"
+                                }`}>
+                                  {promedio > 0 ? Math.round(promedio) : '--'}
                                 </td>
-                                <td className="border border-gray-300 px-2 py-1">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="10"
-                                      step="0.01"
-                                      className="w-16 text-center border rounded px-1 py-1 text-sm"
-                                      placeholder="--"
-                                      value={extraordinario !== null && extraordinario !== undefined ? extraordinario : ''}
-                                      onChange={async (e) => {
-                                        const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
-                                        const courseGroupStudentId = alumno.courseGroupStudentId!;
-                                        
-                                        // Actualizar estado local inmediatamente
-                                        setCalificacionesFinalesGenerales(prev => ({
-                                          ...prev,
-                                          [courseGroupStudentId]: {
-                                            ...prev[courseGroupStudentId],
-                                            extraordinario: value
+                                <td className={`border border-gray-300 px-2 py-1 ${
+                                  promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800 font-bold text-center" : ""
+                                }`}>
+                                  {promedio > 0 && Math.round(promedio) < 8 ? (
+                                    ordinario !== null && ordinario < 6 ? (
+                                      'EXT'
+                                    ) : (
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="10"
+                                        step="0.01"
+                                        className="w-16 text-center border rounded px-1 py-1 text-sm"
+                                        placeholder="--"
+                                        value={ordinario !== null && ordinario > 0 ? ordinario : ''}
+                                        onChange={async (e) => {
+                                          const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
+                                          const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                          
+                                          // Actualizar estado local inmediatamente
+                                          setCalificacionesFinalesGenerales(prev => ({
+                                            ...prev,
+                                            [courseGroupStudentId]: {
+                                              ...prev[courseGroupStudentId],
+                                              ordinario: value
+                                            }
+                                          }));
+                                          
+                                          // Guardar en la base de datos
+                                          try {
+                                            const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                            if (finalGrades && finalGrades.length > 0) {
+                                              await CourseService.updateFinalGrade(finalGrades[0].id, { gradeOrdinary: value });
+                                            } else {
+                                              await CourseService.createFinalGrade({
+                                                grade: 0,
+                                                gradeOrdinary: value,
+                                                gradeExtraordinary: 0,
+                                                date: new Date().toISOString(),
+                                                type: 'final',
+                                                courseGroupStudentId: courseGroupStudentId
+                                              });
+                                            }
+                                            toast.success('Calificación ordinaria guardada');
+                                          } catch (error) {
+                                            console.error('Error al guardar calificación ordinaria:', error);
+                                            toast.error('Error al guardar calificación ordinaria');
                                           }
-                                        }));
-                                        
-                                        // Guardar en la base de datos
-                                        try {
-                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
-                                          if (finalGrades && finalGrades.length > 0) {
-                                            await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
-                                          } else {
-                                            await CourseService.createFinalGrade({
-                                              grade: 0,
-                                              gradeOrdinary: 0, // Enviar 0 en lugar de null
-                                              gradeExtraordinary: value,
-                                              date: new Date().toISOString(),
-                                              type: 'final',
-                                              courseGroupStudentId: courseGroupStudentId
-                                            });
-                                          }
-                                          toast.success('Calificación extraordinaria guardada');
-                                        } catch (error) {
-                                          console.error('Error al guardar calificación extraordinaria:', error);
-                                          toast.error('Error al guardar calificación extraordinaria');
-                                        }
-                                      }}
-                                    />
-                                    {extraordinario !== null && extraordinario !== undefined && (
-                                      <span className={`text-xs font-bold ${
-                                        extraordinario === 0 
-                                          ? 'text-red-600' 
-                                          : extraordinario < 6 
-                                            ? 'text-red-600' 
-                                            : 'text-transparent'
-                                      }`}>
-                                        {extraordinario === 0 ? 'NP' : extraordinario < 6 ? 'NA' : ''}
-                                      </span>
-                                    )}
-                                  </div>
+                                        }}
+                                      />
+                                    )
+                                  ) : '--'}
                                 </td>
+                                <td className={`border border-gray-300 px-2 py-1 ${
+                                  ordinario !== null && ordinario < 6 && promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800 font-bold text-center" : ""
+                                }`}>
+                                  {ordinario !== null && ordinario < 6 && promedio > 0 && Math.round(promedio) < 8 ? (
+                                    extraordinario !== null && extraordinario < 6 ? (
+                                      'NA'
+                                    ) : (
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="10"
+                                        step="0.01"
+                                        className="w-16 text-center border rounded px-1 py-1 text-sm"
+                                        placeholder="--"
+                                        value={extraordinario !== null && extraordinario > 0 ? extraordinario : ''}
+                                        onChange={async (e) => {
+                                          const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
+                                          const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                          
+                                          // Actualizar estado local inmediatamente
+                                          setCalificacionesFinalesGenerales(prev => ({
+                                            ...prev,
+                                            [courseGroupStudentId]: {
+                                              ...prev[courseGroupStudentId],
+                                              extraordinario: value
+                                            }
+                                          }));
+                                          
+                                          // Guardar en la base de datos
+                                          try {
+                                            const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                            if (finalGrades && finalGrades.length > 0) {
+                                              await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
+                                            } else {
+                                              await CourseService.createFinalGrade({
+                                                grade: 0,
+                                                gradeOrdinary: 0,
+                                                gradeExtraordinary: value,
+                                                date: new Date().toISOString(),
+                                                type: 'final',
+                                                courseGroupStudentId: courseGroupStudentId
+                                              });
+                                            }
+                                            toast.success('Calificación extraordinaria guardada');
+                                          } catch (error) {
+                                            console.error('Error al guardar calificación extraordinaria:', error);
+                                            toast.error('Error al guardar calificación extraordinaria');
+                                          }
+                                        }}
+                                      />
+                                    )
+                                  ) : '--'}
+                                </td>
+
                               </tr>
                             );
                           })}
@@ -4689,24 +4710,22 @@ export default function MaestroAsignaturas() {
                     <td className="px-2 py-1">{calificacionesFinales.asistencia !== null ? calificacionesFinales.asistencia + '%' : '--'}</td>
                     <td className={
                       "px-2 py-1 font-bold " +
-                      (calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
-                        ? "bg-pink-200 text-pink-800"
-                        : calificacionesFinales.promedio !== null && calificacionesFinales.promedio >= 8
+                      (calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8
+                        ? "bg-red-200 text-red-800"
+                        : calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) >= 8
                           ? "bg-green-100 text-green-800"
                           : "")
                     }>
-                      {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
-                        ? 'Ord A'
-                        : calificacionesFinales.exentos !== null
-                          ? Math.round(calificacionesFinales.exentos)
-                          : '--'}
+                      {calificacionesFinales.exentos !== null
+                        ? Math.round(calificacionesFinales.exentos)
+                        : '--'}
                     </td>
                     <td className={
-                      ordinarioGuardado !== null && ordinarioGuardado < 6
+                      calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
-                      {calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
+                      {calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8 ? (
                         ordinarioGuardado !== null && ordinarioGuardado < 6 ? (
                           'EXT'
                         ) : (
@@ -4757,11 +4776,11 @@ export default function MaestroAsignaturas() {
                       ) : '--'}
                     </td>
                     <td className={
-                      ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8
+                      ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
-                      {ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.promedio !== null && calificacionesFinales.promedio < 8 ? (
+                      {ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8 ? (
                         extraordinarioGuardado !== null && extraordinarioGuardado < 6 ? (
                           'NA'
                         ) : (
