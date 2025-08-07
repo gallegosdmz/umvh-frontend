@@ -1765,27 +1765,30 @@ export default function MaestroAsignaturas() {
     try {
       console.log('🔍 Calculando calificación final para estudiante:', courseGroupStudentId, 'promedio:', promedio);
       
+      // Convertir a entero (el backend espera números enteros)
+      const promedioEntero = Math.round(promedio);
+      
       // Buscar si ya existe una calificación final
       const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
       
       if (finalGrades && finalGrades.length > 0) {
         // Actualizar la calificación final existente
         await CourseService.updateFinalGrade(finalGrades[0].id, { 
-          grade: promedio,
-          gradeOrdinary: promedio 
+          grade: promedioEntero,
+          gradeOrdinary: promedioEntero 
         });
-        console.log('✅ Calificación final actualizada:', promedio);
+        console.log('✅ Calificación final actualizada:', promedioEntero);
       } else {
         // Crear nueva calificación final
         await CourseService.createFinalGrade({
-          grade: promedio,
-          gradeOrdinary: promedio,
-          gradeExtraordinary: null,
+          grade: promedioEntero,
+          gradeOrdinary: promedioEntero,
+          gradeExtraordinary: 0, // Enviar 0 en lugar de null
           date: new Date().toISOString(),
           type: 'final',
           courseGroupStudentId: courseGroupStudentId
         });
-        console.log('✅ Nueva calificación final creada:', promedio);
+        console.log('✅ Nueva calificación final creada:', promedioEntero);
       }
       
       // Actualizar el estado local
@@ -1793,7 +1796,7 @@ export default function MaestroAsignaturas() {
         ...prev,
         [courseGroupStudentId]: {
           ...prev[courseGroupStudentId],
-          ordinario: promedio
+          ordinario: promedioEntero
         }
       }));
       
@@ -3792,7 +3795,7 @@ export default function MaestroAsignaturas() {
                                     placeholder="--"
                                     value={ordinario !== null && ordinario !== undefined ? ordinario : ''}
                                     onChange={async (e) => {
-                                      const value = e.target.value === '' ? null : Number(e.target.value);
+                                      const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
                                       const courseGroupStudentId = alumno.courseGroupStudentId!;
                                       
                                       // Actualizar estado local inmediatamente
@@ -3813,7 +3816,7 @@ export default function MaestroAsignaturas() {
                                           await CourseService.createFinalGrade({
                                             grade: 0,
                                             gradeOrdinary: value,
-                                            gradeExtraordinary: null,
+                                            gradeExtraordinary: 0, // Enviar 0 en lugar de null
                                             date: new Date().toISOString(),
                                             type: 'final',
                                             courseGroupStudentId: courseGroupStudentId
@@ -3838,7 +3841,7 @@ export default function MaestroAsignaturas() {
                                       placeholder="--"
                                       value={extraordinario !== null && extraordinario !== undefined ? extraordinario : ''}
                                       onChange={async (e) => {
-                                        const value = e.target.value === '' ? null : Number(e.target.value);
+                                        const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
                                         const courseGroupStudentId = alumno.courseGroupStudentId!;
                                         
                                         // Actualizar estado local inmediatamente
@@ -3858,7 +3861,7 @@ export default function MaestroAsignaturas() {
                                           } else {
                                             await CourseService.createFinalGrade({
                                               grade: 0,
-                                              gradeOrdinary: null,
+                                              gradeOrdinary: 0, // Enviar 0 en lugar de null
                                               gradeExtraordinary: value,
                                               date: new Date().toISOString(),
                                               type: 'final',
