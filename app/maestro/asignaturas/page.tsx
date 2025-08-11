@@ -43,6 +43,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { studentService } from "@/lib/services/student.service"
+import { useOfflineAttendance } from "@/hooks/use-offline-attendance"
 
 interface AttendanceData {
   id?: number;
@@ -56,6 +57,7 @@ interface AttendanceData {
   date: string;
   attend: number; // 1=Presente, 2=Ausente, 3=Retardo
   partial: number; // 1=Primer Parcial, 2=Segundo Parcial, 3=Tercer Parcial
+  offlineId?: string; // ID temporal para asistencias offline
 }
 
 type EvalType = "actividades" | "evidencias";
@@ -65,6 +67,15 @@ export default function MaestroAsignaturas() {
   const { handleGetCourses, handleGetCourseGroupWithStudents, handleGetStudentsByCourseGroup } = useCourse()
   const { handleGetGroups } = useGroup()
   const { handleCreateStudent } = useStudent()
+  const { 
+    isOnline: isAttendanceOnline, 
+    getOfflineAttendances, 
+    getOfflineAttendancesByGroup,
+    saveAttendanceOffline, 
+    updateAttendanceOffline, 
+    deleteAttendanceOffline,
+    syncOfflineAttendances 
+  } = useOfflineAttendance()
   const [asignaturas, setAsignaturas] = useState<Course[]>([])
   const [filteredAsignaturas, setFilteredAsignaturas] = useState<Course[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -114,7 +125,7 @@ export default function MaestroAsignaturas() {
   }>({})
   const [selectedCourseGroupForPonderaciones, setSelectedCourseGroupForPonderaciones] = useState<any | null>(null)
   const [isAsistenciaModalOpen, setIsAsistenciaModalOpen] = useState(false)
-  const [asistenciaAlumnos, setAsistenciaAlumnos] = useState<(Student & { courseGroupStudentId?: number, attendanceId?: number | null, attend?: number })[]>([])
+  const [asistenciaAlumnos, setAsistenciaAlumnos] = useState<(Student & { courseGroupStudentId?: number, attendanceId?: number | string | null, attend?: number })[]>([])
   const [asistenciaGrupo, setAsistenciaGrupo] = useState<{ asignatura: any, courseGroup: any } | null>(null)
   const [asistenciaFecha, setAsistenciaFecha] = useState<string>("")
   const [asistenciaParcial, setAsistenciaParcial] = useState<number>(1)
@@ -812,14 +823,32 @@ export default function MaestroAsignaturas() {
       // Obtener las asistencias existentes para la fecha actual y parcial desde el backend
       let existingAttendances: AttendanceData[] = []
       try {
-        const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(courseGroup.id, currentDate)
-        existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
+        if (isAttendanceOnline) {
+          const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(courseGroup.id, currentDate)
+          existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
+        }
         // Filtrar por parcial
         existingAttendances = existingAttendances.filter((att: AttendanceData) => att.partial === 1)
         
-      } catch (attendanceError) {
+        // Obtener asistencias offline para la misma fecha y parcial
+        const offlineAttendances = getOfflineAttendances(courseGroup.id, currentDate, 1)
         
-        existingAttendances = []
+        // Combinar asistencias online y offline, dando prioridad a las offline (más recientes)
+        const offlineMap = new Map()
+        offlineAttendances.forEach(att => {
+          offlineMap.set(att.courseGroupStudentId, att)
+        })
+        
+        // Reemplazar o agregar asistencias offline
+        existingAttendances = existingAttendances.filter(att => 
+          !offlineMap.has(att.courseGroupStudent?.id || att.courseGroupStudentId)
+        )
+        existingAttendances = [...existingAttendances, ...offlineAttendances]
+        
+      } catch (attendanceError) {
+        console.log('Error cargando asistencias online, usando solo offline:', attendanceError)
+        // Si falla online, usar solo offline
+        existingAttendances = getOfflineAttendances(courseGroup.id, currentDate, 1)
       }
       
       // Crear un mapa de asistencias por courseGroupStudentId
@@ -905,42 +934,86 @@ export default function MaestroAsignaturas() {
         try {
           if (alumno.attendanceId) {
             // ACTUALIZAR ASISTENCIA EXISTENTE
-            
-            
-            const updatedAttendance = await CourseService.updateAttendance(alumno.attendanceId, attendanceData)
-            
-            
-            if (updatedAttendance) {
-              
+            if (isAttendanceOnline) {
+              if (typeof alumno.attendanceId === 'number') {
+                const updatedAttendance = await CourseService.updateAttendance(alumno.attendanceId, attendanceData)
+                if (updatedAttendance) {
+                  console.log('Asistencia actualizada online:', updatedAttendance)
+                } else {
+                  toast.error(`Error al actualizar asistencia de ${alumno.fullName}`)
+                }
+              } else {
+                toast.error(`ID de asistencia inválido para ${alumno.fullName}`)
+              }
             } else {
-              
-              toast.error(`Error al actualizar asistencia de ${alumno.fullName}`)
+              // Modo offline: actualizar localmente
+              if (typeof alumno.attendanceId === 'number') {
+                const updatedAttendance = await updateAttendanceOffline(alumno.attendanceId, attendanceData)
+                if (updatedAttendance) {
+                  console.log('Asistencia actualizada offline:', updatedAttendance)
+                  toast.info('Asistencia guardada offline. Se sincronizará cuando haya conexión.')
+                } else {
+                  toast.error(`Error al actualizar asistencia offline de ${alumno.fullName}`)
+                }
+              } else {
+                toast.error(`ID de asistencia inválido para ${alumno.fullName}`)
+              }
             }
           } else {
-            
-            
-            const newAttendance = await CourseService.createAttendance(attendanceData)
-            
-            
-            if (newAttendance && newAttendance.id) {
-              
-              
-              // Actualizar el attendanceId en el estado local
-              const updatedAlumnos = asistenciaAlumnos.map(a => 
-                a.id === alumno.id 
-                  ? { ...a, attendanceId: newAttendance.id }
-                  : a
-              )
-              setAsistenciaAlumnos(updatedAlumnos)
-              
+            // CREAR NUEVA ASISTENCIA
+            if (isAttendanceOnline) {
+              const newAttendance = await CourseService.createAttendance(attendanceData)
+              if (newAttendance && newAttendance.id) {
+                // Actualizar el attendanceId en el estado local
+                const updatedAlumnos = asistenciaAlumnos.map(a => 
+                  a.id === alumno.id 
+                    ? { ...a, attendanceId: newAttendance.id }
+                    : a
+                )
+                setAsistenciaAlumnos(updatedAlumnos)
+                console.log('Asistencia creada online:', newAttendance)
+              } else {
+                console.error('❌ No se recibió ID válido del servidor para la nueva asistencia')
+                toast.error(`Error al crear asistencia de ${alumno.fullName}`)
+              }
             } else {
-              console.error('❌ No se recibió ID válido del servidor para la nueva asistencia')
-              toast.error(`Error al crear asistencia de ${alumno.fullName}`)
+              // Modo offline: crear localmente
+              const newAttendance = await saveAttendanceOffline(attendanceData)
+              if (newAttendance) {
+                // Actualizar el attendanceId en el estado local con el ID offline
+                const updatedAlumnos = asistenciaAlumnos.map(a => 
+                  a.id === alumno.id 
+                    ? { ...a, attendanceId: newAttendance.offlineId }
+                    : a
+                )
+                setAsistenciaAlumnos(updatedAlumnos)
+                console.log('Asistencia creada offline:', newAttendance)
+                toast.info('Asistencia guardada offline. Se sincronizará cuando haya conexión.')
+              } else {
+                toast.error(`Error al crear asistencia offline de ${alumno.fullName}`)
+              }
             }
           }
         } catch (error) {
+          console.error('Error procesando asistencia:', error)
           
-          toast.error(`Error al procesar asistencia de ${alumno.fullName}`)
+          // Si falla online, intentar guardar offline
+          if (isAttendanceOnline) {
+            try {
+              console.log('Fallback a modo offline para:', alumno.fullName)
+              if (alumno.attendanceId && typeof alumno.attendanceId === 'number') {
+                await updateAttendanceOffline(alumno.attendanceId, attendanceData)
+              } else {
+                await saveAttendanceOffline(attendanceData)
+              }
+              toast.info(`Asistencia de ${alumno.fullName} guardada offline debido a error de conexión`)
+            } catch (offlineError) {
+              console.error('Error también en modo offline:', offlineError)
+              toast.error(`Error al procesar asistencia de ${alumno.fullName}`)
+            }
+          } else {
+            toast.error(`Error al procesar asistencia de ${alumno.fullName}`)
+          }
         }
       }
       
@@ -974,21 +1047,40 @@ export default function MaestroAsignaturas() {
     // Obtener las asistencias existentes para la nueva fecha y parcial desde el backend
     const loadAttendancesForParcial = async () => {
       try {
-        const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(asistenciaGrupo.courseGroup.id, asistenciaFecha)
-        const existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
-        // Filtrar por parcial
-        const filteredAttendances = existingAttendances.filter((att: AttendanceData) => att.partial === newParcial)
+        let existingAttendances: AttendanceData[] = []
         
+        if (isAttendanceOnline) {
+          const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(asistenciaGrupo.courseGroup.id, asistenciaFecha)
+          existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
+        }
+        
+        // Filtrar por parcial
+        let filteredAttendances = existingAttendances.filter((att: AttendanceData) => att.partial === newParcial)
+        
+        // Obtener asistencias offline para la misma fecha y parcial
+        const offlineAttendances = getOfflineAttendances(asistenciaGrupo.courseGroup.id, asistenciaFecha, newParcial)
+        
+        // Combinar asistencias online y offline, dando prioridad a las offline
+        const offlineMap = new Map()
+        offlineAttendances.forEach(att => {
+          offlineMap.set(att.courseGroupStudentId, att)
+        })
+        
+        // Reemplazar o agregar asistencias offline
+        filteredAttendances = filteredAttendances.filter(att => 
+          !offlineMap.has(att.courseGroupStudent?.id || att.courseGroupStudentId)
+        )
+        const combinedAttendances = [...filteredAttendances, ...offlineAttendances]
         
         // Crear un mapa de asistencias por courseGroupStudentId
         const dateAttendanceMap = new Map()
         const dateAttendanceIdMap = new Map()
         
-        filteredAttendances.forEach((att: AttendanceData) => {
+        combinedAttendances.forEach((att: AttendanceData) => {
           const courseGroupStudentId = att.courseGroupStudent?.id || att.courseGroupStudentId
           if (courseGroupStudentId) {
             dateAttendanceMap.set(courseGroupStudentId, att.attend)
-            dateAttendanceIdMap.set(courseGroupStudentId, att.id)
+            dateAttendanceIdMap.set(courseGroupStudentId, att.id || att.offlineId)
           }
         })
         
@@ -1004,16 +1096,34 @@ export default function MaestroAsignaturas() {
           }
         })
         
-        
         setAsistenciaAlumnos(updatedAlumnos)
       } catch (error) {
+        console.log('Error cargando asistencias, usando solo offline:', error)
         
-        // Si no hay asistencias, resetear todos los attendanceId a null y attend a 1 (Presente)
-        const updatedAlumnos = asistenciaAlumnos.map(alumno => ({
-          ...alumno,
-          attend: 1, // 1 = Presente por defecto
-          attendanceId: null
-        }))
+        // Si falla online, usar solo offline
+        const offlineAttendances = getOfflineAttendances(asistenciaGrupo.courseGroup.id, asistenciaFecha, newParcial)
+        
+        // Crear mapas solo con datos offline
+        const dateAttendanceMap = new Map()
+        const dateAttendanceIdMap = new Map()
+        
+        offlineAttendances.forEach((att: AttendanceData) => {
+          dateAttendanceMap.set(att.courseGroupStudentId, att.attend)
+          dateAttendanceIdMap.set(att.courseGroupStudentId, att.offlineId)
+        })
+        
+        // Actualizar las asistencias de los alumnos
+        const updatedAlumnos = asistenciaAlumnos.map(alumno => {
+          const attendValue = dateAttendanceMap.has(alumno.courseGroupStudentId) ? dateAttendanceMap.get(alumno.courseGroupStudentId) : 1
+          const attendanceId = dateAttendanceIdMap.has(alumno.courseGroupStudentId) ? dateAttendanceIdMap.get(alumno.courseGroupStudentId) : null
+          
+          return {
+            ...alumno,
+            attend: attendValue,
+            attendanceId: attendanceId
+          }
+        })
+        
         setAsistenciaAlumnos(updatedAlumnos)
       } finally {
         setIsLoadingDateChange(false)
@@ -1033,21 +1143,40 @@ export default function MaestroAsignaturas() {
     // Obtener las asistencias existentes para la nueva fecha desde el backend
     const loadAttendancesForDate = async () => {
       try {
-        const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(asistenciaGrupo.courseGroup.id, newDate)
-        const existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
-        // Filtrar por parcial
-        const filteredAttendances = existingAttendances.filter((att: AttendanceData) => att.partial === asistenciaParcial)
+        let existingAttendances: AttendanceData[] = []
         
+        if (isAttendanceOnline) {
+          const attendancesResponse = await CourseService.getAttendancesByCourseGroupAndDate(asistenciaGrupo.courseGroup.id, newDate)
+          existingAttendances = Array.isArray(attendancesResponse) ? attendancesResponse : attendancesResponse.items || []
+        }
+        
+        // Filtrar por parcial
+        let filteredAttendances = existingAttendances.filter((att: AttendanceData) => att.partial === asistenciaParcial)
+        
+        // Obtener asistencias offline para la misma fecha y parcial
+        const offlineAttendances = getOfflineAttendances(asistenciaGrupo.courseGroup.id, newDate, asistenciaParcial)
+        
+        // Combinar asistencias online y offline, dando prioridad a las offline
+        const offlineMap = new Map()
+        offlineAttendances.forEach(att => {
+          offlineMap.set(att.courseGroupStudentId, att)
+        })
+        
+        // Reemplazar o agregar asistencias offline
+        filteredAttendances = filteredAttendances.filter(att => 
+          !offlineMap.has(att.courseGroupStudent?.id || att.courseGroupStudentId)
+        )
+        const combinedAttendances = [...filteredAttendances, ...offlineAttendances]
         
         // Crear un mapa de asistencias por courseGroupStudentId
         const dateAttendanceMap = new Map()
         const dateAttendanceIdMap = new Map()
         
-        filteredAttendances.forEach((att: AttendanceData) => {
+        combinedAttendances.forEach((att: AttendanceData) => {
           const courseGroupStudentId = att.courseGroupStudent?.id || att.courseGroupStudentId
           if (courseGroupStudentId) {
             dateAttendanceMap.set(courseGroupStudentId, att.attend)
-            dateAttendanceIdMap.set(courseGroupStudentId, att.id)
+            dateAttendanceIdMap.set(courseGroupStudentId, att.id || att.offlineId)
           }
         })
         
@@ -1063,16 +1192,34 @@ export default function MaestroAsignaturas() {
           }
         })
         
-        
         setAsistenciaAlumnos(updatedAlumnos)
       } catch (error) {
+        console.log('Error cargando asistencias, usando solo offline:', error)
         
-        // Si no hay asistencias, resetear todos los attendanceId a null y attend a 1 (Presente)
-        const updatedAlumnos = asistenciaAlumnos.map(alumno => ({
-          ...alumno,
-          attend: 1, // 1 = Presente por defecto
-          attendanceId: null
-        }))
+        // Si falla online, usar solo offline
+        const offlineAttendances = getOfflineAttendances(asistenciaGrupo.courseGroup.id, newDate, asistenciaParcial)
+        
+        // Crear mapas solo con datos offline
+        const dateAttendanceMap = new Map()
+        const dateAttendanceIdMap = new Map()
+        
+        offlineAttendances.forEach((att: AttendanceData) => {
+          dateAttendanceMap.set(att.courseGroupStudentId, att.attend)
+          dateAttendanceIdMap.set(att.courseGroupStudentId, att.offlineId)
+        })
+        
+        // Actualizar las asistencias de los alumnos
+        const updatedAlumnos = asistenciaAlumnos.map(alumno => {
+          const attendValue = dateAttendanceMap.has(alumno.courseGroupStudentId) ? dateAttendanceMap.get(alumno.courseGroupStudentId) : 1
+          const attendanceId = dateAttendanceIdMap.has(alumno.courseGroupStudentId) ? dateAttendanceIdMap.get(alumno.courseGroupStudentId) : null
+          
+          return {
+            ...alumno,
+            attend: attendValue,
+            attendanceId: attendanceId
+          }
+        })
+        
         setAsistenciaAlumnos(updatedAlumnos)
       } finally {
         setIsLoadingDateChange(false)
@@ -1773,18 +1920,17 @@ export default function MaestroAsignaturas() {
       const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
       
       if (finalGrades && finalGrades.length > 0) {
-        // Actualizar la calificación final existente
+        // Actualizar solo el campo grade, preservar gradeOrdinary y gradeExtraordinary
         await CourseService.updateFinalGrade(finalGrades[0].id, { 
-          grade: promedioEntero,
-          gradeOrdinary: promedioEntero 
+          grade: promedioEntero
         });
         console.log('✅ Calificación final actualizada:', promedioEntero);
       } else {
-        // Crear nueva calificación final
+        // Crear nueva calificación final con gradeOrdinary y gradeExtraordinary en 0
         await CourseService.createFinalGrade({
           grade: promedioEntero,
-          gradeOrdinary: promedioEntero,
-          gradeExtraordinary: 0, // Enviar 0 en lugar de null
+          gradeOrdinary: 0,
+          gradeExtraordinary: 0,
           date: new Date().toISOString(),
           type: 'final',
           courseGroupStudentId: courseGroupStudentId
@@ -3177,10 +3323,10 @@ export default function MaestroAsignaturas() {
           };
           const created = await CourseService.createFinalGrade(dto);
           setFinalGradeId(created.id);
-          setInputOrdinario(created.gradeOrdinary?.toString() || "");
-          setInputExtraordinario(created.gradeExtraordinary?.toString() || "");
-          setOrdinarioGuardado(created.gradeOrdinary || null);
-          setExtraordinarioGuardado(created.gradeExtraordinary || null);
+          setInputOrdinario("");
+          setInputExtraordinario("");
+          setOrdinarioGuardado(null);
+          setExtraordinarioGuardado(null);
           
         } else {
           // Actualizar el FinalGrade existente
@@ -3800,112 +3946,104 @@ export default function MaestroAsignaturas() {
                                 <td className={`border border-gray-300 px-2 py-1 font-bold ${
                                   promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800" : "bg-green-100"
                                 }`}>
-                                  {promedio > 0 ? Math.round(promedio) : '--'}
+                                  {promedio > 0 && Math.round(promedio) < 8 ? 'ORD' : (promedio > 0 ? Math.round(promedio) : '--')}
                                 </td>
                                 <td className={`border border-gray-300 px-2 py-1 ${
                                   promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800 font-bold text-center" : ""
                                 }`}>
                                   {promedio > 0 && Math.round(promedio) < 8 ? (
-                                    ordinario !== null && ordinario < 6 ? (
-                                      'EXT'
-                                    ) : (
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max="10"
-                                        step="0.01"
-                                        className="w-16 text-center border rounded px-1 py-1 text-sm"
-                                        placeholder="--"
-                                        value={ordinario !== null && ordinario > 0 ? ordinario : ''}
-                                        onChange={async (e) => {
-                                          const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
-                                          const courseGroupStudentId = alumno.courseGroupStudentId!;
-                                          
-                                          // Actualizar estado local inmediatamente
-                                          setCalificacionesFinalesGenerales(prev => ({
-                                            ...prev,
-                                            [courseGroupStudentId]: {
-                                              ...prev[courseGroupStudentId],
-                                              ordinario: value
-                                            }
-                                          }));
-                                          
-                                          // Guardar en la base de datos
-                                          try {
-                                            const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
-                                            if (finalGrades && finalGrades.length > 0) {
-                                              await CourseService.updateFinalGrade(finalGrades[0].id, { gradeOrdinary: value });
-                                            } else {
-                                              await CourseService.createFinalGrade({
-                                                grade: 0,
-                                                gradeOrdinary: value,
-                                                gradeExtraordinary: 0,
-                                                date: new Date().toISOString(),
-                                                type: 'final',
-                                                courseGroupStudentId: courseGroupStudentId
-                                              });
-                                            }
-                                            toast.success('Calificación ordinaria guardada');
-                                          } catch (error) {
-                                            console.error('Error al guardar calificación ordinaria:', error);
-                                            toast.error('Error al guardar calificación ordinaria');
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="10"
+                                      step="0.01"
+                                      className="w-16 text-center border rounded px-1 py-1 text-sm"
+                                      placeholder="--"
+                                      value={ordinario !== null && ordinario > 0 ? ordinario : ''}
+                                      onChange={async (e) => {
+                                        const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
+                                        const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                        
+                                        // Actualizar estado local inmediatamente
+                                        setCalificacionesFinalesGenerales(prev => ({
+                                          ...prev,
+                                          [courseGroupStudentId]: {
+                                            ...prev[courseGroupStudentId],
+                                            ordinario: value
                                           }
-                                        }}
-                                      />
-                                    )
+                                        }));
+                                        
+                                        // Guardar en la base de datos
+                                        try {
+                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                          if (finalGrades && finalGrades.length > 0) {
+                                            await CourseService.updateFinalGrade(finalGrades[0].id, { gradeOrdinary: value });
+                                          } else {
+                                            await CourseService.createFinalGrade({
+                                              grade: Math.round(promedio),
+                                              gradeOrdinary: value,
+                                              gradeExtraordinary: 0,
+                                              date: new Date().toISOString(),
+                                              type: 'final',
+                                              courseGroupStudentId: courseGroupStudentId
+                                            });
+                                          }
+                                          toast.success('Calificación ordinaria guardada');
+                                        } catch (error) {
+                                          console.error('Error al guardar calificación ordinaria:', error);
+                                          toast.error('Error al guardar calificación ordinaria');
+                                        }
+                                      }}
+                                    />
                                   ) : '--'}
                                 </td>
                                 <td className={`border border-gray-300 px-2 py-1 ${
                                   ordinario !== null && ordinario < 6 && promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800 font-bold text-center" : ""
                                 }`}>
                                   {ordinario !== null && ordinario < 6 && promedio > 0 && Math.round(promedio) < 8 ? (
-                                    extraordinario !== null && extraordinario < 6 ? (
-                                      'NA'
-                                    ) : (
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max="10"
-                                        step="0.01"
-                                        className="w-16 text-center border rounded px-1 py-1 text-sm"
-                                        placeholder="--"
-                                        value={extraordinario !== null && extraordinario > 0 ? extraordinario : ''}
-                                        onChange={async (e) => {
-                                          const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
-                                          const courseGroupStudentId = alumno.courseGroupStudentId!;
-                                          
-                                          // Actualizar estado local inmediatamente
-                                          setCalificacionesFinalesGenerales(prev => ({
-                                            ...prev,
-                                            [courseGroupStudentId]: {
-                                              ...prev[courseGroupStudentId],
-                                              extraordinario: value
-                                            }
-                                          }));
-                                          
-                                          // Guardar en la base de datos
-                                          try {
-                                            const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
-                                            if (finalGrades && finalGrades.length > 0) {
-                                              await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
-                                            } else {
-                                              await CourseService.createFinalGrade({
-                                                grade: 0,
-                                                gradeOrdinary: 0,
-                                                gradeExtraordinary: value,
-                                                date: new Date().toISOString(),
-                                                type: 'final',
-                                                courseGroupStudentId: courseGroupStudentId
-                                              });
-                                            }
-                                            toast.success('Calificación extraordinaria guardada');
-                                          } catch (error) {
-                                            console.error('Error al guardar calificación extraordinaria:', error);
-                                            toast.error('Error al guardar calificación extraordinaria');
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="10"
+                                      step="0.01"
+                                      className="w-16 text-center border rounded px-1 py-1 text-sm"
+                                      placeholder="--"
+                                      value={extraordinario !== null && extraordinario > 0 ? extraordinario : ''}
+                                      onChange={async (e) => {
+                                        const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
+                                        const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                        
+                                        // Actualizar estado local inmediatamente
+                                        setCalificacionesFinalesGenerales(prev => ({
+                                          ...prev,
+                                          [courseGroupStudentId]: {
+                                            ...prev[courseGroupStudentId],
+                                            extraordinario: value
                                           }
-                                        }}
-                                      />
-                                    )
+                                        }));
+                                        
+                                        // Guardar en la base de datos
+                                        try {
+                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                          if (finalGrades && finalGrades.length > 0) {
+                                            await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
+                                          } else {
+                                            await CourseService.createFinalGrade({
+                                              grade: Math.round(promedio),
+                                              gradeOrdinary: ordinario || 0,
+                                              gradeExtraordinary: value,
+                                              date: new Date().toISOString(),
+                                              type: 'final',
+                                              courseGroupStudentId: courseGroupStudentId
+                                            });
+                                          }
+                                          toast.success('Calificación extraordinaria guardada');
+                                        } catch (error) {
+                                          console.error('Error al guardar calificación extraordinaria:', error);
+                                          toast.error('Error al guardar calificación extraordinaria');
+                                        }
+                                      }}
+                                    />
                                   ) : '--'}
                                 </td>
 
@@ -4497,6 +4635,11 @@ export default function MaestroAsignaturas() {
                   <DialogTitle>Asistencia - {asistenciaParcial === 1 ? 'Primer' : asistenciaParcial === 2 ? 'Segundo' : 'Tercer'} Parcial</DialogTitle>
                   <DialogDescription>
                     Selecciona los alumnos presentes y ausentes para el parcial seleccionado
+                    {!isAttendanceOnline && (
+                      <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-sm">
+                        ⚠️ Modo Offline: Las asistencias se guardarán localmente y se sincronizarán cuando haya conexión.
+                      </div>
+                    )}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="mb-4 flex items-center gap-4 flex-shrink-0">
@@ -4630,14 +4773,45 @@ export default function MaestroAsignaturas() {
                   >
                     Cerrar
                   </Button>
-                  <Button
-                    variant="default"
-                    onClick={handleSaveAttendance}
-                    disabled={isSavingAttendance || asistenciaAlumnos.length === 0}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {isSavingAttendance ? 'Guardando...' : 'Guardar'}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {!isAttendanceOnline && (
+                      <Button
+                        variant="outline"
+                        onClick={() => syncOfflineAttendances(async (attendance) => {
+                          if (attendance.offlineId) {
+                            // Es una asistencia offline, crear online
+                            const { CourseService } = await import('@/lib/services/course.service')
+                            return await CourseService.createAttendance({
+                              courseGroupStudentId: attendance.courseGroupStudentId,
+                              date: attendance.date,
+                              attend: attendance.attend,
+                              partial: attendance.partial
+                            })
+                          } else if (attendance.id) {
+                            // Es una asistencia existente, actualizar online
+                            const { CourseService } = await import('@/lib/services/course.service')
+                            return await CourseService.updateAttendance(attendance.id, {
+                              courseGroupStudentId: attendance.courseGroupStudentId,
+                              date: attendance.date,
+                              attend: attendance.attend,
+                              partial: attendance.partial
+                            })
+                          }
+                        })}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        🔄 Sincronizar Offline
+                      </Button>
+                    )}
+                    <Button
+                      variant="default"
+                      onClick={handleSaveAttendance}
+                      disabled={isSavingAttendance || asistenciaAlumnos.length === 0}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {isSavingAttendance ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
@@ -4695,6 +4869,7 @@ export default function MaestroAsignaturas() {
                     <th className="px-2 py-1">Promedio</th>
                     <th className="px-2 py-1">Asistencia</th>
                     <th className="px-2 py-1">Exentos</th>
+                    <th className="px-2 py-1">Calif Ordinario</th>
                     <th className="px-2 py-1">Ordinario</th>
                     <th className="px-2 py-1">Extraordinario</th>
                   </tr>
@@ -4710,25 +4885,22 @@ export default function MaestroAsignaturas() {
                     <td className="px-2 py-1">{calificacionesFinales.asistencia !== null ? calificacionesFinales.asistencia + '%' : '--'}</td>
                     <td className={
                       "px-2 py-1 font-bold " +
-                      (calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8
+                      (calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
                         ? "bg-red-200 text-red-800"
-                        : calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) >= 8
+                        : calificacionesFinales.exentos !== null && calificacionesFinales.exentos >= 8
                           ? "bg-green-100 text-green-800"
                           : "")
                     }>
-                      {calificacionesFinales.exentos !== null
-                        ? Math.round(calificacionesFinales.exentos)
-                        : '--'}
+                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
+                        ? 'ORD'
+                        : (calificacionesFinales.exentos !== null ? Math.round(calificacionesFinales.exentos) : '--')}
                     </td>
                     <td className={
-                      calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8
+                      calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
-                      {calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8 ? (
-                        ordinarioGuardado !== null && ordinarioGuardado < 6 ? (
-                          'EXT'
-                        ) : (
+                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8 ? (
                           <div className="flex items-center gap-2 justify-center">
                             <input
                               type="number"
@@ -4772,63 +4944,94 @@ export default function MaestroAsignaturas() {
                               {isSavingOrdinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
                             </button>
                           </div>
-                        )
-                      ) : '--'}
+                        ) : '--'}
                     </td>
                     <td className={
-                      ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8
+                      calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
-                      {ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && Math.round(calificacionesFinales.exentos) < 8 ? (
-                        extraordinarioGuardado !== null && extraordinarioGuardado < 6 ? (
-                          'NA'
-                        ) : (
-                          <div className="flex items-center gap-2 justify-center">
+                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8 ? (
+                          ordinarioGuardado !== null ? (
                             <input
                               type="number"
                               min={0}
                               max={10}
                               className="w-20 text-center border rounded px-2 py-1 mx-1"
-                              placeholder="Extraordinario"
-                              value={inputExtraordinario}
-                              onChange={e => setInputExtraordinario(e.target.value)}
-                              disabled={isSavingExtraordinario}
+                              value={ordinarioGuardado}
+                              disabled={true}
                             />
-                            <button
-                              className={`h-6 px-2 text-xs rounded ${finalGradeId ? 'border-green-500 text-green-600 border bg-green-50 hover:bg-green-100' : 'bg-green-600 text-white'} font-semibold`}
-                              style={{ minWidth: 60 }}
-                              disabled={isSavingExtraordinario || !finalGradeId}
-                              onClick={async () => {
-                                if (!finalGradeId || !alumnoCalificacionFinal?.courseGroupStudentId) return;
-                                setIsSavingExtraordinario(true);
-                                try {
-                                  await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
-                                  setExtraordinarioGuardado(Number(inputExtraordinario));
-                                  
-                                  // Actualizar el estado de calificaciones finales
-                                  setCalificacionesFinalesAlumnos(prev => ({
-                                    ...prev,
-                                    [alumnoCalificacionFinal.courseGroupStudentId]: {
-                                      ...prev[alumnoCalificacionFinal.courseGroupStudentId],
-                                      extraordinario: Number(inputExtraordinario)
-                                    }
-                                  }));
-                                  
-                                  toast.success('Calificación extraordinaria guardada correctamente');
-                                } catch (err) {
-                                  console.error('Error al guardar calificación extraordinaria:', err);
-                                  toast.error('Error al guardar calificación extraordinaria');
-                                } finally {
-                                  setIsSavingExtraordinario(false);
-                                }
-                              }}
-                            >
-                              {isSavingExtraordinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
-                            </button>
-                          </div>
-                        )
-                      ) : '--'}
+                          ) : (
+                            <span className="font-bold">--</span>
+                          )
+                        ) : '--'}
+                    </td>
+                    <td className={
+                      ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
+                        ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
+                        : "px-2 py-1"
+                    }>
+                      {ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8 ? (
+                          extraordinarioGuardado !== null ? (
+                            <div className="flex items-center gap-2 justify-center">
+                              <span className="font-bold">{extraordinarioGuardado}</span>
+                              <button
+                                className="h-6 px-2 text-xs rounded border-green-500 text-green-600 border bg-green-50 hover:bg-green-100 font-semibold"
+                                style={{ minWidth: 60 }}
+                                disabled={isSavingExtraordinario}
+                                onClick={() => {
+                                  setInputExtraordinario(extraordinarioGuardado.toString());
+                                }}
+                              >
+                                ✏️ Editar
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 justify-center">
+                              <input
+                                type="number"
+                                min={0}
+                                max={10}
+                                className="w-20 text-center border rounded px-2 py-1 mx-1"
+                                placeholder="Extraordinario"
+                                value={inputExtraordinario}
+                                onChange={e => setInputExtraordinario(e.target.value)}
+                                disabled={isSavingExtraordinario}
+                              />
+                              <button
+                                className={`h-6 px-2 text-xs rounded ${finalGradeId ? 'border-green-500 text-green-600 border bg-green-50 hover:bg-green-100' : 'bg-green-600 text-white'} font-semibold`}
+                                style={{ minWidth: 60 }}
+                                disabled={isSavingExtraordinario || !finalGradeId}
+                                onClick={async () => {
+                                  if (!finalGradeId || !alumnoCalificacionFinal?.courseGroupStudentId) return;
+                                  setIsSavingExtraordinario(true);
+                                  try {
+                                    await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
+                                    setExtraordinarioGuardado(Number(inputExtraordinario));
+                                    
+                                    // Actualizar el estado de calificaciones finales
+                                    setCalificacionesFinalesAlumnos(prev => ({
+                                      ...prev,
+                                      [alumnoCalificacionFinal.courseGroupStudentId]: {
+                                        ...prev[alumnoCalificacionFinal.courseGroupStudentId],
+                                        extraordinario: Number(inputExtraordinario)
+                                      }
+                                    }));
+                                    
+                                    toast.success('Calificación extraordinaria guardada correctamente');
+                                  } catch (err) {
+                                    console.error('Error al guardar calificación extraordinaria:', err);
+                                    toast.error('Error al guardar calificación extraordinaria');
+                                  } finally {
+                                    setIsSavingExtraordinario(false);
+                                  }
+                                }}
+                              >
+                                {isSavingExtraordinario ? 'Guardando...' : (finalGradeId ? '✏️ Editar' : '➕ Agregar')}
+                              </button>
+                            </div>
+                          )
+                        ) : '--'}
                     </td>
                   </tr>
                 </tbody>

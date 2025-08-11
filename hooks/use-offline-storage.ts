@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, act } from 'react'
 
 interface OfflineData {
   id: string
-  type: 'student' | 'teacher' | 'course' | 'group' | 'period'
+  type: 'student' | 'teacher' | 'course' | 'group' | 'period' | 'attendance'
   action: 'create' | 'update' | 'delete'
   data: any
   timestamp: number
@@ -172,6 +172,18 @@ export function useOfflineStorage() {
               await periodService.updatePeriod(id, updateData)
             } else if (action.action === 'delete') {
               await periodService.deletePeriod(action.data.id)
+            }
+            break
+            
+          case 'attendance':
+            const { CourseService: courseService } = await import('@/lib/services/course.service')
+            if (action.action === 'create') {
+              await courseService.createAttendance(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await courseService.updateAttendance(id, updateData)
+            } else if (action.action === 'delete') {
+              await courseService.deleteAttendance(action.data.id)
             }
             break
         }

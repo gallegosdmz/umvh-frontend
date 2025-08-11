@@ -504,6 +504,20 @@ export const CourseService = {
       return data;
     },
 
+    async deleteAttendance(id: number) {
+        const response = await fetch(`${API_URL}/courses-groups-attendances/${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            return handleError(response, 'No se pudo eliminar la asistencia');
+        }
+
+        return true;
+    },
+
     // MÉTODO SUPER OPTIMIZADO: Obtener toda la información de un grupo en una sola llamada
     async getCourseGroupCompleteData(courseGroupId: number) {
       console.log('🔍 DEBUG getCourseGroupCompleteData - courseGroupId:', courseGroupId);
