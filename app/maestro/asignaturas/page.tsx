@@ -2533,35 +2533,31 @@ export default function MaestroAsignaturas() {
     let calificacionFinal = 0;
     let totalPonderacion = 0;
     
-    // 1. Cálculo de Asistencia
+    // 1. Cálculo de Asistencia (siempre se calcula el porcentaje)
+    let porcentajeAsistencia = 0;
     
-    
-    if (ponderacionesCurso.asistencia > 0) {
-      try {
-        const asistenciasAlumno = await CourseService.getAttendancesByCourseGroupStudentAndPartial(
-          courseGroupStudentId,
-          selectedPartial
-        );
+    try {
+      const asistenciasAlumno = await CourseService.getAttendancesByCourseGroupStudentAndPartial(
+        courseGroupStudentId,
+        selectedPartial
+      );
 
+      if (Array.isArray(asistenciasAlumno) && asistenciasAlumno.length > 0) {
+        const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
+        const totalAsistencias = asistenciasAlumno.length;
+        porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
         
-
-        if (Array.isArray(asistenciasAlumno) && asistenciasAlumno.length > 0) {
-          const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
-          const totalAsistencias = asistenciasAlumno.length;
-          const porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
+        // Solo se suma a la calificación final si la ponderación es mayor a 0
+        if (ponderacionesCurso.asistencia > 0) {
           const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
           const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
-
           
-
           calificacionFinal += calificacionAsistencia;
           totalPonderacion += ponderacionesCurso.asistencia;
-        } else {
-          
         }
-      } catch (error) {
-        
       }
+    } catch (error) {
+      console.error('Error al obtener asistencias:', error);
     }
     
     // 2. Cálculo de Actividades
@@ -2747,24 +2743,26 @@ export default function MaestroAsignaturas() {
       let totalPonderacion = 0;
       let porcentajeAsistencia = 0;
       
-      // 1. Cálculo de Asistencia usando datos ya cargados
-      if (ponderacionesCurso.asistencia > 0) {
-        const asistenciasAlumno = asistenciasMap[courseGroupStudentId]?.[parcialActual] || [];
+      // 1. Cálculo de Asistencia usando datos ya cargados (siempre se calcula el porcentaje)
+      const asistenciasAlumno = asistenciasMap[courseGroupStudentId]?.[parcialActual] || [];
+      
+      // Log reducido para evitar spam en consola
+      if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
+        console.log('🔍 Calculando asistencia para primer alumno:', {
+          courseGroupStudentId,
+          parcialActual,
+          asistenciasAlumnoLength: asistenciasAlumno.length,
+          ponderacionAsistencia: ponderacionesCurso.asistencia
+        });
+      }
+      
+      if (asistenciasAlumno.length > 0) {
+        const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
+        const totalAsistencias = asistenciasAlumno.length;
+        porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
         
-        // Log reducido para evitar spam en consola
-        if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
-          console.log('🔍 Calculando asistencia para primer alumno:', {
-            courseGroupStudentId,
-            parcialActual,
-            asistenciasAlumnoLength: asistenciasAlumno.length,
-            ponderacionAsistencia: ponderacionesCurso.asistencia
-          });
-        }
-        
-        if (asistenciasAlumno.length > 0) {
-          const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
-          const totalAsistencias = asistenciasAlumno.length;
-          porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
+        // Solo se suma a la calificación final si la ponderación es mayor a 0
+        if (ponderacionesCurso.asistencia > 0) {
           const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
           const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
           
@@ -2784,13 +2782,13 @@ export default function MaestroAsignaturas() {
         } else {
           // Log reducido para evitar spam en consola
           if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
-            console.log('⚠️ No hay asistencias registradas para este alumno en el parcial seleccionado');
+            console.log('ℹ️ La ponderación de asistencia es 0, se muestra el porcentaje pero no se suma a la calificación');
           }
         }
       } else {
         // Log reducido para evitar spam en consola
         if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
-          console.log('⚠️ La ponderación de asistencia es 0, no se calcula');
+          console.log('⚠️ No hay asistencias registradas para este alumno en el parcial seleccionado');
         }
       }
       
@@ -2912,20 +2910,22 @@ export default function MaestroAsignaturas() {
       let totalPonderacion = 0;
       let porcentajeAsistencia = 0;
       
-      // 1. Cálculo de Asistencia - USAR DATOS YA CARGADOS EN LUGAR DE HACER NUEVA CONSULTA
-      if (ponderacionesCurso.asistencia > 0) {
-        // Usar el mapa de asistencias ya cargado en lugar de hacer una nueva consulta
-        const asistenciasAlumno = asistenciasMap[alumno.courseGroupStudentId!]?.[parcialActual] || [];
+      // 1. Cálculo de Asistencia - USAR DATOS YA CARGADOS EN LUGAR DE HACER NUEVA CONSULTA (siempre se calcula el porcentaje)
+      // Usar el mapa de asistencias ya cargado en lugar de hacer una nueva consulta
+      const asistenciasAlumno = asistenciasMap[alumno.courseGroupStudentId!]?.[parcialActual] || [];
+      
+      console.log(`📊 Calculando asistencia para alumno ${alumno.courseGroupStudentId}:`, {
+        asistenciasDisponibles: asistenciasAlumno.length,
+        ponderacionAsistencia: ponderacionesCurso.asistencia
+      });
+      
+      if (asistenciasAlumno.length > 0) {
+        const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
+        const totalAsistencias = asistenciasAlumno.length;
+        porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
         
-        console.log(`📊 Calculando asistencia para alumno ${alumno.courseGroupStudentId}:`, {
-          asistenciasDisponibles: asistenciasAlumno.length,
-          ponderacionAsistencia: ponderacionesCurso.asistencia
-        });
-        
-        if (asistenciasAlumno.length > 0) {
-          const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
-          const totalAsistencias = asistenciasAlumno.length;
-          porcentajeAsistencia = (asistenciasPresentes / totalAsistencias) * 100;
+        // Solo se suma a la calificación final si la ponderación es mayor a 0
+        if (ponderacionesCurso.asistencia > 0) {
           const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
           const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
           
@@ -2940,10 +2940,10 @@ export default function MaestroAsignaturas() {
           calificacionFinal += calificacionAsistencia;
           totalPonderacion += ponderacionesCurso.asistencia;
         } else {
-          console.log(`⚠️ No hay asistencias registradas para alumno ${alumno.courseGroupStudentId} en parcial ${parcialActual}`);
+          console.log(`ℹ️ Ponderación de asistencia es 0 para alumno ${alumno.courseGroupStudentId}, se muestra el porcentaje pero no se suma a la calificación`);
         }
       } else {
-        console.log(`⚠️ Ponderación de asistencia es 0 para alumno ${alumno.courseGroupStudentId}, no se calcula`);
+        console.log(`⚠️ No hay asistencias registradas para alumno ${alumno.courseGroupStudentId} en parcial ${parcialActual}`);
       }
       
       // 2. Cálculo de Actividades
@@ -3798,7 +3798,7 @@ export default function MaestroAsignaturas() {
                                 }
                               </td>
                               <td className="border border-gray-300 px-1 py-1 text-xs">
-                                {calificacionesParcialesAlumnos[alumno.courseGroupStudentId!]?.porcentajeAsistencia > 0 
+                                {calificacionesParcialesAlumnos[alumno.courseGroupStudentId!]?.porcentajeAsistencia !== undefined 
                                   ? `${calificacionesParcialesAlumnos[alumno.courseGroupStudentId!].porcentajeAsistencia.toFixed(1)}%`
                                   : '--'
                                 }
