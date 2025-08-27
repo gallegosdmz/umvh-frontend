@@ -4630,37 +4630,39 @@ export default function MaestroAsignaturas() {
 
             {/* Modal de Asistencia */}
             <Dialog open={isAsistenciaModalOpen} onOpenChange={setIsAsistenciaModalOpen}>
-              <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Asistencia - {asistenciaParcial === 1 ? 'Primer' : asistenciaParcial === 2 ? 'Segundo' : 'Tercer'} Parcial</DialogTitle>
-                  <DialogDescription>
+              <DialogContent className="w-[95vw] max-w-6xl h-[90vh] max-h-[90vh] flex flex-col p-0 sm:p-6">
+                <DialogHeader className="px-4 sm:px-0 pb-4">
+                  <DialogTitle className="text-lg sm:text-xl">Asistencia - {asistenciaParcial === 1 ? 'Primer' : asistenciaParcial === 2 ? 'Segundo' : 'Tercer'} Parcial</DialogTitle>
+                  <DialogDescription className="text-sm">
                     Selecciona los alumnos presentes y ausentes para el parcial seleccionado
                     {!isAttendanceOnline && (
-                      <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-sm">
+                      <div className="mt-2 p-2 bg-yellow-100 border border-yellow-300 rounded text-yellow-800 text-xs sm:text-sm">
                         ⚠️ Modo Offline: Las asistencias se guardarán localmente y se sincronizarán cuando haya conexión.
                       </div>
                     )}
                   </DialogDescription>
                 </DialogHeader>
-                <div className="mb-4 flex items-center gap-4 flex-shrink-0">
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="asistenciaFecha" className="font-medium">Fecha:</label>
+                
+                {/* Controles de fecha y parcial - Responsive */}
+                <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 flex-shrink-0 px-4 sm:px-0">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                    <label htmlFor="asistenciaFecha" className="font-medium text-sm whitespace-nowrap">Fecha:</label>
                     <input
                       id="asistenciaFecha"
                       type="date"
                       value={asistenciaFecha}
                       onChange={e => handleDateChange(e.target.value)}
-                      className="border rounded px-2 py-1"
+                      className="border rounded px-2 py-1 text-sm w-full sm:w-auto"
                       disabled={isLoadingDateChange}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="asistenciaParcial" className="font-medium">Parcial:</label>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                    <label htmlFor="asistenciaParcial" className="font-medium text-sm whitespace-nowrap">Parcial:</label>
                     <select
                       id="asistenciaParcial"
                       value={asistenciaParcial}
                       onChange={e => handleParcialChange(Number(e.target.value))}
-                      className="border rounded px-2 py-1"
+                      className="border rounded px-2 py-1 text-sm w-full sm:w-auto"
                       disabled={isLoadingDateChange}
                     >
                       <option value={1}>Primer Parcial</option>
@@ -4669,19 +4671,22 @@ export default function MaestroAsignaturas() {
                     </select>
                   </div>
                 </div>
-                <div className="flex-1 overflow-hidden">
+                
+                {/* Contenido principal - Responsive */}
+                <div className="flex-1 overflow-hidden px-4 sm:px-0">
                   <div className="rounded-md border h-full flex flex-col">
-                    <div className="overflow-y-auto max-h-[400px] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                    {/* Vista de escritorio - Tabla */}
+                    <div className="hidden md:block overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                       <table className="min-w-full w-full border-separate" style={{ borderSpacing: 0, tableLayout: 'fixed' }}>
                         <thead className="bg-white sticky top-0 z-10">
                           <tr>
-                            <th className="px-4 py-2 text-center" style={{ width: '8%' }}>No.</th>
-                            <th className="px-4 py-2 text-left" style={{ width: '25%' }}>Nombre Completo</th>
-                            <th className="px-4 py-2 text-left" style={{ width: '15%' }}>Matrícula</th>
-                            <th className="px-4 py-2 text-left" style={{ width: '15%' }}>Estado</th>
-                            <th className="px-4 py-2 text-center" style={{ width: '12%' }}>Presente</th>
-                            <th className="px-4 py-2 text-center" style={{ width: '12%' }}>Ausente</th>
-                            <th className="px-4 py-2 text-center" style={{ width: '13%' }}>Retardo</th>
+                            <th className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm" style={{ width: '8%' }}>No.</th>
+                            <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm" style={{ width: '25%' }}>Nombre Completo</th>
+                            <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm" style={{ width: '15%' }}>Matrícula</th>
+                            <th className="px-2 sm:px-4 py-2 text-left text-xs sm:text-sm" style={{ width: '15%' }}>Estado</th>
+                            <th className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm" style={{ width: '12%' }}>Presente</th>
+                            <th className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm" style={{ width: '12%' }}>Ausente</th>
+                            <th className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm" style={{ width: '13%' }}>Retardo</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -4690,7 +4695,7 @@ export default function MaestroAsignaturas() {
                               <td colSpan={7} className="text-center py-8">
                                 <div className="flex flex-col items-center justify-center text-gray-500">
                                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
-                                  <p>{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
+                                  <p className="text-sm">{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
                                 </div>
                               </td>
                             </tr>
@@ -4706,22 +4711,22 @@ export default function MaestroAsignaturas() {
                             </tr>
                           ) : (
                             asistenciaAlumnos.map((alumno, index) => (
-                              <tr key={alumno.id}>
-                                <td className="px-4 py-2 text-center font-medium" style={{ width: '8%' }}>{index + 1}</td>
-                                <td className="font-medium px-4 py-2" style={{ width: '25%' }}>{alumno.fullName}</td>
-                                <td className="px-4 py-2" style={{ width: '15%' }}>{alumno.registrationNumber}</td>
-                                <td className="px-4 py-2" style={{ width: '15%' }}>
+                              <tr key={alumno.id} className="hover:bg-gray-50">
+                                <td className="px-2 sm:px-4 py-2 text-center font-medium text-xs sm:text-sm" style={{ width: '8%' }}>{index + 1}</td>
+                                <td className="font-medium px-2 sm:px-4 py-2 text-xs sm:text-sm" style={{ width: '25%' }}>{alumno.fullName}</td>
+                                <td className="px-2 sm:px-4 py-2 text-xs sm:text-sm" style={{ width: '15%' }}>{alumno.registrationNumber}</td>
+                                <td className="px-2 sm:px-4 py-2" style={{ width: '15%' }}>
                                   {alumno.attendanceId ? (
-                                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                    <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
                                       ✓ Creada
                                     </Badge>
                                   ) : (
-                                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 text-xs">
                                       ⚠ Nueva
                                     </Badge>
                                   )}
                                 </td>
-                                <td className="px-4 py-2 text-center" style={{ width: '12%' }}>
+                                <td className="px-2 sm:px-4 py-2 text-center" style={{ width: '12%' }}>
                                   <input
                                     type="checkbox"
                                     checked={alumno.attend === 1}
@@ -4731,9 +4736,10 @@ export default function MaestroAsignaturas() {
                                       );
                                       setAsistenciaAlumnos(updatedAlumnos);
                                     }}
+                                    className="w-4 h-4"
                                   />
                                 </td>
-                                <td className="px-4 py-2 text-center" style={{ width: '12%' }}>
+                                <td className="px-2 sm:px-4 py-2 text-center" style={{ width: '12%' }}>
                                   <input
                                     type="checkbox"
                                     checked={alumno.attend === 2}
@@ -4743,9 +4749,10 @@ export default function MaestroAsignaturas() {
                                       );
                                       setAsistenciaAlumnos(updatedAlumnos);
                                     }}
+                                    className="w-4 h-4"
                                   />
                                 </td>
-                                <td className="px-4 py-2 text-center" style={{ width: '13%' }}>
+                                <td className="px-2 sm:px-4 py-2 text-center" style={{ width: '13%' }}>
                                   <input
                                     type="checkbox"
                                     checked={alumno.attend === 3}
@@ -4755,6 +4762,7 @@ export default function MaestroAsignaturas() {
                                       );
                                       setAsistenciaAlumnos(updatedAlumnos);
                                     }}
+                                    className="w-4 h-4"
                                   />
                                 </td>
                               </tr>
@@ -4763,17 +4771,108 @@ export default function MaestroAsignaturas() {
                         </tbody>
                       </table>
                     </div>
+                    
+                    {/* Vista móvil - Cards */}
+                    <div className="md:hidden overflow-y-auto flex-1">
+                      {isLoadingAsistencia || isLoadingDateChange ? (
+                        <div className="flex flex-col items-center justify-center text-gray-500 py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-4"></div>
+                          <p className="text-sm">{isLoadingDateChange ? 'Cargando asistencias...' : 'Cargando alumnos...'}</p>
+                        </div>
+                      ) : asistenciaAlumnos.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center text-gray-500 py-8">
+                          <Users className="h-12 w-12 mb-4" />
+                          <p className="text-lg font-medium">No hay alumnos en este grupo</p>
+                          <p className="text-sm">Agrega alumnos al grupo para tomar asistencia</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 p-2">
+                          {asistenciaAlumnos.map((alumno, index) => (
+                            <div key={alumno.id} className="border rounded-lg p-3 bg-white shadow-sm">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-500">#{index + 1}</span>
+                                  <span className="text-sm font-semibold">{alumno.fullName}</span>
+                                </div>
+                                {alumno.attendanceId ? (
+                                  <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                                    ✓ Creada
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 text-xs">
+                                    ⚠ Nueva
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-600 mb-3">
+                                Matrícula: {alumno.registrationNumber}
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`presente-${alumno.id}`}
+                                    checked={alumno.attend === 1}
+                                    onChange={(e) => {
+                                      const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                        a.id === alumno.id ? { ...a, attend: e.target.checked ? 1 : 2 } : a
+                                      );
+                                      setAsistenciaAlumnos(updatedAlumnos);
+                                    }}
+                                    className="w-4 h-4"
+                                  />
+                                  <label htmlFor={`presente-${alumno.id}`} className="text-sm font-medium text-green-700">Presente</label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`ausente-${alumno.id}`}
+                                    checked={alumno.attend === 2}
+                                    onChange={(e) => {
+                                      const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                        a.id === alumno.id ? { ...a, attend: e.target.checked ? 2 : 1 } : a
+                                      );
+                                      setAsistenciaAlumnos(updatedAlumnos);
+                                    }}
+                                    className="w-4 h-4"
+                                  />
+                                  <label htmlFor={`ausente-${alumno.id}`} className="text-sm font-medium text-red-700">Ausente</label>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`retardo-${alumno.id}`}
+                                    checked={alumno.attend === 3}
+                                    onChange={(e) => {
+                                      const updatedAlumnos = asistenciaAlumnos.map((a) =>
+                                        a.id === alumno.id ? { ...a, attend: e.target.checked ? 3 : 1 } : a
+                                      );
+                                      setAsistenciaAlumnos(updatedAlumnos);
+                                    }}
+                                    className="w-4 h-4"
+                                  />
+                                  <label htmlFor={`retardo-${alumno.id}`} className="text-sm font-medium text-orange-700">Retardo</label>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-4 flex-shrink-0">
+                
+                {/* Footer - Responsive */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-4 flex-shrink-0 px-4 sm:px-0">
                   <Button
                     variant="outline"
                     onClick={handleCloseAsistenciaModal}
                     disabled={isSavingAttendance}
+                    className="w-full sm:w-auto"
                   >
                     Cerrar
                   </Button>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                     {!isAttendanceOnline && (
                       <Button
                         variant="outline"
@@ -4798,7 +4897,7 @@ export default function MaestroAsignaturas() {
                             })
                           }
                         })}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto"
                       >
                         🔄 Sincronizar Offline
                       </Button>
@@ -4807,7 +4906,7 @@ export default function MaestroAsignaturas() {
                       variant="default"
                       onClick={handleSaveAttendance}
                       disabled={isSavingAttendance || asistenciaAlumnos.length === 0}
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
                     >
                       {isSavingAttendance ? 'Guardando...' : 'Guardar'}
                     </Button>
