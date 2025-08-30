@@ -1,0 +1,1 @@
+export { PonderacionesModal } from './PonderacionesModal'
