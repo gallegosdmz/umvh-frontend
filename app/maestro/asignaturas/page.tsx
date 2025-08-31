@@ -46,12 +46,28 @@ import { studentService } from "@/lib/services/student.service"
 import { AttendanceModal } from "@/components/attendance"
 import { PonderacionesModal } from "@/components/ponderaciones"
 import { usePonderaciones } from "@/hooks/use-ponderaciones"
+import { useRealInternet, useOfflineGrades } from "@/hooks"
 
 
 
 type EvalType = "actividades" | "evidencias";
 
 export default function MaestroAsignaturas() {
+  // Hook para detectar conexión REAL a internet
+  useRealInternet()
+  
+  // Hook para manejar calificaciones offline
+  const { 
+    isOnline: gradesOnline, 
+    saveGrade, 
+    updateGrade,
+    savePartialGrade, 
+    saveFinalGrade,
+    getOfflineGrades,
+    getOfflinePartialGrade,
+    getOfflineFinalGrade
+  } = useOfflineGrades()
+  
   const { user } = useAuth()
   const { handleGetCourses, handleGetCourseGroupWithStudents, handleGetStudentsByCourseGroup } = useCourse()
   const { handleGetGroups } = useGroup()
@@ -1829,37 +1845,33 @@ export default function MaestroAsignaturas() {
         courseGroupStudentId: courseGroupStudentId,
       };
 
-      
-
+      // Usar el hook offline para guardar la calificación
       if (currentGrade.id) {
-        // PATCH - Actualizar calificación existente
-        
-        await CourseService.updatePartialEvaluationGrade(currentGrade.id, dto);
-        toast.success("Calificación actualizada");
+        // Actualizar calificación existente
+        await updateGrade(currentGrade.id, dto);
       } else {
-        // POST - Crear nueva calificación
+        // Crear nueva calificación
+        const result = await saveGrade(dto);
         
-        const result = await CourseService.createPartialEvaluationGrade(dto);
-        
-        // Actualizar el estado local con el ID de la nueva calificación
-        setCalificacionesAlumnos(prev => {
-          const updated = { ...prev };
-          if (!updated[courseGroupStudentId]) return prev;
-          
-          if (type === "actividades") {
-            updated[courseGroupStudentId].actividades[index] = { grade: grade, id: result.id };
-          } else if (type === "evidencias") {
-            updated[courseGroupStudentId].evidencias[index] = { grade: grade, id: result.id };
-          } else if (type === "producto") {
-            updated[courseGroupStudentId].producto = { grade: grade, id: result.id };
-          } else if (type === "examen") {
-            updated[courseGroupStudentId].examen = { grade: grade, id: result.id };
-          }
-          
-          return updated;
-        });
-        
-        toast.success("Calificación guardada");
+        if (result) {
+          // Actualizar el estado local con el ID de la nueva calificación
+          setCalificacionesAlumnos(prev => {
+            const updated = { ...prev };
+            if (!updated[courseGroupStudentId]) return prev;
+            
+            if (type === "actividades") {
+              updated[courseGroupStudentId].actividades[index] = { grade: grade, id: result.id };
+            } else if (type === "evidencias") {
+              updated[courseGroupStudentId].evidencias[index] = { grade: grade, id: result.id };
+            } else if (type === "producto") {
+              updated[courseGroupStudentId].producto = { grade: grade, id: result.id };
+            } else if (type === "examen") {
+              updated[courseGroupStudentId].examen = { grade: grade, id: result.id };
+            }
+            
+            return updated;
+          });
+        }
       }
 
       // Recalcular calificaciones parciales de todos los alumnos

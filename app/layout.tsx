@@ -7,6 +7,7 @@ import { Navigation } from "@/components/navigation"
 import { OfflineStatus } from "@/components/offline-status"
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt"
 import { OfflineIndicator } from "@/components/offline-indicator"
+import { InternetStatus } from "@/components/internet-status"
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -65,6 +66,7 @@ export default function RootLayout({
         <AuthProvider>
           <Navigation />
           <OfflineStatus />
+          <InternetStatus />
           {children}
           <PWAInstallPrompt />
           <OfflineIndicator />

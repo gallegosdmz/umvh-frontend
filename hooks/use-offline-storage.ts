@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, act } from 'react'
 
 interface OfflineData {
   id: string
-  type: 'student' | 'teacher' | 'course' | 'group' | 'period' | 'attendance'
+  type: 'student' | 'teacher' | 'course' | 'group' | 'period' | 'attendance' | 'grade' | 'partial_grade' | 'final_grade'
   action: 'create' | 'update' | 'delete'
   data: any
   timestamp: number
@@ -184,6 +184,42 @@ export function useOfflineStorage() {
               await courseService.updateAttendance(id, updateData)
             } else if (action.action === 'delete') {
               await courseService.deleteAttendance(action.data.id)
+            }
+            break
+            
+          case 'grade':
+            const { CourseService: gradeService } = await import('@/lib/services/course.service')
+            if (action.action === 'create') {
+              await gradeService.createPartialEvaluationGrade(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await gradeService.updatePartialEvaluationGrade(id, updateData)
+            } else if (action.action === 'delete') {
+              await gradeService.deletePartialEvaluationGrade(action.data.id)
+            }
+            break
+            
+          case 'partial_grade':
+            const { CourseService: partialGradeService } = await import('@/lib/services/course.service')
+            if (action.action === 'create') {
+              await partialGradeService.createPartialGrade(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await partialGradeService.updatePartialGrade(id, updateData)
+            } else if (action.action === 'delete') {
+              await partialGradeService.deletePartialGrade(action.data.id)
+            }
+            break
+            
+          case 'final_grade':
+            const { CourseService: finalGradeService } = await import('@/lib/services/course.service')
+            if (action.action === 'create') {
+              await finalGradeService.createFinalGrade(action.data)
+            } else if (action.action === 'update') {
+              const { id, ...updateData } = action.data
+              await finalGradeService.updateFinalGrade(id, updateData)
+            } else if (action.action === 'delete') {
+              await finalGradeService.deleteFinalGrade(action.data.id)
             }
             break
         }
