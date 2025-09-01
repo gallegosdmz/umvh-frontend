@@ -4,7 +4,7 @@ import { Student, Group, Period, CreateGroupDto } from '@/lib/mock-data';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit, Trash, ChevronLeft, ChevronRight, Users } from 'lucide-react';
+import { Plus, Edit, Trash, ChevronLeft, ChevronRight, Users, FileText } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'react-toastify';
 import { Checkbox } from '@/components/ui/checkbox';
+import { WordDocumentService } from '@/lib/services/word-document.service';
 
 interface GroupWithStudents extends Group {
   students?: Student[];
@@ -75,6 +76,7 @@ export default function AlumnosPage() {
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [formLoading, setFormLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [generatingBoleta, setGeneratingBoleta] = useState<string | null>(null);
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -325,6 +327,38 @@ export default function AlumnosPage() {
     }
   };
 
+  const handleGenerateGroupBoleta = async () => {
+    try {
+      setGeneratingBoleta('general');
+      const blob = await WordDocumentService.generateGroupBoleta('general');
+      const filename = `Boletines_Grupo_${new Date().toISOString().split('T')[0]}.docx`;
+      
+      WordDocumentService.downloadDocument(blob, filename);
+      toast.success('Boletines generados correctamente');
+    } catch (error) {
+      console.error('Error generando los boletines:', error);
+      toast.error('Error al generar los boletines');
+    } finally {
+      setGeneratingBoleta(null);
+    }
+  };
+
+  const handleGenerateIndividualBoleta = async (groupId: string) => {
+    try {
+      setGeneratingBoleta(groupId);
+      const blob = await WordDocumentService.generateGroupBoleta(groupId);
+      const filename = `Boletin_Grupo_${groupId}_${new Date().toISOString().split('T')[0]}.docx`;
+      
+      WordDocumentService.downloadDocument(blob, filename);
+      toast.success('Boletín generado correctamente');
+    } catch (error) {
+      console.error('Error generando el boletín:', error);
+      toast.error('Error al generar el boletín');
+    } finally {
+      setGeneratingBoleta(null);
+    }
+  };
+
 
 
   return (
@@ -353,6 +387,18 @@ export default function AlumnosPage() {
               <Plus className="h-5 w-5 mr-2" />
               Nuevo {showGrupos ? 'grupo' : 'alumno'}
             </Button>
+            {showGrupos && (
+              <Button 
+                onClick={() => handleGenerateGroupBoleta()}
+                variant="outline"
+                size="lg"
+                className="border-[#bc4b26] text-[#bc4b26] hover:bg-[#bc4b26] hover:text-white"
+                disabled={generatingBoleta !== null}
+              >
+                <FileText className="h-5 w-5 mr-2" />
+                {generatingBoleta ? 'Generando...' : 'Generar Boletín'}
+              </Button>
+            )}
 
           </div>
         </div>
@@ -521,6 +567,16 @@ export default function AlumnosPage() {
                             <Button 
                               variant="outline" 
                               size="icon" 
+                              title="Generar Boletín"
+                              onClick={() => handleGenerateIndividualBoleta(grupo.id!.toString())}
+                              className="text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white"
+                              disabled={generatingBoleta === grupo.id!.toString()}
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
                               title="Editar"
                               onClick={() => handleEdit(grupo)}
                             >
@@ -671,6 +727,8 @@ export default function AlumnosPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+
       </div>
     </div>
   );
