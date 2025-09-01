@@ -57,7 +57,7 @@ export class WordDocumentService {
 
       const logoBuffer = await this.getLogoBuffer();
 
-            const doc = new Document({
+      const doc = new Document({
         sections: this.generateSections(boletas, logoBuffer),
       });
 
@@ -137,32 +137,37 @@ export class WordDocumentService {
             children: [
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Nombre del Alumno", bold: true, font: "Arial" })]
+                  children: [new TextRun({ text: "Nombre del Alumno", bold: true, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 width: { size: 30, type: WidthType.PERCENTAGE },
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Matrícula", bold: true, font: "Arial" })]
+                  children: [new TextRun({ text: "Matrícula", bold: true, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Grupo", bold: true, font: "Arial" })]
+                  children: [new TextRun({ text: "Grupo", bold: true, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Semestre", bold: true, font: "Arial" })]
+                  children: [new TextRun({ text: "Semestre", bold: true, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Período", bold: true, font: "Arial" })]
+                  children: [new TextRun({ text: "Período", bold: true, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
@@ -172,7 +177,9 @@ export class WordDocumentService {
             children: [
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.fullName, font: "Arial" })]
+                  children: [new TextRun({ text: boleta.fullName, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
+
                 })],
                 width: { size: 30, type: WidthType.PERCENTAGE },
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
@@ -180,28 +187,32 @@ export class WordDocumentService {
 
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.registrationNumber, font: "Arial" })]
+                  children: [new TextRun({ text: boleta.registrationNumber, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
 
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.groupName, font: "Arial" })]
+                  children: [new TextRun({ text: boleta.groupName, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
 
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.semester.toString(), font: "Arial" })]
+                  children: [new TextRun({ text: boleta.semester.toString(), font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
 
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.periodName, font: "Arial" })]
+                  children: [new TextRun({ text: boleta.periodName, font: "Arial" })],
+                  spacing: { before: 150, after: 150 },
                 })],
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
               }),
@@ -211,11 +222,11 @@ export class WordDocumentService {
         ],
       }),
 
-             // Título de calificaciones
-       new Paragraph({
-         spacing: { after: 100 },
-       })
-     );
+      // Título de calificaciones
+      new Paragraph({
+        spacing: { after: 100 },
+      })
+    );
 
     // Tabla de calificaciones
     const allRows = [
@@ -391,11 +402,11 @@ export class WordDocumentService {
 
     children.push(gradesTable);
 
-                  // Espacio para firmas
-      children.push(
-        new Paragraph({
-          spacing: { after: 100 },
-        }),
+    // Espacio para firmas
+    children.push(
+      new Paragraph({
+        spacing: { after: 100 },
+      }),
 
       // Tabla de firmas
       new Table({
@@ -466,12 +477,12 @@ export class WordDocumentService {
               }),
             ],
           }),
-                 ],
-       })
-     );
+        ],
+      })
+    );
 
-     return children;
-   }
+    return children;
+  }
 
   static downloadDocument(blob: Blob, filename: string) {
     const url = window.URL.createObjectURL(blob);
