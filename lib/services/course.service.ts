@@ -1,6 +1,6 @@
 import { Course, Group, Student } from "../mock-data";
 import { handleError } from "../utils";
-import { EvaluationsDataResponse } from "../../types/api-responses";
+import { EvaluationsDataResponse, FinalDataResponse } from "../../types/api-responses";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -574,5 +574,24 @@ export const CourseService = {
             console.error('Error en getCoursesCount:', error);
             return 0;
         }
+    },
+
+    // MÉTODO ESPECÍFICO PARA EL MODAL DE GENERAL: Obtener datos finales del grupo
+    async getCourseGroupFinalData(courseGroupId: number): Promise<FinalDataResponse> {
+      console.log('🔍 DEBUG getCourseGroupFinalData - courseGroupId:', courseGroupId);
+      
+      const response = await fetch(`${API_URL}/courses-groups/${courseGroupId}/final-data`, {
+        headers: getAuthHeaders(),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('🔍 DEBUG getCourseGroupFinalData - Error response:', data);
+        throw new Error(data.message || 'Error al obtener datos finales del grupo');
+      }
+      
+      console.log('🔍 DEBUG getCourseGroupFinalData - Success, returning:', data);
+      return data as FinalDataResponse;
     },
 }; 

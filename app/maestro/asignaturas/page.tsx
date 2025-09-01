@@ -1108,19 +1108,25 @@ export default function MaestroAsignaturas() {
     }
   };
 
-  // Función super optimizada para obtener todos los datos de un grupo en una sola llamada
+  // Función optimizada para obtener todos los datos del grupo usando el nuevo endpoint
   const obtenerDatosCompletosGrupo = async (courseGroupId: number) => {
     try {
-      const response = await CourseService.getCourseGroupCompleteData(courseGroupId);
+      console.log('🔍 Llamando al nuevo endpoint final-data, courseGroupId:', courseGroupId);
       
-      // Procesar los datos recibidos
-      const {
-        students,
-        partialGrades,
-        attendances,
-        finalGrades,
-        partialEvaluations
-      } = response;
+      // Usar el nuevo endpoint específico para el modal de General
+      const response = await CourseService.getCourseGroupFinalData(courseGroupId);
+      
+      console.log('📊 Respuesta completa del endpoint final-data:', response);
+      
+      // Extraer datos de la respuesta
+      const { students, partialGrades, finalGrades, attendances } = response;
+      
+      console.log('📋 Datos extraídos:', {
+        students: students?.length || 0,
+        partialGrades: partialGrades?.length || 0,
+        finalGrades: finalGrades?.length || 0,
+        attendances: attendances?.length || 0
+      });
       
       // Crear mapas optimizados
       const calificacionesMap: {[key: number]: {[key: number]: number}} = {};
@@ -1171,12 +1177,19 @@ export default function MaestroAsignaturas() {
         });
       }
       
+      console.log('✅ Datos procesados:', {
+        students: students?.length || 0,
+        calificacionesMap: Object.keys(calificacionesMap).length,
+        asistenciasMap: Object.keys(asistenciasMap).length,
+        calificacionesFinalesMap: Object.keys(calificacionesFinalesMap).length
+      });
+      
       return {
         students: students || [],
         calificacionesMap,
         asistenciasMap,
         calificacionesFinalesMap,
-        partialEvaluations: partialEvaluations || []
+        partialEvaluations: []
       };
     } catch (error) {
       console.error('Error al obtener datos completos del grupo:', error);
@@ -1203,14 +1216,20 @@ export default function MaestroAsignaturas() {
       // Cargar todos los datos del grupo en una sola llamada (SUPER OPTIMIZADO)
       const datosCompletos = await obtenerDatosCompletosGrupo(courseGroup.id);
       
-      // Mapear estudiantes para el modal de General (estado separado)
-      const mappedStudents = datosCompletos.students.map((item: any) => ({
-        id: item.student.id,
-        fullName: item.student.fullName,
-        semester: item.student.semester,
-        registrationNumber: item.student.registrationNumber,
-        courseGroupStudentId: item.id
-      }));
+      console.log('📊 Datos completos recibidos:', datosCompletos);
+      
+      // Validar que students existe y es un array
+      if (!datosCompletos.students || !Array.isArray(datosCompletos.students)) {
+        console.error('❌ Error: datosCompletos.students no es un array válido:', datosCompletos.students);
+        toast.error('Error: No se pudieron cargar los estudiantes');
+        return;
+      }
+      
+      console.log('📋 Estudiantes recibidos:', datosCompletos.students);
+      
+      // Los estudiantes ya vienen en el formato correcto del endpoint
+      const mappedStudents = datosCompletos.students || [];
+      console.log('✅ Estudiantes recibidos del endpoint:', mappedStudents);
       setAlumnosGenerales(mappedStudents); // Usar estado separado
       
       // Usar los datos ya cargados
@@ -1267,6 +1286,8 @@ export default function MaestroAsignaturas() {
         calificaciones: Object.keys(calificacionesTemp).length,
         calificacionesFinales: Object.keys(calificacionesFinalesMap).length
       });
+      
+      toast.success(`Datos cargados correctamente: ${mappedStudents.length} estudiantes`);
       
     } catch (error) {
       console.error('Error al cargar datos para el modal general:', error);

@@ -48,4 +48,50 @@ export interface EvaluationsDataResponse {
       partial: number;
     };
   }>;
+}
+
+export interface FinalDataResponse {
+  students: Array<{
+    id: number;
+    fullName: string;
+    semester: number;
+    registrationNumber: string;
+    courseGroupStudentId: number;
+  }>;
+  
+  partialGrades: Array<{
+    courseGroupStudentId: number;
+    partial: number;
+    grade: number;
+    date: string;
+  }>;
+  
+  finalGrades: Array<{
+    courseGroupStudentId: number;
+    grade: number;
+    gradeOrdinary: number;
+    gradeExtraordinary: number;
+    date: string;
+  }>;
+  
+  attendances: Array<{
+    courseGroupStudentId: number;
+    partial: number;
+    attend: number;
+    date: string;
+  }>;
+  
+  ponderaciones?: {
+    actividades: number;
+    evidencias: number;
+    producto: number;
+    examen: number;
+    asistencia: number;
+  };
+  
+  courseInfo?: {
+    courseName: string;
+    groupName: string;
+    periodName: string;
+  };
 } 
