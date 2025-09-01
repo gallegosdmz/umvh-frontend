@@ -111,7 +111,7 @@ export class WordDocumentService {
             }),
           ],
           alignment: AlignmentType.CENTER,
-          spacing: { after: 100 },
+          spacing: { after: 300 },
         }),
         // Contenido de la boleta del alumno
         ...this.generateSingleBoleta(boleta),
@@ -213,8 +213,6 @@ export class WordDocumentService {
 
              // Título de calificaciones
        new Paragraph({
-         children: [new TextRun({ text: "CALIFICACIONES", bold: true, size: 20, font: "Arial" })],
-         alignment: AlignmentType.CENTER,
          spacing: { after: 100 },
        })
      );
@@ -417,7 +415,7 @@ export class WordDocumentService {
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Firma del Padre ó Tutor", bold: true, font: "Arial" })]
+                  children: [new TextRun({ text: "Firma del Padre o Tutor", bold: true, font: "Arial" })]
                 })],
                 width: { size: 50, type: WidthType.PERCENTAGE },
                 borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
