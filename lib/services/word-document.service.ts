@@ -32,7 +32,7 @@ const getAuthHeaders = () => {
 export class WordDocumentService {
   private static async getLogoBuffer() {
     const response = await fetch(
-      "https://res.cloudinary.com/gallegos-dev/image/upload/v1756759557/c63e8bdf-a82e-430e-98c9-631e3622ad32_wzptuh.png"
+      "https://res.cloudinary.com/gallegos-dev/image/upload/v1757356178/Diseño_sin_título_tmov5c.png"
     );
     const blob = await response.blob();
     return await blob.arrayBuffer();
@@ -92,7 +92,7 @@ export class WordDocumentService {
             new ImageRun({
               data: logoBuffer,
               transformation: {
-                width: 200,
+                width: 230,
                 height: 60,
               },
               type: "png",
