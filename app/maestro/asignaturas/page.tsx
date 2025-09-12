@@ -119,20 +119,20 @@ export default function MaestroAsignaturas() {
   const [alumnoEvaluacion, setAlumnoEvaluacion] = useState<any | null>(null)
   const [selectedCourseGroupForActividades, setSelectedCourseGroupForActividades] = useState<any | null>(null)
   const [evaluaciones, setEvaluaciones] = useState({
-    actividades: Array(18).fill(0),
-    evidencias: Array(18).fill(0),
+    actividades: Array(10).fill(0),
+    evidencias: Array(5).fill(0),
     producto: 0,
     examen: 0,
   })
   const [evaluacionesParciales, setEvaluacionesParciales] = useState({
-    actividades: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
-    evidencias: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+    actividades: Array(10).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+    evidencias: Array(5).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
     producto: { name: '', grade: 0, id: null, partialEvaluationId: null },
     examen: { name: '', grade: 0, id: null, partialEvaluationId: null },
   })
   const [actividadesDefinidas, setActividadesDefinidas] = useState({
-    actividades: Array(18).fill({ name: '', id: null, partial: 1 }),
-    evidencias: Array(18).fill({ name: '', id: null, partial: 1 }),
+    actividades: Array(10).fill({ name: '', id: null, partial: 1 }),
+    evidencias: Array(5).fill({ name: '', id: null, partial: 1 }),
     producto: { name: 'Producto del Parcial', id: null, partial: 1 },
     examen: { name: 'Examen Parcial', id: null, partial: 1 },
   })
@@ -215,12 +215,12 @@ export default function MaestroAsignaturas() {
   const crearEstructuraVaciaCalificaciones = () => {
     const estructuraVacia: {[key: number]: any} = {};
     alumnos.forEach(alumno => {
-      estructuraVacia[alumno.courseGroupStudentId!] = {
-        actividades: Array(18).fill({ grade: 0, id: null }),
-        evidencias: Array(18).fill({ grade: 0, id: null }),
-        producto: { grade: 0, id: null },
-        examen: { grade: 0, id: null }
-      };
+        estructuraVacia[alumno.courseGroupStudentId!] = {
+          actividades: Array(10).fill({ grade: 0, id: null }),
+          evidencias: Array(5).fill({ grade: 0, id: null }),
+          producto: { grade: 0, id: null },
+          examen: { grade: 0, id: null }
+        };
     });
     return estructuraVacia;
   };
@@ -771,8 +771,8 @@ export default function MaestroAsignaturas() {
   // Función para filtrar actividades por parcial
   const filtrarActividadesPorParcial = (actividadesDefinidasData: any[], parcial: number) => {
     // Inicializar arrays vacíos
-    const actividades = Array(18).fill({ name: '', id: null, partial: parcial });
-    const evidencias = Array(18).fill({ name: '', id: null, partial: parcial });
+    const actividades = Array(10).fill({ name: '', id: null, partial: parcial });
+    const evidencias = Array(5).fill({ name: '', id: null, partial: parcial });
     let producto = { name: 'Producto del Parcial', id: null, partial: parcial };
     let examen = { name: 'Examen Parcial', id: null, partial: parcial };
     
@@ -784,10 +784,10 @@ export default function MaestroAsignaturas() {
     actividadesDelParcial.forEach((item: any) => {
       
       
-      if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 18) {
+      if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 10) {
         
         actividades[item.slot] = { name: item.name, id: item.id, partial: item.partial };
-      } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 18) {
+      } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 5) {
         
         evidencias[item.slot] = { name: item.name, id: item.id, partial: item.partial };
       } else if (item.type === 'Producto') {
@@ -1044,8 +1044,8 @@ export default function MaestroAsignaturas() {
         
         // Inicializar estructura para el alumno
         nuevasCalificaciones[courseGroupStudentId] = {
-          actividades: Array(18).fill(null).map(() => ({grade: 0, id: null})),
-          evidencias: Array(18).fill(null).map(() => ({grade: 0, id: null})),
+          actividades: Array(10).fill(null).map(() => ({grade: 0, id: null})),
+          evidencias: Array(5).fill(null).map(() => ({grade: 0, id: null})),
           producto: {grade: 0, id: null},
           examen: {grade: 0, id: null}
         };
@@ -1058,12 +1058,12 @@ export default function MaestroAsignaturas() {
               const studentGrades = calificacionesActividadesMap[courseGroupStudentId] || {};
               const grade = studentGrades[evaluation.id];
               
-              if (evaluation.type === 'Actividades' && typeof evaluation.slot === 'number' && evaluation.slot < 18) {
+              if (evaluation.type === 'Actividades' && typeof evaluation.slot === 'number' && evaluation.slot < 10) {
                 nuevasCalificaciones[courseGroupStudentId].actividades[evaluation.slot] = {
                   grade: grade?.grade || 0,
                   id: grade?.id || null
                 };
-              } else if (evaluation.type === 'Evidencias' && typeof evaluation.slot === 'number' && evaluation.slot < 18) {
+              } else if (evaluation.type === 'Evidencias' && typeof evaluation.slot === 'number' && evaluation.slot < 5) {
                 nuevasCalificaciones[courseGroupStudentId].evidencias[evaluation.slot] = {
                   grade: grade?.grade || 0,
                   id: grade?.id || null
@@ -1524,8 +1524,8 @@ export default function MaestroAsignaturas() {
         
         
         // Inicializar arrays vacíos
-        const actividades = Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null });
-        const evidencias = Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null });
+        const actividades = Array(10).fill({ name: '', grade: 0, id: null, partialEvaluationId: null });
+        const evidencias = Array(5).fill({ name: '', grade: 0, id: null, partialEvaluationId: null });
         let producto = { name: '', grade: 0, id: null, partialEvaluationId: null };
         let examen = { name: '', grade: 0, id: null, partialEvaluationId: null };
         
@@ -1560,7 +1560,7 @@ export default function MaestroAsignaturas() {
           
           
           
-          if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
+          if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 10) {
             const actividadData = { 
               name: actividadDefinida.name, 
               grade: grade?.grade || 0, 
@@ -1569,7 +1569,7 @@ export default function MaestroAsignaturas() {
             };
             
             actividades[actividadDefinida.slot] = actividadData;
-          } else if (actividadDefinida.type === 'Evidencias' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
+          } else if (actividadDefinida.type === 'Evidencias' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 5) {
             const evidenciaData = { 
               name: actividadDefinida.name, 
               grade: grade?.grade || 0, 
@@ -1604,8 +1604,8 @@ export default function MaestroAsignaturas() {
         // También actualizar las actividades definidas para mostrar en la interfaz
         // Solo mostrar las actividades del parcial seleccionado
         const actividadesDefinidas = {
-          actividades: Array(18).fill({ name: '', id: null, partial: selectedPartial }),
-          evidencias: Array(18).fill({ name: '', id: null, partial: selectedPartial }),
+          actividades: Array(10).fill({ name: '', id: null, partial: selectedPartial }),
+          evidencias: Array(5).fill({ name: '', id: null, partial: selectedPartial }),
           producto: { name: 'Producto del Parcial', id: null, partial: selectedPartial },
           examen: { name: 'Examen Parcial', id: null, partial: selectedPartial },
         };
@@ -1614,9 +1614,9 @@ export default function MaestroAsignaturas() {
         const actividadesDelParcial = actividadesDefinidasData.filter((item: any) => item.partial === selectedPartial);
         
         actividadesDelParcial.forEach((item: any) => {
-          if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 18) {
+          if (item.type === 'Actividades' && typeof item.slot === 'number' && item.slot < 10) {
             actividadesDefinidas.actividades[item.slot] = { name: item.name, id: item.id, partial: item.partial };
-          } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 18) {
+          } else if (item.type === 'Evidencias' && typeof item.slot === 'number' && item.slot < 5) {
             actividadesDefinidas.evidencias[item.slot] = { name: item.name, id: item.id, partial: item.partial };
           } else if (item.type === 'Producto') {
             actividadesDefinidas.producto = { name: item.name || 'Producto del Parcial', id: item.id, partial: item.partial };
@@ -1629,8 +1629,8 @@ export default function MaestroAsignaturas() {
       } catch (error) {
         
         setEvaluacionesParciales({
-          actividades: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
-          evidencias: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+          actividades: Array(10).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+          evidencias: Array(5).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
           producto: { name: '', grade: 0, id: null, partialEvaluationId: null },
           examen: { name: '', grade: 0, id: null, partialEvaluationId: null },
         });
@@ -1785,8 +1785,8 @@ export default function MaestroAsignaturas() {
         // 2. Limpiar evaluaciones parciales si el modal está abierto
         if (isEvaluacionesModalOpen) {
           setEvaluacionesParciales({
-            actividades: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
-            evidencias: Array(18).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+            actividades: Array(10).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
+            evidencias: Array(5).fill({ name: '', grade: 0, id: null, partialEvaluationId: null }),
             producto: { name: '', grade: 0, id: null, partialEvaluationId: null },
             examen: { name: '', grade: 0, id: null, partialEvaluationId: null },
           });
@@ -2529,8 +2529,8 @@ export default function MaestroAsignaturas() {
         
         // Inicializar estructura para el alumno
         nuevasCalificaciones[alumno.courseGroupStudentId!] = {
-          actividades: Array(18).fill(null).map(() => ({grade: 0, id: null})),
-          evidencias: Array(18).fill(null).map(() => ({grade: 0, id: null})),
+          actividades: Array(10).fill(null).map(() => ({grade: 0, id: null})),
+          evidencias: Array(5).fill(null).map(() => ({grade: 0, id: null})),
           producto: {grade: 0, id: null},
           examen: {grade: 0, id: null}
         };
@@ -2563,13 +2563,13 @@ export default function MaestroAsignaturas() {
           
           
           
-          if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
+          if (actividadDefinida.type === 'Actividades' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 10) {
             nuevasCalificaciones[alumno.courseGroupStudentId!].actividades[actividadDefinida.slot] = {
               grade: grade?.grade || 0,
               id: grade?.id || null
             };
             
-          } else if (actividadDefinida.type === 'Evidencias' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 18) {
+          } else if (actividadDefinida.type === 'Evidencias' && typeof actividadDefinida.slot === 'number' && actividadDefinida.slot < 5) {
             nuevasCalificaciones[alumno.courseGroupStudentId!].evidencias[actividadDefinida.slot] = {
               grade: grade?.grade || 0,
               id: grade?.id || null
@@ -3008,27 +3008,27 @@ export default function MaestroAsignaturas() {
                 ) : (
                   <div className="flex-1 overflow-hidden">
                     <div className="overflow-x-auto h-full">
-                      <table className="min-w-[2000px] border border-gray-300 text-center">
+                      <table className="min-w-[1200px] border border-gray-300 text-center">
                         <thead className="sticky top-0 bg-white z-10">
                           {/* Primera fila de encabezados principales */}
                           <tr>
                             <th rowSpan={3} className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">No.</th>
                             <th rowSpan={3} className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Matrícula</th>
                             <th rowSpan={3} className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Nombre</th>
-                            <th colSpan={18} className="bg-blue-100 font-semibold border border-gray-300">Actividades de Aprendizaje</th>
-                            <th colSpan={18} className="bg-green-100 font-semibold border border-gray-300">Evidencias de Aprendizaje</th>
+                            <th colSpan={10} className="bg-blue-100 font-semibold border border-gray-300">Actividades de Aprendizaje</th>
+                            <th colSpan={5} className="bg-green-100 font-semibold border border-gray-300">Evidencias de Aprendizaje</th>
                             <th colSpan={2} className="bg-purple-100 font-semibold border border-gray-300">Calificaciones Parciales</th>
                             <th colSpan={3} className="bg-yellow-100 font-semibold border border-gray-300">Calificación Final</th>
                           </tr>
                           
                           {/* Segunda fila - Nombres de actividades */}
                           <tr>
-                            {[...Array(18)].map((_, i) => (
+                            {[...Array(10)].map((_, i) => (
                               <th key={"act"+i} className="bg-blue-50 border border-gray-300 px-1 py-1 text-xs">
                                 {actividadesDefinidas.actividades[i]?.name || `A${i+1}`}
                               </th>
                             ))}
-                            {[...Array(18)].map((_, i) => (
+                            {[...Array(5)].map((_, i) => (
                               <th key={"ev"+i} className="bg-green-50 border border-gray-300 px-1 py-1 text-xs">
                                 {actividadesDefinidas.evidencias[i]?.name || `E${i+1}`}
                               </th>
@@ -3042,12 +3042,12 @@ export default function MaestroAsignaturas() {
                           
                           {/* Tercera fila - Porcentajes de ponderación */}
                           <tr>
-                            {[...Array(18)].map((_, i) => (
+                            {[...Array(10)].map((_, i) => (
                               <th key={"actp"+i} className="bg-blue-50 border border-gray-300 px-1 py-1 text-xs">
                                 {ponderacionesCurso?.actividades ? `${ponderacionesCurso.actividades}%` : '0%'}
                               </th>
                             ))}
-                            {[...Array(18)].map((_, i) => (
+                            {[...Array(5)].map((_, i) => (
                               <th key={"evp"+i} className="bg-green-50 border border-gray-300 px-1 py-1 text-xs">
                                 {ponderacionesCurso?.evidencias ? `${ponderacionesCurso.evidencias}%` : '0%'}
                               </th>
@@ -3071,7 +3071,7 @@ export default function MaestroAsignaturas() {
                               <td className="border border-gray-300 px-2 py-1 font-medium text-left">{alumno.fullName}</td>
                               
                               {/* Actividades */}
-                              {[...Array(18)].map((_, i) => (
+                              {[...Array(10)].map((_, i) => (
                                 <td key={"act"+i} className="border border-gray-300 px-1 py-1">
                                   <input
                                     type="number"
@@ -3089,7 +3089,7 @@ export default function MaestroAsignaturas() {
                                           ...prev[alumno.courseGroupStudentId!],
                                           actividades: prev[alumno.courseGroupStudentId!]?.actividades.map((act, idx) => 
                                             idx === i ? {...act, grade: value} : act
-                                          ) || Array(18).fill({grade: 0, id: null})
+                                          ) || Array(10).fill({grade: 0, id: null})
                                         }
                                       }));
                                     }}
@@ -3099,7 +3099,7 @@ export default function MaestroAsignaturas() {
                               ))}
                               
                               {/* Evidencias */}
-                              {[...Array(18)].map((_, i) => (
+                              {[...Array(5)].map((_, i) => (
                                 <td key={"ev"+i} className="border border-gray-300 px-1 py-1">
                                   <input
                                     type="number"
@@ -3117,7 +3117,7 @@ export default function MaestroAsignaturas() {
                                           ...prev[alumno.courseGroupStudentId!],
                                           evidencias: prev[alumno.courseGroupStudentId!]?.evidencias.map((ev, idx) => 
                                             idx === i ? {...ev, grade: value} : ev
-                                          ) || Array(18).fill({grade: 0, id: null})
+                                          ) || Array(5).fill({grade: 0, id: null})
                                         }
                                       }));
                                     }}
@@ -3710,19 +3710,19 @@ export default function MaestroAsignaturas() {
                   </div>
                 </div>
                 <div className="w-full overflow-x-auto">
-                  <table className="min-w-[2400px] border border-gray-300 text-center">
+                  <table className="min-w-[1600px] border border-gray-300 text-center">
                     <thead>
                       <tr>
-                        <th colSpan={18} className="bg-blue-100 font-semibold border-r border-gray-300">Actividades de Aprendizaje</th>
-                        <th colSpan={18} className="bg-green-100 font-semibold border-r border-gray-300">Evidencias de Aprendizaje</th>
+                        <th colSpan={10} className="bg-blue-100 font-semibold border-r border-gray-300">Actividades de Aprendizaje</th>
+                        <th colSpan={5} className="bg-green-100 font-semibold border-r border-gray-300">Evidencias de Aprendizaje</th>
                         <th className="bg-pink-200 font-semibold border-r border-gray-300">Producto del Parcial</th>
                         <th className="bg-gray-400 font-semibold text-white">Examen Parcial</th>
                       </tr>
                       <tr>
-                        {[...Array(18)].map((_, i) => (
+                        {[...Array(10)].map((_, i) => (
                           <th key={"act"+i} className="bg-blue-50 border-r border-gray-200">A{i+1}</th>
                         ))}
-                        {[...Array(18)].map((_, i) => (
+                        {[...Array(5)].map((_, i) => (
                           <th key={"ev"+i} className="bg-green-50 border-r border-gray-200">E{i+1}</th>
                         ))}
                         <th className="bg-pink-50 border-r border-gray-200">Producto</th>
@@ -3732,7 +3732,7 @@ export default function MaestroAsignaturas() {
                     <tbody>
                       <tr>
                         {/* Inputs de nombre para Actividades */}
-                        {[...Array(18)].map((_, i) => {
+                        {[...Array(10)].map((_, i) => {
                           const actividad = actividadesDefinidas.actividades[i];
                           const isCurrentPartial = actividad?.partial === selectedPartialForActividades;
                           const hasActivity = actividad?.id && actividad?.name;
@@ -3773,7 +3773,7 @@ export default function MaestroAsignaturas() {
                           );
                         })}
                         {/* Inputs de nombre para Evidencias */}
-                        {[...Array(18)].map((_, i) => {
+                        {[...Array(5)].map((_, i) => {
                           const evidencia = actividadesDefinidas.evidencias[i];
                           const isCurrentPartial = evidencia?.partial === selectedPartialForActividades;
                           const hasEvidencia = evidencia?.id && evidencia?.name;
