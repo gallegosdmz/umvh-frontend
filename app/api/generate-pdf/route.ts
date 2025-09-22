@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
 
     const page = await browser.newPage();
     
-    // Configurar viewport
-    await page.setViewport({ width: 1200, height: 800 });
+    // Configurar viewport para orientación horizontal
+    await page.setViewport({ width: 1400, height: 900 });
     
     // Crear HTML con las gráficas
     const html = generateHTML(reportData, periodId);
@@ -70,12 +70,13 @@ export async function POST(request: NextRequest) {
     // Generar PDF
     const pdf = await page.pdf({
       format: 'A4',
+      landscape: true,
       printBackground: true,
       margin: {
-        top: '20mm',
-        right: '20mm',
-        bottom: '20mm',
-        left: '20mm'
+        top: '15mm',
+        right: '15mm',
+        bottom: '15mm',
+        left: '15mm'
       }
     });
 
@@ -157,6 +158,14 @@ function generateHTML(reportData: any, periodId: number): string {
           padding: 20px;
           background: #f9fafb;
         }
+        .charts-row {
+          display: flex;
+          gap: 20px;
+          margin-bottom: 20px;
+        }
+        .chart-half {
+          flex: 1;
+        }
         .group-title {
           font-size: 18px;
           font-weight: bold;
@@ -181,7 +190,7 @@ function generateHTML(reportData: any, periodId: number): string {
         }
         .chart {
           width: 100%;
-          height: 300px;
+          height: 400px;
           position: relative;
         }
         .page-break {
@@ -220,25 +229,28 @@ function generateHTML(reportData: any, periodId: number): string {
             <div class="group-section">
               <div class="group-title">GRUPO ${groupName}</div>
               
-              <!-- Promedio del Grupo -->
-              ${groupData.groupAverages && groupData.groupAverages.length > 0 ? `
-                <div class="chart-container">
-                  <div class="chart-title">📈 Promedio del Grupo</div>
-                  <div class="chart">
-                    <canvas id="group-avg-${index}"></canvas>
+              <!-- Gráficas en fila horizontal -->
+              <div class="charts-row">
+                <!-- Promedio del Grupo -->
+                ${groupData.groupAverages && groupData.groupAverages.length > 0 ? `
+                  <div class="chart-container chart-half">
+                    <div class="chart-title">📈 Promedio del Grupo</div>
+                    <div class="chart">
+                      <canvas id="group-avg-${index}"></canvas>
+                    </div>
                   </div>
-                </div>
-              ` : ''}
+                ` : ''}
 
-              <!-- Estudiantes Reprobados -->
-              ${groupData.failedStudentsBySubject && groupData.failedStudentsBySubject.length > 0 ? `
-                <div class="chart-container">
-                  <div class="chart-title">❌ Estudiantes Reprobados</div>
-                  <div class="chart">
-                    <canvas id="failed-${index}"></canvas>
+                <!-- Estudiantes Reprobados -->
+                ${groupData.failedStudentsBySubject && groupData.failedStudentsBySubject.length > 0 ? `
+                  <div class="chart-container chart-half">
+                    <div class="chart-title">❌ Estudiantes Reprobados</div>
+                    <div class="chart">
+                      <canvas id="failed-${index}"></canvas>
+                    </div>
                   </div>
-                </div>
-              ` : ''}
+                ` : ''}
+              </div>
 
               <!-- Promedios por Materia -->
               ${groupData.groupSubjectAverages && groupData.groupSubjectAverages.length > 0 ? `

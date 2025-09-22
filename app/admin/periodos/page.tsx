@@ -15,8 +15,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { usePeriod } from '@/lib/hooks/usePeriod';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import jsPDF from 'jspdf';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 type PeriodWithPartials = Period & {
   firstPartialActive?: boolean;
@@ -276,7 +275,7 @@ export default function PeriodosPage() {
       semestre: `Semestre ${item.semester || 'N/A'}`,
       promedio: item.averagegrade || 0,
       estudiantes: parseInt(item.totalstudents) || 0,
-      label: `${(item.averagegrade || 0).toFixed(1)}%`
+      label: `${(item.averagegrade || 0).toFixed(1)}`
     }));
   };
 
@@ -288,7 +287,7 @@ export default function PeriodosPage() {
       semestre: item.semester || 0,
       promedio: item.averagegrade || 0,
       estudiantes: parseInt(item.totalstudents) || 0,
-      label: `${(item.averagegrade || 0).toFixed(1)}%`
+      label: `${(item.averagegrade || 0).toFixed(1)}`
     }));
   };
 
@@ -301,7 +300,7 @@ export default function PeriodosPage() {
       semestre: item.semester || 0,
       promedio: item.averagegrade || 0,
       estudiantes: parseInt(item.totalstudents) || 0,
-      label: `${(item.averagegrade || 0).toFixed(1)}%`
+      label: `${(item.averagegrade || 0).toFixed(1)}`
     }));
   };
 
@@ -627,7 +626,7 @@ export default function PeriodosPage() {
           </DialogContent>
         </Dialog>
         <Dialog open={openCharts} onOpenChange={setOpenCharts}>
-          <DialogContent className="max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-7xl w-full max-h-[95vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Reporte de Calificaciones Finales</DialogTitle>
               <DialogDescription>
@@ -675,20 +674,26 @@ export default function PeriodosPage() {
                       <h3 className="text-lg font-semibold mb-4 text-gray-800">
                         📊 Promedios Generales por Semestre
                       </h3>
-                      <ResponsiveContainer width="100%" height={300}>
+                      <ResponsiveContainer width="100%" height={400}>
                         <BarChart data={processGeneralAveragesData(reportData.generalAverages)}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="semestre" />
-                          <YAxis domain={[0, 100]} />
+                          <YAxis domain={[0, 10]} />
                           <Tooltip 
                             formatter={(value: number, name: string) => [
-                              `${value.toFixed(1)}%`, 
+                              `${value.toFixed(1)}`, 
                               name === 'promedio' ? 'Promedio' : 'Estudiantes'
                             ]}
                             labelFormatter={(label) => `Semestre: ${label}`}
                           />
                           <Legend />
-                          <Bar dataKey="promedio" fill="#bc4b26" name="Promedio" />
+                          <Bar dataKey="promedio" fill="#bc4b26" name="Promedio">
+                            <LabelList 
+                              dataKey="label" 
+                              position="top" 
+                              style={{ fill: '#374151', fontSize: '12px', fontWeight: 'bold' }}
+                            />
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -708,27 +713,33 @@ export default function PeriodosPage() {
                           {groupName}
                         </h2>
                         
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                           {/* Promedio del Grupo */}
                           {groupData.groupAverages.length > 0 && (
                             <div className="bg-white p-4 rounded-lg border shadow-sm">
                               <h3 className="text-lg font-semibold mb-3 text-gray-700">
                                 📈 Promedio del Grupo
                               </h3>
-                              <ResponsiveContainer width="100%" height={250}>
+                              <ResponsiveContainer width="100%" height={350}>
                                 <BarChart data={processGroupAveragesData(groupData.groupAverages)}>
                                   <CartesianGrid strokeDasharray="3 3" />
                                   <XAxis dataKey="grupo" />
-                                  <YAxis domain={[0, 100]} />
+                                  <YAxis domain={[0, 10]} />
                                   <Tooltip 
                                     formatter={(value: number, name: string) => [
-                                      `${value.toFixed(1)}%`, 
+                                      `${value.toFixed(1)}`, 
                                       name === 'promedio' ? 'Promedio' : 'Estudiantes'
                                     ]}
                                     labelFormatter={(label) => `Grupo: ${label}`}
                                   />
                                   <Legend />
-                                  <Bar dataKey="promedio" fill={color} name="Promedio" />
+                                  <Bar dataKey="promedio" fill={color} name="Promedio">
+                                    <LabelList 
+                                      dataKey="label" 
+                                      position="top" 
+                                      style={{ fill: '#374151', fontSize: '12px', fontWeight: 'bold' }}
+                                    />
+                                  </Bar>
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
@@ -740,7 +751,7 @@ export default function PeriodosPage() {
                               <h3 className="text-lg font-semibold mb-3 text-gray-700">
                                 ❌ Estudiantes Reprobados
                               </h3>
-                              <ResponsiveContainer width="100%" height={250}>
+                              <ResponsiveContainer width="100%" height={350}>
                                 <BarChart data={processFailedStudentsData(groupData.failedStudents)}>
                                   <CartesianGrid strokeDasharray="3 3" />
                                   <XAxis 
@@ -766,7 +777,13 @@ export default function PeriodosPage() {
                                     }}
                                   />
                                   <Legend />
-                                  <Bar dataKey="reprobados" fill="#e74c3c" name="Reprobados" />
+                                  <Bar dataKey="reprobados" fill="#e74c3c" name="Reprobados">
+                                    <LabelList 
+                                      dataKey="label" 
+                                      position="top" 
+                                      style={{ fill: '#374151', fontSize: '12px', fontWeight: 'bold' }}
+                                    />
+                                  </Bar>
                                   <Bar dataKey="total" fill="#95a5a6" name="Total" />
                                 </BarChart>
                               </ResponsiveContainer>
@@ -780,7 +797,7 @@ export default function PeriodosPage() {
                             <h3 className="text-lg font-semibold mb-3 text-gray-700">
                               📚 Promedios por Materia
                             </h3>
-                            <ResponsiveContainer width="100%" height={350}>
+                            <ResponsiveContainer width="100%" height={400}>
                               <BarChart data={processGroupSubjectAveragesData(groupData.groupSubjectAverages)}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis 
@@ -789,7 +806,7 @@ export default function PeriodosPage() {
                                   textAnchor="end"
                                   height={100}
                                 />
-                                <YAxis domain={[0, 100]} />
+                                <YAxis domain={[0, 10]} />
                                 <Tooltip 
                                   formatter={(value: number, name: string) => [
                                     `${value.toFixed(1)}%`, 
@@ -798,7 +815,13 @@ export default function PeriodosPage() {
                                   labelFormatter={(label) => `Materia: ${label}`}
                                 />
                                 <Legend />
-                                <Bar dataKey="promedio" fill={color} name="Promedio" />
+                                <Bar dataKey="promedio" fill={color} name="Promedio">
+                                  <LabelList 
+                                    dataKey="label" 
+                                    position="top" 
+                                    style={{ fill: '#374151', fontSize: '12px', fontWeight: 'bold' }}
+                                  />
+                                </Bar>
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
