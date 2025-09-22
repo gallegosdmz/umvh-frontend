@@ -327,145 +327,45 @@ export default function PeriodosPage() {
   // Colores para las gráficas
   const COLORS = ['#bc4b26', '#d05f27', '#e67e22', '#f39c12', '#f1c40f', '#2ecc71', '#27ae60', '#16a085', '#3498db', '#2980b9', '#9b59b6', '#8e44ad'];
 
-  // Función para exportar a PDF
+  // Función para exportar a PDF usando Puppeteer
   const exportToPDF = async () => {
     if (!reportData) return;
     
     setExportingPDF(true);
     
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      let yPosition = 20;
-      
-      // Función para agregar texto con salto de línea automático
-      const addText = (text: string, x: number, y: number, maxWidth: number, fontSize: number = 12) => {
-        pdf.setFontSize(fontSize);
-        const lines = pdf.splitTextToSize(text, maxWidth);
-        pdf.text(lines, x, y);
-        return y + (lines.length * fontSize * 0.4);
-      };
-      
-      // Función para dibujar una línea
-      const drawLine = (x1: number, y1: number, x2: number, y2: number) => {
-        pdf.line(x1, y1, x2, y2);
-      };
-      
-      // Función para crear una tabla simple
-      const createTable = (data: any[][], headers: string[], startY: number, title: string) => {
-        const tableWidth = pageWidth - 20;
-        const colWidth = tableWidth / headers.length;
-        const rowHeight = 8;
-        
-        // Título de la tabla
-        yPosition = addText(title, 10, startY, tableWidth, 14);
-        yPosition += 5;
-        
-        // Headers
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'bold');
-        headers.forEach((header, index) => {
-          pdf.text(header, 10 + (index * colWidth), yPosition);
-        });
-        
-        // Línea debajo de headers
-        drawLine(10, yPosition + 2, pageWidth - 10, yPosition + 2);
-        yPosition += 5;
-        
-        // Datos
-        pdf.setFont('helvetica', 'normal');
-        data.forEach((row, rowIndex) => {
-          if (yPosition > pageHeight - 20) {
-            pdf.addPage();
-            yPosition = 20;
-          }
-          
-          row.forEach((cell, colIndex) => {
-            const cellText = String(cell || '');
-            pdf.text(cellText, 10 + (colIndex * colWidth), yPosition);
-          });
-          yPosition += rowHeight;
-        });
-        
-        yPosition += 10;
-        return yPosition;
-      };
-      
-      // Título principal
-      yPosition = addText('REPORTE DE CALIFICACIONES FINALES', pageWidth / 2, yPosition, pageWidth, 20);
-      pdf.setFont('helvetica', 'bold');
-      yPosition = addText(`Período ID: ${reportData.periodId}`, pageWidth / 2, yPosition, pageWidth, 12);
-      yPosition = addText(`Fecha: ${new Date().toLocaleDateString('es-ES')}`, pageWidth / 2, yPosition, pageWidth, 12);
-      yPosition += 15;
-      
-      // Promedios Generales
-      if (reportData.generalAverages.length > 0) {
-        const generalData = reportData.generalAverages.map(item => [
-          `Semestre ${item.semester}`,
-          `${item.averagegrade.toFixed(1)}%`,
-          item.totalstudents
-        ]);
-        yPosition = createTable(generalData, ['Semestre', 'Promedio', 'Total Estudiantes'], yPosition, '📊 PROMEDIOS GENERALES POR SEMESTRE');
-      }
-      
-      // Grupos
-      const groups = getUniqueGroups();
-      groups.forEach(groupName => {
-        const groupData = getGroupData(groupName);
-        
-        // Título del grupo
-        yPosition = addText(`GRUPO ${groupName}`, 10, yPosition, pageWidth, 16);
-        yPosition += 5;
-        
-        // Promedio del grupo
-        if (groupData.groupAverages.length > 0) {
-          const groupAvgData = groupData.groupAverages.map(item => [
-            item.groupname,
-            item.semester.toString(),
-            `${item.averagegrade.toFixed(1)}%`,
-            item.totalstudents
-          ]);
-          yPosition = createTable(groupAvgData, ['Grupo', 'Semestre', 'Promedio', 'Estudiantes'], yPosition, '📈 Promedio del Grupo');
-        }
-        
-        // Estudiantes reprobados
-        if (groupData.failedStudents.length > 0) {
-          const failedData = groupData.failedStudents.map(item => {
-            const percentage = (parseInt(item.failedstudents) / parseInt(item.totalstudents)) * 100;
-            return [
-              item.coursename,
-              item.semester.toString(),
-              item.failedstudents,
-              item.totalstudents,
-              `${percentage.toFixed(1)}%`
-            ];
-          });
-          yPosition = createTable(failedData, ['Materia', 'Semestre', 'Reprobados', 'Total', '%'], yPosition, '❌ Estudiantes Reprobados');
-        }
-        
-        // Promedios por materia (solo las primeras 10)
-        if (groupData.groupSubjectAverages.length > 0) {
-          const subjectData = groupData.groupSubjectAverages.slice(0, 10).map(item => [
-            item.coursename,
-            item.semester.toString(),
-            `${item.averagegrade.toFixed(1)}%`,
-            item.totalstudents
-          ]);
-          
-          if (groupData.groupSubjectAverages.length > 10) {
-            subjectData.push([`... y ${groupData.groupSubjectAverages.length - 10} materias más`, '', '', '']);
-          }
-          
-          yPosition = createTable(subjectData, ['Materia', 'Semestre', 'Promedio', 'Estudiantes'], yPosition, '📚 Promedios por Materia');
-        }
-        
-        yPosition += 10;
+      // Llamar a la API de generación de PDF
+      const response = await fetch('/api/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reportData,
+          periodId: reportData.periodId
+        })
       });
+
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+
+      // Obtener el PDF como blob
+      const pdfBlob = await response.blob();
       
-      // Descargar el PDF
-      const fileName = `reporte-calificaciones-periodo-${reportData.periodId}-${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
+      // Crear URL del blob y descargar
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reporte-calificaciones-periodo-${reportData.periodId}-${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      // Agregar al DOM temporalmente para activar la descarga
+      document.body.appendChild(link);
+      link.click();
+      
+      // Limpiar
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       
     } catch (error) {
       console.error('Error al exportar PDF:', error);
