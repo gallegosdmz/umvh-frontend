@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     await browser.close();
 
     // Devolver el PDF
-    return new NextResponse(pdf, {
+    return new NextResponse(Buffer.from(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="reporte-calificaciones-periodo-${periodId}-${new Date().toISOString().split('T')[0]}.pdf"`
@@ -141,6 +141,10 @@ function generateHTML(reportData: any, periodId: number): string {
         .section {
           margin-bottom: 40px;
           page-break-inside: avoid;
+          page-break-after: always;
+        }
+        .section:last-child {
+          page-break-after: auto;
         }
         .section-title {
           font-size: 20px;
@@ -158,13 +162,14 @@ function generateHTML(reportData: any, periodId: number): string {
           padding: 20px;
           background: #f9fafb;
         }
-        .charts-row {
+        .charts-column {
           display: flex;
+          flex-direction: column;
           gap: 20px;
           margin-bottom: 20px;
         }
-        .chart-half {
-          flex: 1;
+        .chart-full {
+          width: 100%;
         }
         .group-title {
           font-size: 18px;
@@ -181,6 +186,11 @@ function generateHTML(reportData: any, periodId: number): string {
           padding: 15px;
           border-radius: 4px;
           border: 1px solid #d1d5db;
+          page-break-inside: avoid;
+          page-break-after: always;
+        }
+        .chart-container:last-child {
+          page-break-after: auto;
         }
         .chart-title {
           font-size: 14px;
@@ -225,15 +235,15 @@ function generateHTML(reportData: any, periodId: number): string {
         const groupName = groupData.groupInfo?.name || groupKey.replace('group', '');
         
         return `
-          <div class="section ${index > 0 ? 'page-break' : ''}">
+          <div class="section">
             <div class="group-section">
               <div class="group-title">GRUPO ${groupName}</div>
               
-              <!-- Gráficas en fila horizontal -->
-              <div class="charts-row">
+              <!-- Gráficas en columna vertical -->
+              <div class="charts-column">
                 <!-- Promedio del Grupo -->
                 ${groupData.groupAverages && groupData.groupAverages.length > 0 ? `
-                  <div class="chart-container chart-half">
+                  <div class="chart-container chart-full">
                     <div class="chart-title">📈 Promedio del Grupo</div>
                     <div class="chart">
                       <canvas id="group-avg-${index}"></canvas>
@@ -243,7 +253,7 @@ function generateHTML(reportData: any, periodId: number): string {
 
                 <!-- Estudiantes Reprobados -->
                 ${groupData.failedStudentsBySubject && groupData.failedStudentsBySubject.length > 0 ? `
-                  <div class="chart-container chart-half">
+                  <div class="chart-container chart-full">
                     <div class="chart-title">❌ Estudiantes Reprobados</div>
                     <div class="chart">
                       <canvas id="failed-${index}"></canvas>
@@ -299,7 +309,7 @@ function generateHTML(reportData: any, periodId: number): string {
               scales: {
                 y: {
                   beginAtZero: true,
-                  max: 100
+                  max: 10
                 }
               },
               plugins: {

@@ -713,7 +713,7 @@ export default function PeriodosPage() {
                           {groupName}
                         </h2>
                         
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        <div className="space-y-6">
                           {/* Promedio del Grupo */}
                           {groupData.groupAverages.length > 0 && (
                             <div className="bg-white p-4 rounded-lg border shadow-sm">
