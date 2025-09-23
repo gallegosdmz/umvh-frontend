@@ -9,9 +9,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Datos del reporte requeridos' }, { status: 400 });
     }
 
-    // Configuración de Puppeteer que funciona en diferentes entornos
+    // Configuración de Puppeteer para producción
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath: '/usr/bin/google-chrome', // Usar Chrome del sistema
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -22,7 +23,10 @@ export async function POST(request: NextRequest) {
         '--single-process',
         '--disable-gpu',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
+        '--disable-features=VizDisplayCompositor',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
       ]
     });
 
