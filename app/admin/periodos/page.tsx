@@ -382,7 +382,7 @@ export default function PeriodosPage() {
     
     try {
       // Llamar a la API de generación de PDF
-      const response = await fetch('/api/generate-pdf', {
+      const response = await fetch('/pdf/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
