@@ -114,6 +114,7 @@ function generateHTML(reportData: any, periodId: number): string {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Reporte de Calificaciones</title>
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
       <style>
         body {
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -319,8 +320,21 @@ function generateHTML(reportData: any, periodId: number): string {
                 tooltip: {
                   callbacks: {
                     label: function(context) {
-                      return context.parsed.y.toFixed(1) + '%';
+                      return context.parsed.y.toFixed(1);
                     }
+                  }
+                },
+                datalabels: {
+                  display: true,
+                  color: '#374151',
+                  font: {
+                    size: 12,
+                    weight: 'bold'
+                  },
+                  anchor: 'end',
+                  align: 'top',
+                  formatter: function(value) {
+                    return value.toFixed(1);
                   }
                 }
               }
@@ -370,11 +384,30 @@ function generateHTML(reportData: any, periodId: number): string {
               plugins: {
                 legend: {
                   display: true
+                },
+                datalabels: {
+                  display: true,
+                  color: '#374151',
+                  font: {
+                    size: 12,
+                    weight: 'bold'
+                  },
+                  anchor: 'end',
+                  align: 'top',
+                  formatter: function(value, context) {
+                    if (context.datasetIndex === 0) {
+                      return value; // Para reprobados
+                    }
+                    return ''; // No mostrar etiqueta para el total
+                  }
                 }
               }
             }
           });
         }
+
+        // Registrar el plugin de datalabels
+        Chart.register(ChartDataLabels);
 
         // Crear gráficas cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', function() {
