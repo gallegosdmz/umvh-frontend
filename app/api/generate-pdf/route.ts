@@ -9,44 +9,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Datos del reporte requeridos' }, { status: 400 });
     }
 
-    let browser;
-    try {
-      // Intentar lanzar Puppeteer con la ruta específica
-      browser = await puppeteer.launch({
-        headless: true,
-        executablePath: '/home/gallegos/.cache/puppeteer/chrome/linux-140.0.7339.82/chrome-linux64/chrome',
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
-        ]
-      });
-    } catch (chromeError) {
-      console.log('Intentando con Chrome del sistema...');
-      // Fallback: intentar con Chrome del sistema
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
-        ]
-      });
-    }
+    // Configuración de Puppeteer que funciona en diferentes entornos
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
+      ]
+    });
 
     const page = await browser.newPage();
     
