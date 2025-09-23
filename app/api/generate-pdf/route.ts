@@ -106,6 +106,26 @@ function generateHTML(reportData: any, periodId: number): string {
     estudiantes: parseInt(item.totalstudents)
   })) || [];
 
+  // Agrupar datos por semestre para el PDF
+  const groupDataBySemester = (data: any[]) => {
+    if (!Array.isArray(data)) return {};
+    
+    return data.reduce((groups: any, item: any) => {
+      const semester = item.semester || 0;
+      if (!groups[semester]) {
+        groups[semester] = [];
+      }
+      groups[semester].push({
+        grupo: item.groupname,
+        promedio: item.averagegrade,
+        estudiantes: parseInt(item.totalstudents)
+      });
+      return groups;
+    }, {});
+  };
+
+  const groupedBySemester = groupDataBySemester(reportData.groupAveragesBySemester || []);
+
   return `
     <!DOCTYPE html>
     <html lang="es">
@@ -228,6 +248,19 @@ function generateHTML(reportData: any, periodId: number): string {
         </div>
       ` : ''}
 
+      <!-- Promedios por Grupo y Semestre - Agrupados por Semestre -->
+      ${Object.entries(groupedBySemester).map(([semester, data]) => `
+        <div class="section">
+          <div class="section-title">📈 Promedios por Grupo - Semestre ${semester}</div>
+          <div class="chart-container">
+            <div class="chart-title">Promedios por Grupo</div>
+            <div class="chart">
+              <canvas id="group-averages-${semester}-chart"></canvas>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+
       <!-- Grupos -->
       ${groups.map((groupKey, index) => {
         const groupData = reportData[groupKey];
@@ -280,6 +313,7 @@ function generateHTML(reportData: any, periodId: number): string {
       <script>
         // Datos globales
         const generalData = ${JSON.stringify(generalData)};
+        const groupedBySemester = ${JSON.stringify(groupedBySemester)};
         const groups = ${JSON.stringify(groups)};
         const reportData = ${JSON.stringify(reportData)};
 
@@ -415,6 +449,13 @@ function generateHTML(reportData: any, periodId: number): string {
           if (generalData.length > 0) {
             createBarChart('general-chart', generalData, 'semestre', 'promedio', '#bc4b26', 'Promedio');
           }
+
+          // Gráficas de promedios por grupo y semestre - una por cada semestre
+          Object.entries(groupedBySemester).forEach(([semester, data]) => {
+            if (data && data.length > 0) {
+              createBarChart('group-averages-' + semester + '-chart', data, 'grupo', 'promedio', '#d05f27', 'Promedio');
+            }
+          });
 
           // Gráficas por grupo
           groups.forEach((groupKey, index) => {

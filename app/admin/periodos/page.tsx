@@ -71,6 +71,14 @@ interface FailedStudentsBySubject {
   totalstudents: string;
 }
 
+interface GroupAverageBySemester {
+  semester: number;
+  groupname: string;
+  groupid: number;
+  averagegrade: number;
+  totalstudents: string;
+}
+
 export default function PeriodosPage() {
   const { loading, error, totalItems, handleGetPeriods, handleCreatePeriod, handleUpdatePeriod, handleDeletePeriod } = usePeriod();
   const [periodos, setPeriodos] = useState<PeriodWithPartials[]>([]);
@@ -251,6 +259,8 @@ export default function PeriodosPage() {
       // Debug de datos procesados
       console.log('Datos procesados generalAverages:', processGeneralAveragesData(data.generalAverages));
       console.log('Datos procesados groupAverages:', processGroupAveragesData(data.groupAverages));
+      console.log('Datos groupAveragesBySemester:', data.groupAveragesBySemester);
+      console.log('Datos procesados groupAveragesBySemester:', processGroupAveragesBySemesterData(data.groupAveragesBySemester));
       
       setReportData(data);
       setOpenCharts(true);
@@ -321,6 +331,44 @@ export default function PeriodosPage() {
         label: `${failedStudents}/${totalStudents}`
       };
     });
+  };
+
+  // Función para procesar datos de promedios por grupo y semestre
+  const processGroupAveragesBySemesterData = (data: GroupAverageBySemester[]) => {
+    console.log('Procesando groupAveragesBySemester:', data);
+    if (!Array.isArray(data)) {
+      console.log('No es un array o está vacío');
+      return [];
+    }
+    const processed = data.map(item => ({
+      grupo: item.groupname || 'Sin nombre',
+      semestre: item.semester || 0,
+      promedio: item.averagegrade || 0,
+      estudiantes: parseInt(item.totalstudents) || 0,
+      label: `${(item.averagegrade || 0).toFixed(1)}`
+    }));
+    console.log('Datos procesados:', processed);
+    return processed;
+  };
+
+  // Función para agrupar datos por semestre
+  const groupDataBySemester = (data: GroupAverageBySemester[]) => {
+    if (!Array.isArray(data)) return {};
+    
+    return data.reduce((groups, item) => {
+      const semester = item.semester || 0;
+      if (!groups[semester]) {
+        groups[semester] = [];
+      }
+      groups[semester].push({
+        grupo: item.groupname || 'Sin nombre',
+        semestre: item.semester || 0,
+        promedio: item.averagegrade || 0,
+        estudiantes: parseInt(item.totalstudents) || 0,
+        label: `${(item.averagegrade || 0).toFixed(1)}`
+      });
+      return groups;
+    }, {} as Record<number, any[]>);
   };
 
   // Colores para las gráficas
@@ -698,6 +746,39 @@ export default function PeriodosPage() {
                       </ResponsiveContainer>
                     </div>
                   )}
+
+                  {/* Promedios por Grupo y Semestre - Agrupados por Semestre */}
+                  {reportData.groupAveragesBySemester && reportData.groupAveragesBySemester.length > 0 && 
+                    Object.entries(groupDataBySemester(reportData.groupAveragesBySemester)).map(([semester, data]) => (
+                      <div key={semester} className="bg-white p-6 rounded-lg border shadow-sm">
+                        <h3 className="text-lg font-semibold mb-4 text-gray-800">
+                          📈 Promedios por Grupo - Semestre {semester}
+                        </h3>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart data={data}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="grupo" />
+                            <YAxis domain={[0, 10]} />
+                            <Tooltip 
+                              formatter={(value: number, name: string) => [
+                                `${value.toFixed(1)}`, 
+                                name === 'promedio' ? 'Promedio' : 'Estudiantes'
+                              ]}
+                              labelFormatter={(label) => `Grupo: ${label}`}
+                            />
+                            <Legend />
+                            <Bar dataKey="promedio" fill="#d05f27" name="Promedio">
+                              <LabelList 
+                                dataKey="label" 
+                                position="top" 
+                                style={{ fill: '#374151', fontSize: '12px', fontWeight: 'bold' }}
+                              />
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ))
+                  }
 
                   {/* Gráficas agrupadas por Grupo */}
                   {getUniqueGroups().map((groupName, groupIndex) => {
