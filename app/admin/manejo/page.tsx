@@ -14,14 +14,23 @@ import {
   Search,
   Filter,
   Eye,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { useGroup } from '@/lib/hooks/useGroup';
 import { toast } from 'react-toastify';
+import { 
+  GroupDetailedService, 
+  GroupDetailedDto, 
+  StudentDto, 
+  CourseDto, 
+  PartialEvaluationDto,
+  PartialGradeDto
+} from '@/lib/services/group-detailed.service';
 
-// Tipos para la maqueta
+// Tipos para la maqueta (mantenidos para compatibilidad)
 interface Student {
   id: number;
   fullName: string;
@@ -60,23 +69,29 @@ type ViewMode = 'groups' | 'students' | 'courses' | 'grades';
 
 export default function ManejoPage() {
   const { loading, error, totalItems, handleGetGroups } = useGroup();
-  const [grupos, setGrupos] = useState<Group[]>([]);
+  const [grupos, setGrupos] = useState<GroupDetailedDto[]>([]);
   const [currentView, setCurrentView] = useState<ViewMode>('groups');
-  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<GroupDetailedDto | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<StudentDto | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<CourseDto | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filteredGroups, setFilteredGroups] = useState<Group[]>([]);
+  const [filteredGroups, setFilteredGroups] = useState<GroupDetailedDto[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Datos mock para la maqueta
-  const [students, setStudents] = useState<Student[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
+  // Estados para datos reales de la API
+  const [students, setStudents] = useState<StudentDto[]>([]);
+  const [courses, setCourses] = useState<CourseDto[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [partialGrades, setPartialGrades] = useState<PartialGrade[]>([]);
   const [finalGrade, setFinalGrade] = useState<FinalGrade | null>(null);
   const [selectedPartial, setSelectedPartial] = useState(1);
+  
+  // Estados de carga
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
+  const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [isLoadingGrades, setIsLoadingGrades] = useState(false);
 
   useEffect(() => {
     loadGroups();
@@ -87,20 +102,15 @@ export default function ManejoPage() {
   }, [searchTerm, grupos]);
 
   const loadGroups = async () => {
+    setIsLoadingGroups(true);
     try {
-      const offset = (currentPage - 1) * itemsPerPage;
-      const response = await handleGetGroups(itemsPerPage, offset);
-      
-      if (response && response.groups) {
-        setGrupos(response.groups);
-      } else if (Array.isArray(response)) {
-        setGrupos(response);
-      } else {
-        setGrupos([]);
-      }
+      const response = await GroupDetailedService.getDetailedGroups();
+      setGrupos(response.groups);
     } catch (err) {
       console.error('Error al cargar los grupos:', err);
       toast.error('Error al cargar los grupos');
+    } finally {
+      setIsLoadingGroups(false);
     }
   };
 
@@ -118,61 +128,53 @@ export default function ManejoPage() {
     setFilteredGroups(filtered);
   };
 
-  const handleViewGroup = (grupo: Group) => {
+  const handleViewGroup = (grupo: GroupDetailedDto) => {
     setSelectedGroup(grupo);
     setCurrentView('students');
-    
-    // Mock data para estudiantes
-    setStudents([
-      { id: 1, fullName: 'Juan Pérez García', registrationNumber: '2024001', semester: 1 },
-      { id: 2, fullName: 'María López Hernández', registrationNumber: '2024002', semester: 1 },
-      { id: 3, fullName: 'Carlos Rodríguez Silva', registrationNumber: '2024003', semester: 1 },
-      { id: 4, fullName: 'Ana Martínez Torres', registrationNumber: '2024004', semester: 1 },
-      { id: 5, fullName: 'Luis García Morales', registrationNumber: '2024005', semester: 1 },
-    ]);
+    setStudents(grupo.students);
   };
 
-  const handleViewStudent = (student: Student) => {
+  const handleViewStudent = (student: StudentDto) => {
     setSelectedStudent(student);
     setCurrentView('courses');
-    
-    // Mock data para materias
-    setCourses([
-      { id: 1, name: 'Matemáticas I', code: 'MAT101', credits: 4 },
-      { id: 2, name: 'Física I', code: 'FIS101', credits: 4 },
-      { id: 3, name: 'Química I', code: 'QUI101', credits: 3 },
-      { id: 4, name: 'Programación I', code: 'PRO101', credits: 4 },
-      { id: 5, name: 'Inglés I', code: 'ING101', credits: 2 },
-    ]);
+    setCourses(student.courses);
   };
 
-  const handleViewCourse = (course: Course) => {
+  const handleViewCourse = (course: CourseDto) => {
     setSelectedCourse(course);
     setCurrentView('grades');
     
-    // Mock data para calificaciones
-    setGrades([
-      { id: 1, activityName: 'Tarea 1', grade: 8.5, maxGrade: 10, partial: 1, type: 'actividad' },
-      { id: 2, activityName: 'Tarea 2', grade: 9.0, maxGrade: 10, partial: 1, type: 'actividad' },
-      { id: 3, activityName: 'Examen Parcial 1', grade: 7.5, maxGrade: 10, partial: 1, type: 'examen' },
-      { id: 4, activityName: 'Proyecto 1', grade: 8.0, maxGrade: 10, partial: 1, type: 'producto' },
-      { id: 5, activityName: 'Tarea 3', grade: 9.5, maxGrade: 10, partial: 2, type: 'actividad' },
-      { id: 6, activityName: 'Tarea 4', grade: 8.8, maxGrade: 10, partial: 2, type: 'actividad' },
-      { id: 7, activityName: 'Examen Parcial 2', grade: 8.2, maxGrade: 10, partial: 2, type: 'examen' },
-      { id: 8, activityName: 'Tarea 5', grade: 9.2, maxGrade: 10, partial: 3, type: 'actividad' },
-      { id: 9, activityName: 'Tarea 6', grade: 8.7, maxGrade: 10, partial: 3, type: 'actividad' },
-      { id: 10, activityName: 'Examen Parcial 3', grade: 8.9, maxGrade: 10, partial: 3, type: 'examen' },
-      { id: 11, activityName: 'Proyecto Final', grade: 9.1, maxGrade: 10, partial: 3, type: 'producto' },
-    ]);
+    // Procesar calificaciones parciales
+    const partialGradesData = course.partialGrades.map(pg => ({
+      partial: pg.partial,
+      grade: pg.grade,
+      percentage: pg.partial === 1 ? 30 : pg.partial === 2 ? 30 : 40
+    }));
+    setPartialGrades(partialGradesData);
     
-    setPartialGrades([
-      { partial: 1, grade: 8.25, percentage: 30 },
-      { partial: 2, grade: 8.83, percentage: 30 },
-      { partial: 3, grade: 9.0, percentage: 40 },
-    ]);
+    // Procesar evaluaciones parciales como actividades
+    const gradesData: Grade[] = [];
+    course.partialEvaluations.forEach(evaluation => {
+      evaluation.grades.forEach(grade => {
+        gradesData.push({
+          id: grade.id,
+          activityName: evaluation.name,
+          grade: grade.grade,
+          maxGrade: 10, // Asumiendo escala de 10
+          partial: evaluation.partial,
+          type: evaluation.type as 'actividad' | 'evidencia' | 'producto' | 'examen'
+        });
+      });
+    });
+    setGrades(gradesData);
+    
+    // Calcular calificación final (promedio de parciales)
+    const finalGradeValue = partialGradesData.length > 0 
+      ? partialGradesData.reduce((sum, pg) => sum + pg.grade, 0) / partialGradesData.length 
+      : 0;
     
     setFinalGrade({
-      ordinary: 8.5,
+      ordinary: finalGradeValue > 0 ? finalGradeValue : null,
       extraordinary: null
     });
   };
@@ -228,38 +230,59 @@ export default function ManejoPage() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50">
-                <TableHead className="font-semibold">Nombre del Grupo</TableHead>
-                <TableHead className="font-semibold">Período</TableHead>
-                <TableHead className="font-semibold">Semestre</TableHead>
-                <TableHead className="font-semibold text-center">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredGroups.map((grupo) => (
-                <TableRow key={grupo.id} className="hover:bg-gray-50">
-                  <TableCell className="font-medium">{grupo.name}</TableCell>
-                  <TableCell>{grupo.period?.name || 'No asignado'}</TableCell>
-                  <TableCell>{grupo.semester || 'N/A'}</TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewGroup(grupo)}
-                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      Ver Alumnos
-                    </Button>
-                  </TableCell>
+        {isLoadingGroups ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin mr-2" />
+            <span>Cargando grupos...</span>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="font-semibold">Nombre del Grupo</TableHead>
+                  <TableHead className="font-semibold">Período</TableHead>
+                  <TableHead className="font-semibold">Semestre</TableHead>
+                  <TableHead className="font-semibold">Estudiantes</TableHead>
+                  <TableHead className="font-semibold text-center">Acciones</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {filteredGroups.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8">
+                      <div className="flex flex-col items-center justify-center text-gray-500">
+                        <Users className="h-12 w-12 mb-4" />
+                        <p className="text-lg font-medium">No hay grupos disponibles</p>
+                        <p className="text-sm">Los grupos aparecerán cuando se registren en el sistema</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredGroups.map((grupo) => (
+                    <TableRow key={grupo.id} className="hover:bg-gray-50">
+                      <TableCell className="font-medium">{grupo.name}</TableCell>
+                      <TableCell>{grupo.period?.name || 'No asignado'}</TableCell>
+                      <TableCell>{grupo.semester || 'N/A'}</TableCell>
+                      <TableCell>{grupo.students?.length || 0} estudiantes</TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewGroup(grupo)}
+                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Ver Alumnos
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -277,29 +300,41 @@ export default function ManejoPage() {
               <TableRow className="bg-gray-50">
                 <TableHead className="font-semibold">Nombre Completo</TableHead>
                 <TableHead className="font-semibold">Matrícula</TableHead>
-                <TableHead className="font-semibold">Semestre</TableHead>
+                <TableHead className="font-semibold">Materias</TableHead>
                 <TableHead className="font-semibold text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {students.map((student) => (
-                <TableRow key={student.id} className="hover:bg-gray-50">
-                  <TableCell className="font-medium">{student.fullName}</TableCell>
-                  <TableCell>{student.registrationNumber}</TableCell>
-                  <TableCell>{student.semester}</TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewStudent(student)}
-                      className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-                    >
-                      <BookOpen className="h-4 w-4 mr-2" />
-                      Ver Materias
-                    </Button>
+              {students.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <Users className="h-12 w-12 mb-4" />
+                      <p className="text-lg font-medium">No hay alumnos en este grupo</p>
+                      <p className="text-sm">Los alumnos aparecerán cuando se asignen al grupo</p>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                students.map((student) => (
+                  <TableRow key={student.id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">{student.fullName}</TableCell>
+                    <TableCell>{student.registrationNumber}</TableCell>
+                    <TableCell>{student.courses?.length || 0} materias</TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewStudent(student)}
+                        className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                      >
+                        <BookOpen className="h-4 w-4 mr-2" />
+                        Ver Materias
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
@@ -319,30 +354,42 @@ export default function ManejoPage() {
             <TableHeader>
               <TableRow className="bg-gray-50">
                 <TableHead className="font-semibold">Materia</TableHead>
-                <TableHead className="font-semibold">Código</TableHead>
-                <TableHead className="font-semibold">Créditos</TableHead>
+                <TableHead className="font-semibold">Semestre</TableHead>
+                <TableHead className="font-semibold">Evaluaciones</TableHead>
                 <TableHead className="font-semibold text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {courses.map((course) => (
-                <TableRow key={course.id} className="hover:bg-gray-50">
-                  <TableCell className="font-medium">{course.name}</TableCell>
-                  <TableCell>{course.code}</TableCell>
-                  <TableCell>{course.credits}</TableCell>
-                  <TableCell className="text-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleViewCourse(course)}
-                      className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200"
-                    >
-                      <GraduationCap className="h-4 w-4 mr-2" />
-                      Ver Calificaciones
-                    </Button>
+              {courses.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8">
+                    <div className="flex flex-col items-center justify-center text-gray-500">
+                      <BookOpen className="h-12 w-12 mb-4" />
+                      <p className="text-lg font-medium">No hay materias asignadas</p>
+                      <p className="text-sm">Las materias aparecerán cuando se asignen al alumno</p>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                courses.map((course) => (
+                  <TableRow key={course.id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">{course.name}</TableCell>
+                    <TableCell>{course.semester}</TableCell>
+                    <TableCell>{course.partialEvaluations?.length || 0} evaluaciones</TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewCourse(course)}
+                        className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200"
+                      >
+                        <GraduationCap className="h-4 w-4 mr-2" />
+                        Ver Calificaciones
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
