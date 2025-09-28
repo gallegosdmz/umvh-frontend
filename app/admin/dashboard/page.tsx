@@ -316,7 +316,7 @@ export default function AdminDashboard() {
                 <Button variant="outline" className="h-16 flex flex-col items-center justify-center p-4 hover:bg-orange-50 hover:border-orange-300 transition-colors" asChild>
                   <Link href="/admin/manejo">
                     <Users className="h-6 w-6 mb-2 text-orange-600" />
-                    <span className="text-sm font-medium">Gestionar Maestros</span>
+                    <span className="text-sm font-medium">Gestionar Calificaciones de Alumnos</span>
                   </Link>
                 </Button>
                 <Button variant="outline" className="h-16 flex flex-col items-center justify-center p-4 hover:bg-blue-50 hover:border-blue-300 transition-colors" asChild>
