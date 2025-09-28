@@ -314,7 +314,7 @@ export default function AdminDashboard() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <Button variant="outline" className="h-16 flex flex-col items-center justify-center p-4 hover:bg-orange-50 hover:border-orange-300 transition-colors" asChild>
-                  <Link href="/admin/maestros">
+                  <Link href="/admin/manejo">
                     <Users className="h-6 w-6 mb-2 text-orange-600" />
                     <span className="text-sm font-medium">Gestionar Maestros</span>
                   </Link>
