@@ -4,7 +4,7 @@ import { Student, Group, Period, CreateGroupDto } from '@/lib/mock-data';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Edit, Trash, ChevronLeft, ChevronRight, Users, FileText } from 'lucide-react';
+import { Plus, Edit, Trash, ChevronLeft, ChevronRight, Users, FileText, FileSpreadsheet } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'react-toastify';
 import { Checkbox } from '@/components/ui/checkbox';
 import { WordDocumentService } from '@/lib/services/word-document.service';
+import { ExcelDocumentService } from '@/lib/services/excel-document.service';
 
 interface GroupWithStudents extends Group {
   students?: Student[];
@@ -77,6 +78,7 @@ export default function AlumnosPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [generatingBoleta, setGeneratingBoleta] = useState<string | null>(null);
+  const [generatingExcel, setGeneratingExcel] = useState<string | null>(null);
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -329,14 +331,16 @@ export default function AlumnosPage() {
 
   const handleGenerateGroupBoleta = async () => {
     try {
+      console.log('🚀 Iniciando generación de boletín general');
       setGeneratingBoleta('general');
       const blob = await WordDocumentService.generateGroupBoleta('general');
       const filename = `Boletines_Grupo_${new Date().toISOString().split('T')[0]}.docx`;
       
+      console.log('💾 Descargando archivo:', filename);
       WordDocumentService.downloadDocument(blob, filename);
       toast.success('Boletines generados correctamente');
     } catch (error) {
-      console.error('Error generando los boletines:', error);
+      console.error('❌ Error generando los boletines:', error);
       toast.error('Error al generar los boletines');
     } finally {
       setGeneratingBoleta(null);
@@ -345,17 +349,55 @@ export default function AlumnosPage() {
 
   const handleGenerateIndividualBoleta = async (groupId: string) => {
     try {
+      console.log('🚀 Iniciando generación de boletín para grupo:', groupId);
       setGeneratingBoleta(groupId);
       const blob = await WordDocumentService.generateGroupBoleta(groupId);
       const filename = `Boletin_Grupo_${groupId}_${new Date().toISOString().split('T')[0]}.docx`;
       
+      console.log('💾 Descargando archivo:', filename);
       WordDocumentService.downloadDocument(blob, filename);
       toast.success('Boletín generado correctamente');
     } catch (error) {
-      console.error('Error generando el boletín:', error);
+      console.error('❌ Error generando el boletín:', error);
       toast.error('Error al generar el boletín');
     } finally {
       setGeneratingBoleta(null);
+    }
+  };
+
+  const handleGenerateGroupExcel = async () => {
+    try {
+      console.log('🚀 Iniciando generación de Excel general');
+      setGeneratingExcel('general');
+      const blob = await ExcelDocumentService.generateGroupGradesExcel('general');
+      const filename = `Calificaciones_Grupo_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      console.log('💾 Descargando archivo:', filename);
+      ExcelDocumentService.downloadDocument(blob, filename);
+      toast.success('Excel generado correctamente');
+    } catch (error) {
+      console.error('❌ Error generando el Excel:', error);
+      toast.error('Error al generar el Excel');
+    } finally {
+      setGeneratingExcel(null);
+    }
+  };
+
+  const handleGenerateIndividualExcel = async (groupId: string) => {
+    try {
+      console.log('🚀 Iniciando generación de Excel para grupo:', groupId);
+      setGeneratingExcel(groupId);
+      const blob = await ExcelDocumentService.generateGroupGradesExcel(groupId);
+      const filename = `Calificaciones_Grupo_${groupId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      console.log('💾 Descargando archivo:', filename);
+      ExcelDocumentService.downloadDocument(blob, filename);
+      toast.success('Excel generado correctamente');
+    } catch (error) {
+      console.error('❌ Error generando el Excel:', error);
+      toast.error('Error al generar el Excel');
+    } finally {
+      setGeneratingExcel(null);
     }
   };
 
@@ -388,16 +430,28 @@ export default function AlumnosPage() {
               Nuevo {showGrupos ? 'grupo' : 'alumno'}
             </Button>
             {showGrupos && (
-              <Button 
-                onClick={() => handleGenerateGroupBoleta()}
-                variant="outline"
-                size="lg"
-                className="border-[#bc4b26] text-[#bc4b26] hover:bg-[#bc4b26] hover:text-white"
-                disabled={generatingBoleta !== null}
-              >
-                <FileText className="h-5 w-5 mr-2" />
-                {generatingBoleta ? 'Generando...' : 'Generar Boletín'}
-              </Button>
+              <>
+                <Button 
+                  onClick={() => handleGenerateGroupBoleta()}
+                  variant="outline"
+                  size="lg"
+                  className="border-[#bc4b26] text-[#bc4b26] hover:bg-[#bc4b26] hover:text-white"
+                  disabled={generatingBoleta !== null || generatingExcel !== null}
+                >
+                  <FileText className="h-5 w-5 mr-2" />
+                  {generatingBoleta === 'general' ? 'Generando...' : 'Generar Boletín'}
+                </Button>
+                <Button 
+                  onClick={() => handleGenerateGroupExcel()}
+                  variant="outline"
+                  size="lg"
+                  className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+                  disabled={generatingBoleta !== null || generatingExcel !== null}
+                >
+                  <FileSpreadsheet className="h-5 w-5 mr-2" />
+                  {generatingExcel === 'general' ? 'Generando...' : 'Generar Excel'}
+                </Button>
+              </>
             )}
 
           </div>
@@ -570,9 +624,19 @@ export default function AlumnosPage() {
                               title="Generar Boletín"
                               onClick={() => handleGenerateIndividualBoleta(grupo.id!.toString())}
                               className="text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white"
-                              disabled={generatingBoleta === grupo.id!.toString()}
+                              disabled={generatingBoleta === grupo.id!.toString() || generatingExcel === grupo.id!.toString()}
                             >
                               <FileText className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              title="Generar Excel"
+                              onClick={() => handleGenerateIndividualExcel(grupo.id!.toString())}
+                              className="text-green-600 border-green-600 hover:bg-green-600 hover:text-white"
+                              disabled={generatingBoleta === grupo.id!.toString() || generatingExcel === grupo.id!.toString()}
+                            >
+                              <FileSpreadsheet className="h-4 w-4" />
                             </Button>
                             <Button 
                               variant="outline" 

@@ -40,16 +40,44 @@ export class WordDocumentService {
 
   static async generateGroupBoleta(groupId: string): Promise<Blob> {
     try {
+      console.log('🔍 === INICIO GENERACIÓN DE BOLETÍN ===');
+      console.log('📋 Group ID recibido:', groupId);
+      
       const response = await fetch(`https://uamvh.cloud/api/groups/${groupId}/find-boletas`, {
         method: 'GET',
         headers: getAuthHeaders(),
       });
+
+      console.log('📡 Respuesta del API:', response.status, response.statusText);
 
       if (!response.ok) {
         throw new Error(`Error al obtener datos: ${response.status}`);
       }
 
       const boletas: IBoleta[] = await response.json();
+      
+      console.log('📊 Número de boletas recibidas:', boletas.length);
+      console.log('📦 DATA COMPLETA DE BOLETAS:', JSON.stringify(boletas, null, 2));
+      
+      // Inspeccionar cada boleta
+      boletas.forEach((boleta, index) => {
+        console.log(`\n👤 === BOLETA ${index + 1} ===`);
+        console.log('Alumno:', boleta.fullName);
+        console.log('Matrícula:', boleta.registrationNumber);
+        console.log('Grupo:', boleta.groupName);
+        console.log('Semestre:', boleta.semester);
+        console.log('Período:', boleta.periodName);
+        console.log('Número de cursos:', boleta.courses?.length || 0);
+        
+        if (boleta.courses && boleta.courses.length > 0) {
+          boleta.courses.forEach((course, courseIndex) => {
+            console.log(`  📚 Curso ${courseIndex + 1}: ${course.name}`);
+            console.log(`     Calificaciones parciales:`, course.grades);
+            console.log(`     Calificación ordinario:`, course.finalGrades?.gradeOrdinary);
+            console.log(`     Calificación extraordinario:`, course.finalGrades?.gradeExtraordinary);
+          });
+        }
+      });
 
       if (boletas.length === 0) {
         throw new Error('No hay boletas disponibles para este grupo');
@@ -62,9 +90,11 @@ export class WordDocumentService {
       });
 
       const blob = await Packer.toBlob(doc);
+      console.log('✅ Documento generado exitosamente');
+      console.log('🔍 === FIN GENERACIÓN DE BOLETÍN ===\n');
       return blob;
     } catch (error) {
-      console.error('Error generando la boleta:', error);
+      console.error('❌ Error generando la boleta:', error);
       throw error;
     }
   }
