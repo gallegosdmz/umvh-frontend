@@ -211,6 +211,25 @@ export class ExcelDocumentService {
         currentCol += 5;
       });
 
+      // Agregar columna de Promedio al final
+      const promedioCol = currentCol;
+      worksheet.mergeCells(`${this.getColumnLetter(promedioCol)}${startRow}:${this.getColumnLetter(promedioCol)}${startRow + 1}`);
+      const promedioHeaderCell = worksheet.getCell(`${this.getColumnLetter(promedioCol)}${startRow}`);
+      promedioHeaderCell.value = 'Promedio';
+      promedioHeaderCell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      promedioHeaderCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF0066CC' }
+      };
+      promedioHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      promedioHeaderCell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
       // Merge cells para Alumno y Matrícula en la segunda fila
       worksheet.mergeCells(`A${startRow}:A${startRow + 1}`);
       worksheet.mergeCells(`B${startRow}:B${startRow + 1}`);
@@ -242,6 +261,9 @@ export class ExcelDocumentService {
           bottom: { style: 'thin' },
           right: { style: 'thin' }
         };
+
+        // Array para calcular el promedio
+        const ordinarioGrades: number[] = [];
 
         // Calificaciones por materia
         coursesList.forEach((courseName) => {
@@ -308,6 +330,11 @@ export class ExcelDocumentService {
             if (ord < 7 && ord > 0) {
               ordCell.font = { color: { argb: 'FFFF0000' } };
             }
+            
+            // Agregar al array de promedios si tiene calificación ordinaria
+            if (ord > 0) {
+              ordinarioGrades.push(ord);
+            }
 
             // Extraordinario
             const ext = course.finalGrades?.gradeExtraordinary || 0;
@@ -338,6 +365,39 @@ export class ExcelDocumentService {
           }
         });
 
+        // Calcular y agregar el promedio
+        const promedio = ordinarioGrades.length > 0 
+          ? ordinarioGrades.reduce((sum, grade) => sum + grade, 0) / ordinarioGrades.length 
+          : 0;
+        
+        const promedioCell = row.getCell(promedioCol);
+        promedioCell.value = promedio > 0 ? parseFloat(promedio.toFixed(2)) : '';
+        promedioCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        promedioCell.font = { bold: true, size: 11 };
+        promedioCell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+        
+        // Color según el promedio
+        if (promedio >= 7) {
+          promedioCell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFD4EDDA' } // Verde claro
+          };
+          promedioCell.font = { bold: true, size: 11, color: { argb: 'FF155724' } }; // Verde oscuro
+        } else if (promedio > 0) {
+          promedioCell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF8D7DA' } // Rojo claro
+          };
+          promedioCell.font = { bold: true, size: 11, color: { argb: 'FFFF0000' } }; // Rojo
+        }
+
         currentRow++;
       });
 
@@ -349,6 +409,9 @@ export class ExcelDocumentService {
       for (let i = 3; i < currentCol; i++) {
         worksheet.getColumn(i).width = 8;
       }
+      
+      // Columna de promedio
+      worksheet.getColumn(promedioCol).width = 12;
 
       // Generar el archivo
       const buffer = await workbook.xlsx.writeBuffer();

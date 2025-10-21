@@ -29,6 +29,9 @@ export interface Period {
   endDate: string
   isActive?: boolean
   isDeleted?: boolean
+  firstPartialActive?: boolean
+  secondPartialActive?: boolean
+  thirdPartialActive?: boolean
 }
 
 export interface Course {
@@ -42,13 +45,7 @@ export interface Course {
       id?: number
       name: string
       semester: number
-      period: {
-        id: number
-        name: string
-        startDate: string
-        endDate: string
-        isActive: boolean
-      }
+      period: Period
     }
     user?: {
       id?: number
@@ -76,6 +73,7 @@ export interface CourseGroup {
     id?: number;
     name: string;
     semester: number;
+    period?: Period;
   };
   user?: {
     id?: number;

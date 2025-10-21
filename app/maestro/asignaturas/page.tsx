@@ -281,28 +281,22 @@ export default function MaestroAsignaturas() {
     setIsModalOpen(true)
     setIsLoadingAlumnos(true)
     
+    // Determinar el parcial activo según el periodo
+    const period = courseGroup.group?.period
+    let parcialActivo = 1 // Por defecto primer parcial
+    
+    if (period?.firstPartialActive) {
+      parcialActivo = 1
+    } else if (period?.secondPartialActive) {
+      parcialActivo = 2
+    } else if (period?.thirdPartialActive) {
+      parcialActivo = 3
+    }
+    
+    setSelectedPartial(parcialActivo)
+    
     try {
-      // USAR EL NUEVO ENDPOINT OPTIMIZADO - UNA SOLA PETICIÓN
-      console.log('🚀 Cargando datos optimizados para el grupo:', courseGroup.id)
       const evaluationsData = await CourseService.getCourseGroupEvaluationsData(courseGroup.id!)
-      
-      console.log('📊 Datos recibidos del endpoint:', evaluationsData)
-      console.log('👥 Estudiantes:', evaluationsData.students)
-      console.log('📝 Evaluaciones parciales:', evaluationsData.partialEvaluations)
-      console.log('📊 Calificaciones de actividades:', evaluationsData.partialEvaluationGrades)
-      console.log('📈 Calificaciones parciales:', evaluationsData.partialGrades)
-      console.log('🔍 Verificando partialEvaluationGrades:', {
-        exists: !!evaluationsData.partialEvaluationGrades,
-        isArray: Array.isArray(evaluationsData.partialEvaluationGrades),
-        length: evaluationsData.partialEvaluationGrades?.length || 0,
-        data: evaluationsData.partialEvaluationGrades
-      })
-      
-      // Verificar estructura de los datos si existen
-      if (evaluationsData.partialEvaluationGrades && evaluationsData.partialEvaluationGrades.length > 0) {
-        console.log('📋 Estructura del primer partialEvaluationGrade:', evaluationsData.partialEvaluationGrades[0]);
-        console.log('🔗 Relación partialEvaluation:', evaluationsData.partialEvaluationGrades[0]?.partialEvaluation);
-      }
       
       // Extraer estudiantes
       const students = evaluationsData.students || []
@@ -326,7 +320,6 @@ export default function MaestroAsignaturas() {
       // Procesar calificaciones y asistencias para evitar peticiones individuales
       await procesarDatosOptimizados(evaluationsData, mappedStudents, selectedPartial)
       
-      console.log('✅ Datos cargados optimizadamente - 1 petición en lugar de 99+')
       
     } catch (error) {
       console.error('Error al cargar los datos optimizados:', error)
@@ -915,11 +908,9 @@ export default function MaestroAsignaturas() {
   // Función para procesar los datos optimizados del endpoint
   const procesarDatosOptimizados = async (evaluationsData: EvaluationsDataResponse, students: any[], parcialSeleccionado?: number) => {
     try {
-      console.log('🔍 Procesando datos optimizados:', evaluationsData);
       
       // Usar el parcial pasado como parámetro o el estado actual
       const parcialActual = parcialSeleccionado || selectedPartial;
-      console.log('🔍 Procesando datos para el parcial:', parcialActual);
       
       const { partialGrades, attendances, partialEvaluations, partialEvaluationGrades } = evaluationsData;
       
@@ -940,19 +931,10 @@ export default function MaestroAsignaturas() {
       
       // Guardar en el estado
       setCalificacionesMap(calificacionesMapTemp);
-      console.log('🔍 Estado de calificaciones guardado:', {
-        calificacionesMapTempKeys: Object.keys(calificacionesMapTemp),
-        calificacionesMapTempSample: Object.entries(calificacionesMapTemp).slice(0, 3)
-      });
+
       
       // Crear mapas optimizados para asistencias
       const asistenciasMapTemp: {[key: number]: {[key: number]: any[]}} = {};
-      console.log('🔍 Procesando attendances:', {
-        exists: !!attendances,
-        isArray: Array.isArray(attendances),
-        length: attendances?.length || 0,
-        data: attendances
-      });
       
       if (attendances && Array.isArray(attendances)) {
         // Agrupar asistencias por courseGroupStudentId y partial
@@ -979,46 +961,22 @@ export default function MaestroAsignaturas() {
           asistenciasMapTemp[studentId] = asistenciasPorEstudiante[studentId];
         });
         
-        console.log('🔍 Mapa de asistencias creado:', asistenciasMapTemp);
-        console.log('🔍 Resumen de asistencias por estudiante:', Object.keys(asistenciasMapTemp).map(id => ({
-          courseGroupStudentId: id,
-          parciales: Object.keys(asistenciasMapTemp[parseInt(id)]).map(partial => ({
-            partial: parseInt(partial),
-            count: asistenciasMapTemp[parseInt(id)][parseInt(partial)].length
-          }))
-        })));
       } else {
         console.log('⚠️ No se encontraron attendances o no es un array');
       }
       
       // Guardar en el estado
       setAsistenciasMap(asistenciasMapTemp);
-      console.log('🔍 Estado de asistencias guardado:', {
-        asistenciasMapTempKeys: Object.keys(asistenciasMapTemp),
-        asistenciasMapTempSample: Object.entries(asistenciasMapTemp).slice(0, 3)
-      });
+
       
       // Crear mapa de calificaciones de actividades por estudiante y evaluación
       const calificacionesActividadesMap: {[key: number]: {[key: number]: any}} = {};
-      console.log('🔍 Procesando partialEvaluationGrades:', {
-        exists: !!partialEvaluationGrades,
-        isArray: Array.isArray(partialEvaluationGrades),
-        length: partialEvaluationGrades?.length || 0,
-        data: partialEvaluationGrades
-      });
+
       
       if (partialEvaluationGrades && Array.isArray(partialEvaluationGrades)) {
         partialEvaluationGrades.forEach((grade: any) => {
           const courseGroupStudentId = grade.courseGroupStudentId;
           const partialEvaluationId = grade.partialEvaluationId;
-          
-          console.log('🔍 Procesando calificación:', {
-            courseGroupStudentId,
-            partialEvaluationId,
-            grade: grade.grade,
-            id: grade.id,
-            partialEvaluation: grade.partialEvaluation
-          });
           
           if (!calificacionesActividadesMap[courseGroupStudentId]) {
             calificacionesActividadesMap[courseGroupStudentId] = {};
@@ -1031,7 +989,6 @@ export default function MaestroAsignaturas() {
           };
         });
         
-        console.log('🔍 Mapa de calificaciones de actividades creado:', calificacionesActividadesMap);
       } else {
         console.log('⚠️ No se encontraron partialEvaluationGrades o no es un array');
       }
@@ -1084,16 +1041,6 @@ export default function MaestroAsignaturas() {
         }
       }
       
-      console.log('🔍 Calificaciones procesadas para parcial', parcialActual, ':', nuevasCalificaciones);
-      console.log('🔍 Calificaciones parciales:', calificacionesMapTemp);
-      console.log('🔍 Resumen del procesamiento:', {
-        estudiantesProcesados: students.length,
-        calificacionesProcesadas: Object.keys(nuevasCalificaciones).length,
-        calificacionesParciales: Object.keys(calificacionesMapTemp).length,
-        asistencias: Object.keys(asistenciasMapTemp).length,
-        parcialProcesado: parcialActual
-      });
-      
       // Establecer los datos procesados
       setCalificacionesAlumnos(nuevasCalificaciones);
       
@@ -1111,22 +1058,16 @@ export default function MaestroAsignaturas() {
   // Función optimizada para obtener todos los datos del grupo usando el nuevo endpoint
   const obtenerDatosCompletosGrupo = async (courseGroupId: number) => {
     try {
-      console.log('🔍 Llamando al nuevo endpoint final-data, courseGroupId:', courseGroupId);
+
       
       // Usar el nuevo endpoint específico para el modal de General
       const response = await CourseService.getCourseGroupFinalData(courseGroupId);
       
-      console.log('📊 Respuesta completa del endpoint final-data:', response);
+
       
       // Extraer datos de la respuesta
       const { students, partialGrades, finalGrades, attendances } = response;
       
-      console.log('📋 Datos extraídos:', {
-        students: students?.length || 0,
-        partialGrades: partialGrades?.length || 0,
-        finalGrades: finalGrades?.length || 0,
-        attendances: attendances?.length || 0
-      });
       
       // Crear mapas optimizados
       const calificacionesMap: {[key: number]: {[key: number]: number}} = {};
@@ -1176,13 +1117,7 @@ export default function MaestroAsignaturas() {
           };
         });
       }
-      
-      console.log('✅ Datos procesados:', {
-        students: students?.length || 0,
-        calificacionesMap: Object.keys(calificacionesMap).length,
-        asistenciasMap: Object.keys(asistenciasMap).length,
-        calificacionesFinalesMap: Object.keys(calificacionesFinalesMap).length
-      });
+    
       
       return {
         students: students || [],
@@ -1205,7 +1140,6 @@ export default function MaestroAsignaturas() {
 
   // Función para abrir el modal general
   const handleOpenGeneralModal = async (course: Course, courseGroup: any) => {
-    console.log('🚀 Abriendo modal general para:', { course: course.name, courseGroup: courseGroup.id });
     
     setSelectedCourseForGeneral(course);
     setSelectedCourseGroupForGeneral(courseGroup);
@@ -1216,7 +1150,6 @@ export default function MaestroAsignaturas() {
       // Cargar todos los datos del grupo en una sola llamada (SUPER OPTIMIZADO)
       const datosCompletos = await obtenerDatosCompletosGrupo(courseGroup.id);
       
-      console.log('📊 Datos completos recibidos:', datosCompletos);
       
       // Validar que students existe y es un array
       if (!datosCompletos.students || !Array.isArray(datosCompletos.students)) {
@@ -1225,11 +1158,9 @@ export default function MaestroAsignaturas() {
         return;
       }
       
-      console.log('📋 Estudiantes recibidos:', datosCompletos.students);
       
       // Los estudiantes ya vienen en el formato correcto del endpoint
       const mappedStudents = datosCompletos.students || [];
-      console.log('✅ Estudiantes recibidos del endpoint:', mappedStudents);
       setAlumnosGenerales(mappedStudents); // Usar estado separado
       
       // Usar los datos ya cargados
@@ -1270,7 +1201,6 @@ export default function MaestroAsignaturas() {
       setCalificacionesFinalesGenerales(calificacionesFinalesMap); // Usar estado separado
       
       // CALCULAR Y GUARDAR AUTOMÁTICAMENTE LAS CALIFICACIONES FINALES
-      console.log('🚀 Iniciando cálculo automático de calificaciones finales...');
       for (const alumno of mappedStudents) {
         const courseGroupStudentId = alumno.courseGroupStudentId!;
         const calificacion = calificacionesTemp[courseGroupStudentId];
@@ -1281,11 +1211,6 @@ export default function MaestroAsignaturas() {
         }
       }
       
-      console.log('✅ Datos cargados para modal general:', {
-        estudiantes: mappedStudents.length,
-        calificaciones: Object.keys(calificacionesTemp).length,
-        calificacionesFinales: Object.keys(calificacionesFinalesMap).length
-      });
       
       toast.success(`Datos cargados correctamente: ${mappedStudents.length} estudiantes`);
       
@@ -1302,8 +1227,6 @@ export default function MaestroAsignaturas() {
     if (promedio <= 0) return;
     
     try {
-      console.log('🔍 Calculando calificación final para estudiante:', courseGroupStudentId, 'promedio:', promedio);
-      
       // Convertir a entero con redondeo matemático estándar (el backend espera números enteros)
       // 8.50 sube a 9, 8.49 baja a 8
       const promedioEntero = Math.round(promedio);
@@ -1316,7 +1239,7 @@ export default function MaestroAsignaturas() {
         await CourseService.updateFinalGrade(finalGrades[0].id, { 
           grade: promedioEntero
         });
-        console.log('✅ Calificación final actualizada:', promedioEntero);
+
       } else {
         // Crear nueva calificación final con gradeOrdinary y gradeExtraordinary en 0
         await CourseService.createFinalGrade({
@@ -1327,7 +1250,7 @@ export default function MaestroAsignaturas() {
           type: 'final',
           courseGroupStudentId: courseGroupStudentId
         });
-        console.log('✅ Nueva calificación final creada:', promedioEntero);
+
       }
       
       // Actualizar el estado local
@@ -1687,7 +1610,7 @@ export default function MaestroAsignaturas() {
   useEffect(() => {
     // Si hay calificaciones pero no están cargadas, limpiarlas inmediatamente
     if (Object.keys(calificacionesAlumnos).length > 0 && !calificacionesLoaded) {
-      console.log('⚠️ DETECTADAS CALIFICACIONES INCORRECTAS - LIMPIANDO INMEDIATAMENTE');
+
       setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
       setCalificacionesParcialesAlumnos({});
       setCalificacionesMap({});
@@ -1699,7 +1622,7 @@ export default function MaestroAsignaturas() {
   useEffect(() => {
     // Si estamos en el segundo parcial y hay calificaciones del primer parcial, limpiarlas
     if (selectedPartial === 2 && Object.keys(calificacionesAlumnos).length > 0) {
-      console.log('🎯 DETECTADO CAMBIO A SEGUNDO PARCIAL - LIMPIEZA ESPECÍFICA');
+
       
       // Verificar si las calificaciones son del parcial anterior
       const hasFirstPartialGrades = Object.values(calificacionesAlumnos).some((studentGrades: any) => {
@@ -1710,7 +1633,7 @@ export default function MaestroAsignaturas() {
       });
       
       if (hasFirstPartialGrades) {
-        console.log('🧹 LIMPIANDO CALIFICACIONES DEL PRIMER PARCIAL');
+
         setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         setCalificacionesParcialesAlumnos({});
         setCalificacionesMap({});
@@ -1720,7 +1643,7 @@ export default function MaestroAsignaturas() {
     
     // Si estamos en el tercer parcial y hay calificaciones de parciales anteriores, limpiarlas
     if (selectedPartial === 3 && Object.keys(calificacionesAlumnos).length > 0) {
-      console.log('🎯 DETECTADO CAMBIO A TERCER PARCIAL - LIMPIEZA ESPECÍFICA');
+
       
       // Verificar si las calificaciones son de parciales anteriores
       const hasPreviousPartialGrades = Object.values(calificacionesAlumnos).some((studentGrades: any) => {
@@ -1731,7 +1654,7 @@ export default function MaestroAsignaturas() {
       });
       
       if (hasPreviousPartialGrades) {
-        console.log('🧹 LIMPIANDO CALIFICACIONES DE PARCIALES ANTERIORES');
+
         setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         setCalificacionesParcialesAlumnos({});
         setCalificacionesMap({});
@@ -1743,7 +1666,7 @@ export default function MaestroAsignaturas() {
   // useEffect para recalcular automáticamente calificaciones finales cuando se carguen los datos del modal general
   useEffect(() => {
     if (isGeneralModalOpen && alumnosGenerales.length > 0 && Object.keys(calificacionesGenerales).length > 0) {
-      console.log('🔄 Recalculando calificaciones finales automáticamente...');
+
       
       const recalcularFinales = async () => {
         for (const alumno of alumnosGenerales) {
@@ -1770,7 +1693,6 @@ export default function MaestroAsignaturas() {
     if (selectedCourseGroup) {
       try {
         // LIMPIEZA AGRESIVA - SOLUCIÓN DIRECTA AL PROBLEMA
-        console.log('🧹 LIMPIEZA AGRESIVA INICIADA');
         
         // 1. Limpiar TODOS los estados relacionados con calificaciones
         setCalificacionesLoaded(false);
@@ -1794,17 +1716,15 @@ export default function MaestroAsignaturas() {
         
         // 3. Forzar múltiples limpiezas con diferentes timing
         setTimeout(() => {
-          console.log('🧹 Limpieza adicional 1');
+
           setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         }, 0);
         
         setTimeout(() => {
-          console.log('🧹 Limpieza adicional 2');
           setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         }, 50);
         
         setTimeout(() => {
-          console.log('🧹 Limpieza adicional 3');
           setCalificacionesAlumnos(crearEstructuraVaciaCalificaciones());
         }, 100);
         
@@ -1815,7 +1735,7 @@ export default function MaestroAsignaturas() {
         setSelectedPartial(newParcial);
         
         // 6. Cargar los datos del nuevo parcial
-        console.log('📡 Cargando datos del nuevo parcial:', newParcial);
+
         const evaluationsData = await CourseService.getCourseGroupEvaluationsData(selectedCourseGroup.id!)
         const actividadesDefinidasData = evaluationsData.partialEvaluations || []
         const actividadesFiltradas = filtrarActividadesPorParcial(actividadesDefinidasData, newParcial)
@@ -1824,7 +1744,6 @@ export default function MaestroAsignaturas() {
         // 7. Procesar los datos optimizados para el nuevo parcial
         await procesarDatosOptimizados(evaluationsData, alumnos, newParcial);
         
-        console.log('✅ Parcial cambiado con limpieza agresiva completada')
       } catch (error) {
         console.error('Error al cambiar parcial:', error)
         toast.error('Error al cambiar de parcial')
@@ -2094,16 +2013,7 @@ export default function MaestroAsignaturas() {
   ) => {
     // Usar el parcial pasado como parámetro o el estado actual
     const parcialActual = parcialSeleccionado || selectedPartial;
-    
-    console.log('🔍 Iniciando cálculo de calificaciones parciales:', {
-      ponderacionesCurso,
-      studentsCount: students.length,
-      parcialActual,
-      asistenciasMapKeys: Object.keys(asistenciasMap),
-      calificacionesMapKeys: Object.keys(calificacionesMap),
-      asistenciasMapSample: Object.entries(asistenciasMap).slice(0, 2),
-      calificacionesMapSample: Object.entries(calificacionesMap).slice(0, 2)
-    });
+  
     
     if (!ponderacionesCurso || !students.length) {
       console.log('⚠️ No se pueden calcular calificaciones: ponderacionesCurso o students vacíos');
@@ -2134,15 +2044,7 @@ export default function MaestroAsignaturas() {
       // 1. Cálculo de Asistencia usando datos ya cargados (siempre se calcula el porcentaje)
       const asistenciasAlumno = asistenciasMap[courseGroupStudentId]?.[parcialActual] || [];
       
-      // Log reducido para evitar spam en consola
-      if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
-        console.log('🔍 Calculando asistencia para primer alumno:', {
-          courseGroupStudentId,
-          parcialActual,
-          asistenciasAlumnoLength: asistenciasAlumno.length,
-          ponderacionAsistencia: ponderacionesCurso.asistencia
-        });
-      }
+      
       
       if (asistenciasAlumno.length > 0) {
         const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
@@ -2154,16 +2056,7 @@ export default function MaestroAsignaturas() {
           const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
           const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
           
-          // Log reducido para evitar spam en consola
-          if (courseGroupStudentId === students[0]?.courseGroupStudentId) {
-            console.log('🔍 Resultados del cálculo de asistencia:', {
-              asistenciasPresentes,
-              totalAsistencias,
-              porcentajeAsistencia,
-              asistenciaPromedio,
-              calificacionAsistencia
-            });
-          }
+          
           
           calificacionFinal += calificacionAsistencia;
           totalPonderacion += ponderacionesCurso.asistencia;
@@ -2250,12 +2143,6 @@ export default function MaestroAsignaturas() {
         parcial3: parcial3
       };
       
-      console.log('🔍 Calificación parcial calculada para alumno:', {
-        courseGroupStudentId,
-        calificacion: Math.round(calificacionParcialFinal * 100) / 100,
-        porcentajeAsistencia: Math.round(porcentajeAsistencia * 100) / 100,
-        totalPonderacion
-      });
     }
     
     setCalificacionesParcialesAlumnos(nuevasCalificacionesParciales);
@@ -2302,10 +2189,7 @@ export default function MaestroAsignaturas() {
       // Usar el mapa de asistencias ya cargado en lugar de hacer una nueva consulta
       const asistenciasAlumno = asistenciasMap[alumno.courseGroupStudentId!]?.[parcialActual] || [];
       
-      console.log(`📊 Calculando asistencia para alumno ${alumno.courseGroupStudentId}:`, {
-        asistenciasDisponibles: asistenciasAlumno.length,
-        ponderacionAsistencia: ponderacionesCurso.asistencia
-      });
+
       
       if (asistenciasAlumno.length > 0) {
         const asistenciasPresentes = asistenciasAlumno.filter((att) => att.attend === 1).length;
@@ -2317,13 +2201,6 @@ export default function MaestroAsignaturas() {
           const asistenciaPromedio = (porcentajeAsistencia / 100) * 10;
           const calificacionAsistencia = (asistenciaPromedio * ponderacionesCurso.asistencia) / 100;
           
-          console.log(`📈 Resultados asistencia alumno ${alumno.courseGroupStudentId}:`, {
-            asistenciasPresentes,
-            totalAsistencias,
-            porcentajeAsistencia: porcentajeAsistencia.toFixed(2),
-            asistenciaPromedio: asistenciaPromedio.toFixed(2),
-            calificacionAsistencia: calificacionAsistencia.toFixed(2)
-          });
           
           calificacionFinal += calificacionAsistencia;
           totalPonderacion += ponderacionesCurso.asistencia;
@@ -2417,13 +2294,7 @@ export default function MaestroAsignaturas() {
       if (totalPonderacion > 0) {
         calificacionParcialFinal = (calificacionFinal / totalPonderacion) * 100;
       }
-      
-      console.log(`🎯 Cálculo final alumno ${alumno.courseGroupStudentId}:`, {
-        calificacionFinal: calificacionFinal.toFixed(2),
-        totalPonderacion: totalPonderacion.toFixed(2),
-        calificacionParcialFinal: calificacionParcialFinal.toFixed(2),
-        porcentajeAsistencia: porcentajeAsistencia.toFixed(2)
-      });
+    
       
       // Usar los datos ya cargados en lugar de hacer llamadas adicionales
       const studentGrades = calificacionesMapToUse[alumno.courseGroupStudentId!] || {};
@@ -2439,35 +2310,22 @@ export default function MaestroAsignaturas() {
         parcial3: parcial3
       };
       
-      console.log(`✅ Calificación parcial calculada para alumno ${alumno.courseGroupStudentId}:`, {
-        calificacion: nuevasCalificacionesParciales[alumno.courseGroupStudentId!].calificacion,
-        porcentajeAsistencia: nuevasCalificacionesParciales[alumno.courseGroupStudentId!].porcentajeAsistencia
-      });
+
     }
     
-    console.log('📊 Resumen de calificaciones parciales calculadas:', {
-      totalAlumnos: Object.keys(nuevasCalificacionesParciales).length,
-      calificaciones: Object.entries(nuevasCalificacionesParciales).map(([id, cal]) => ({
-        alumnoId: id,
-        calificacion: cal.calificacion,
-        porcentajeAsistencia: cal.porcentajeAsistencia
-      }))
-    });
+
     
     setCalificacionesParcialesAlumnos(nuevasCalificacionesParciales);
     
     // Actualizar calificaciones parciales en la base de datos
-    console.log('💾 Guardando calificaciones parciales en la base de datos...');
+
     await actualizarCalificacionesParcialesEnBD(nuevasCalificacionesParciales);
-    console.log('✅ Proceso de cálculo y guardado de calificaciones parciales completado');
+
   };
 
   // Función para actualizar calificaciones parciales en la base de datos
   const actualizarCalificacionesParcialesEnBD = async (calificaciones: {[key: number]: any}) => {
-    console.log('🔄 Actualizando calificaciones parciales en BD:', {
-      calificacionesKeys: Object.keys(calificaciones),
-      selectedPartial
-    });
+
     
     for (const [courseGroupStudentId, calificacion] of Object.entries(calificaciones)) {
       try {
@@ -2475,7 +2333,7 @@ export default function MaestroAsignaturas() {
         const calificacionParcial = calificacion.calificacion;
         
         if (calificacionParcial > 0) {
-          console.log(`📊 Procesando calificación parcial para estudiante ${studentId}:`, calificacionParcial);
+
           
           // Verificar si ya existe una calificación parcial para este alumno y parcial
           const existingPartialGrades = await CourseService.getPartialGradesByStudentAndPartial(studentId, selectedPartial);
@@ -2490,16 +2348,16 @@ export default function MaestroAsignaturas() {
           if (existingPartialGrades && existingPartialGrades.length > 0) {
             // Actualizar calificación parcial existente
             const existingPartialGrade = existingPartialGrades[0];
-            console.log(`✏️ Actualizando calificación parcial existente ID: ${existingPartialGrade.id}`);
+
             
             await CourseService.updatePartialGrade(existingPartialGrade.id, partialGradeDto);
-            console.log(`✅ Calificación parcial actualizada para estudiante ${studentId}`);
+
           } else {
             // Crear nueva calificación parcial
-            console.log(`➕ Creando nueva calificación parcial para estudiante ${studentId}`);
+
             
             const newPartialGrade = await CourseService.createPartialGrade(partialGradeDto);
-            console.log(`✅ Nueva calificación parcial creada ID: ${newPartialGrade.id} para estudiante ${studentId}`);
+
           }
         } else {
           console.log(`⚠️ Calificación parcial 0 o negativa para estudiante ${studentId}, no se guarda`);
@@ -2509,7 +2367,7 @@ export default function MaestroAsignaturas() {
       }
     }
     
-    console.log('✅ Proceso de actualización de calificaciones parciales completado');
+
   };
 
   const cargarCalificacionesAlumnos = async () => {
@@ -2894,6 +2752,7 @@ export default function MaestroAsignaturas() {
                                         id: courseGroup.group!.id,
                                         name: courseGroup.group!.name,
                                         semester: courseGroup.group!.semester,
+                                        period: courseGroup.group!.period
                                       },
                                       user: {
                                         id: courseGroup.user.id,
@@ -2902,6 +2761,7 @@ export default function MaestroAsignaturas() {
                                         role: courseGroup.user.role || 'maestro'
                                       }
                                     }
+                                    
                                     handleOpenAlumnosModal(courseGroup.group!.id!, asignatura, courseGroupData)
                                   }
                                 }}
@@ -2967,9 +2827,15 @@ export default function MaestroAsignaturas() {
                       onChange={e => handleParcialChangeEvaluaciones(Number(e.target.value))}
                       className="border rounded px-2 py-1"
                     >
-                      <option value={1}>Primer Parcial</option>
-                      <option value={2}>Segundo Parcial</option>
-                      <option value={3}>Tercer Parcial</option>
+                      <option value={1} disabled={!selectedCourseGroup?.group?.period?.firstPartialActive}>
+                        Primer Parcial {selectedCourseGroup?.group?.period?.firstPartialActive ? '' : '(Inactivo)'}
+                      </option>
+                      <option value={2} disabled={!selectedCourseGroup?.group?.period?.secondPartialActive}>
+                        Segundo Parcial {selectedCourseGroup?.group?.period?.secondPartialActive ? '' : '(Inactivo)'}
+                      </option>
+                      <option value={3} disabled={!selectedCourseGroup?.group?.period?.thirdPartialActive}>
+                        Tercer Parcial {selectedCourseGroup?.group?.period?.thirdPartialActive ? '' : '(Inactivo)'}
+                      </option>
                     </select>
                   </div>
                   <Button
@@ -3238,7 +3104,6 @@ export default function MaestroAsignaturas() {
                       </div>
                       <Button
                         onClick={async () => {
-                          console.log('🔄 Recalculando calificaciones finales...');
                           for (const alumno of alumnosGenerales) {
                             const courseGroupStudentId = alumno.courseGroupStudentId!;
                             const calificacion = calificacionesGenerales[courseGroupStudentId];
