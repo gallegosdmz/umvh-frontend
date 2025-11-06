@@ -30,7 +30,7 @@ import { useCourse } from "@/lib/hooks/useCourse"
 import { useGroup } from "@/lib/hooks/useGroup"
 import { CourseService } from "@/lib/services/course.service"
 import { Course, CourseGroup, Student } from "@/lib/mock-data"
-import { EvaluationsDataResponse } from "@/types/api-responses"
+import { EvaluationsDataResponse, FinalDataResponse } from "@/types/api-responses"
 import { Users, BookOpen, Calendar, GraduationCap, Plus, BarChart3, Clock, Search, Trash2, UserPlus } from "lucide-react"
 import Link from "next/link"
 import { useStudent } from "@/lib/hooks/useStudent"
@@ -174,7 +174,7 @@ export default function MaestroAsignaturas() {
   }}>({})
   
   // Estados separados para el modal de General (NO afectan otros modales)
-  const [alumnosGenerales, setAlumnosGenerales] = useState<(Student & { courseGroupStudentId?: number })[]>([])
+  const [alumnosGenerales, setAlumnosGenerales] = useState<FinalDataResponse['students']>([])
   const [calificacionesFinalesGenerales, setCalificacionesFinalesGenerales] = useState<{[key: number]: {
     ordinario: number | null;
     extraordinario: number | null;
@@ -1121,77 +1121,36 @@ export default function MaestroAsignaturas() {
       // Usar el nuevo endpoint específico para el modal de General
       const response = await CourseService.getCourseGroupFinalData(courseGroupId);
       
-
+      // ========== CONSOLE.LOG: DATOS DEL ENDPOINT ==========
+      console.log('📊 ========== DATOS DEL ENDPOINT - Reporte General ==========');
+      console.log('🔵 Response completo del endpoint:', response);
+      console.log('🔵 Estructura de response:', {
+        students: response.students ? `Array de ${response.students.length} estudiantes` : 'No existe'
+      });
       
-      // Extraer datos de la respuesta
-      const { students, partialGrades, finalGrades, attendances } = response;
-      
-      
-      // Crear mapas optimizados
-      const calificacionesMap: {[key: number]: {[key: number]: number}} = {};
-      const asistenciasMap: {[key: number]: {[key: number]: any[]}} = {};
-      const calificacionesFinalesMap: {[key: number]: any} = {};
-      
-      // Procesar calificaciones parciales
-      if (partialGrades && Array.isArray(partialGrades)) {
-        partialGrades.forEach((grade: any) => {
-          const courseGroupStudentId = grade.courseGroupStudentId;
-          const partial = grade.partial;
-          const gradeValue = grade.grade || 0;
-          
-          if (!calificacionesMap[courseGroupStudentId]) {
-            calificacionesMap[courseGroupStudentId] = {};
-          }
-          
-          calificacionesMap[courseGroupStudentId][partial] = gradeValue;
-        });
+      if (response.students && response.students.length > 0) {
+        console.log('🔵 Ejemplo de estudiante (primer elemento):', response.students[0]);
+        console.log('🔵 Propiedades disponibles en estudiantes:', Object.keys(response.students[0] || {}));
+        if (response.students[0].partialGrades) {
+          console.log('🔵 Ejemplo de partialGrades:', response.students[0].partialGrades);
+        }
+        if (response.students[0].attendances) {
+          console.log('🔵 Ejemplo de attendances:', response.students[0].attendances);
+        }
+        if (response.students[0].finalGrade) {
+          console.log('🔵 Ejemplo de finalGrade:', response.students[0].finalGrade);
+        }
       }
+      console.log('📊 ============================================================');
       
-      // Procesar asistencias
-      if (attendances && Array.isArray(attendances)) {
-        attendances.forEach((attendance: any) => {
-          const courseGroupStudentId = attendance.courseGroupStudentId;
-          const partial = attendance.partial;
-          
-          if (!asistenciasMap[courseGroupStudentId]) {
-            asistenciasMap[courseGroupStudentId] = {};
-          }
-          
-          if (!asistenciasMap[courseGroupStudentId][partial]) {
-            asistenciasMap[courseGroupStudentId][partial] = [];
-          }
-          
-          asistenciasMap[courseGroupStudentId][partial].push(attendance);
-        });
-      }
-      
-      // Procesar calificaciones finales
-      if (finalGrades && Array.isArray(finalGrades)) {
-        finalGrades.forEach((finalGrade: any) => {
-          const courseGroupStudentId = finalGrade.courseGroupStudentId;
-          calificacionesFinalesMap[courseGroupStudentId] = {
-            ordinario: finalGrade.gradeOrdinary,
-            extraordinario: finalGrade.gradeExtraordinary
-          };
-        });
-      }
-    
-      
+      // Los datos ya vienen agrupados por estudiante, simplemente retornarlos
       return {
-        students: students || [],
-        calificacionesMap,
-        asistenciasMap,
-        calificacionesFinalesMap,
-        partialEvaluations: []
+        students: response.students || []
       };
     } catch (error) {
       console.error('Error al obtener datos completos del grupo:', error);
       return {
-        students: [],
-        calificacionesMap: {},
-        asistenciasMap: {},
-        calificacionesFinalesMap: {},
-        partialEvaluations: []
+        students: []
       };
     }
   };
@@ -1219,53 +1178,41 @@ export default function MaestroAsignaturas() {
       
       // Los estudiantes ya vienen en el formato correcto del endpoint
       const mappedStudents = datosCompletos.students || [];
-      setAlumnosGenerales(mappedStudents); // Usar estado separado
+      setAlumnosGenerales(mappedStudents);
       
-      // Usar los datos ya cargados
-      const { calificacionesMap, asistenciasMap, calificacionesFinalesMap } = datosCompletos;
-      
-      // Cargar calificaciones de los 3 parciales para cada alumno
-      const calificacionesTemp: {[key: number]: {
-        parcial1: number,
-        parcial2: number,
-        parcial3: number,
-        promedio: number
+      // Crear mapas de calificaciones finales desde los datos de los estudiantes
+      const calificacionesFinalesMap: {[key: number]: {
+        ordinario: number | null;
+        extraordinario: number | null;
       }} = {};
       
       for (const alumno of mappedStudents) {
-        const courseGroupStudentId = alumno.courseGroupStudentId!;
-        const studentGrades = calificacionesMap[courseGroupStudentId] || {};
+        const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
+        if (alumno.finalGrade) {
+          calificacionesFinalesMap[courseGroupStudentId] = {
+            ordinario: alumno.finalGrade.gradeOrdinary || null,
+            extraordinario: alumno.finalGrade.gradeExtraordinary || null
+          };
+        }
+      }
+      
+      setCalificacionesFinalesGenerales(calificacionesFinalesMap);
+      
+      // Calcular y guardar automáticamente las calificaciones finales si es necesario
+      for (const alumno of mappedStudents) {
+        const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
+        const parcial1 = alumno.partialGrades?.find((pg: any) => pg.partial === 1)?.grade || 0;
+        const parcial2 = alumno.partialGrades?.find((pg: any) => pg.partial === 2)?.grade || 0;
+        const parcial3 = alumno.partialGrades?.find((pg: any) => pg.partial === 3)?.grade || 0;
         
-        const parcial1 = studentGrades[1] || 0;
-        const parcial2 = studentGrades[2] || 0;
-        const parcial3 = studentGrades[3] || 0;
-        
-        // Calcular promedio solo con parciales válidos
         const parcialesValidos = [parcial1, parcial2, parcial3]
           .filter(p => p > 0 && typeof p === 'number' && !isNaN(p));
         const promedio = parcialesValidos.length > 0 
           ? Math.round((parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) * 100) / 100
           : 0;
         
-        calificacionesTemp[courseGroupStudentId] = {
-          parcial1,
-          parcial2,
-          parcial3,
-          promedio
-        };
-      }
-      
-      setCalificacionesGenerales(calificacionesTemp);
-      setCalificacionesFinalesGenerales(calificacionesFinalesMap); // Usar estado separado
-      
-      // CALCULAR Y GUARDAR AUTOMÁTICAMENTE LAS CALIFICACIONES FINALES
-      for (const alumno of mappedStudents) {
-        const courseGroupStudentId = alumno.courseGroupStudentId!;
-        const calificacion = calificacionesTemp[courseGroupStudentId];
-        
-        if (calificacion && calificacion.promedio > 0) {
-          // Calcular automáticamente la calificación final
-          await calcularYGuardarCalificacionesFinales(courseGroupStudentId, calificacion.promedio);
+        if (promedio > 0 && courseGroupStudentId > 0) {
+          await calcularYGuardarCalificacionesFinales(courseGroupStudentId, promedio);
         }
       }
       
@@ -3370,43 +3317,60 @@ export default function MaestroAsignaturas() {
                         </thead>
                         <tbody>
                           {alumnosGenerales.map((alumno, index) => {
-                            // Obtener calificaciones de los 3 parciales desde la base de datos
-                            const calificacionParcial1 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial1 || 0;
-                            const calificacionParcial2 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial2 || 0;
-                            const calificacionParcial3 = calificacionesGenerales[alumno.courseGroupStudentId!]?.parcial3 || 0;
+                            // Obtener datos directamente del estudiante
+                            const parcial1 = alumno.partialGrades?.find((pg: any) => pg.partial === 1)?.grade || 0;
+                            const parcial2 = alumno.partialGrades?.find((pg: any) => pg.partial === 2)?.grade || 0;
+                            const parcial3 = alumno.partialGrades?.find((pg: any) => pg.partial === 3)?.grade || 0;
                             
-                            // Calcular promedio general solo con parciales válidos
-                            const parcialesValidos = [calificacionParcial1, calificacionParcial2, calificacionParcial3]
+                            // Calcular promedio
+                            const parcialesValidos = [parcial1, parcial2, parcial3]
                               .filter(p => p > 0 && typeof p === 'number' && !isNaN(p));
                             const promedio = parcialesValidos.length > 0 
                               ? Math.round((parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) * 100) / 100
                               : 0;
                             
-                            // Obtener porcentaje de asistencia (usar datos del modal de General)
-                            const asistencia = 0; // TODO: Implementar cálculo de asistencia para el modal general
+                            // Calcular asistencia
+                            const todasLasAsistencias = alumno.attendances || [];
+                            const asistenciasPresentes = todasLasAsistencias.filter((att: any) => att.attend === true).length;
+                            const asistencia = todasLasAsistencias.length > 0 
+                              ? Math.round((asistenciasPresentes / todasLasAsistencias.length) * 100) 
+                              : 0;
                             
-                            // Obtener calificaciones finales del estado separado
-                            const calificacionesFinales = calificacionesFinalesGenerales[alumno.courseGroupStudentId!];
-                            const ordinario = calificacionesFinales?.ordinario;
-                            const extraordinario = calificacionesFinales?.extraordinario;
+                            // Obtener calificaciones finales directamente
+                            const ordinario = alumno.finalGrade?.gradeOrdinary || null;
+                            const extraordinario = alumno.finalGrade?.gradeExtraordinary || null;
+                            const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
                             
-                            // Función helper para validar y formatear calificaciones
-                            const formatearCalificacion = (calificacion: number | null | undefined) => {
-                              return calificacion !== null && calificacion !== undefined && !isNaN(calificacion) 
-                                ? calificacion.toFixed(2) 
-                                : '--';
-                            };
+                            // ========== CONSOLE.LOG: PROPIEDADES POR COLUMNA ==========
+                            if (index === 0) {
+                              console.log('📋 ========== PROPIEDADES USADAS EN CADA COLUMNA - Reporte General ==========');
+                              console.log('📌 Columna # (Índice):', 'index + 1');
+                              console.log('📌 Columna Matrícula:', 'alumno.registrationNumber', '→ Valor:', alumno.registrationNumber);
+                              console.log('📌 Columna Nombre:', 'alumno.fullName', '→ Valor:', alumno.fullName);
+                              console.log('📌 Columna Parcial 1:', 'alumno.partialGrades.find(pg => pg.partial === 1)?.grade', '→ Valor:', parcial1);
+                              console.log('📌 Columna Parcial 2:', 'alumno.partialGrades.find(pg => pg.partial === 2)?.grade', '→ Valor:', parcial2);
+                              console.log('📌 Columna Parcial 3:', 'alumno.partialGrades.find(pg => pg.partial === 3)?.grade', '→ Valor:', parcial3);
+                              console.log('📌 Columna Promedio:', 'Calculado: promedio de parcial1, parcial2, parcial3', '→ Valor:', promedio);
+                              console.log('📌 Columna Asistencia:', 'Calculado desde alumno.attendances', '→ Valor:', asistencia, '%');
+                              console.log('📌 Columna Exentos:', 'Calculado: Math.round(promedio)', '→ Valor:', promedio > 0 && Math.round(promedio) < 8 ? 'ORD' : (promedio > 0 ? Math.round(promedio) : '--'));
+                              console.log('📌 Columna Calif Ordinario (Input):', 'alumno.finalGrade.gradeOrdinary', '→ Valor:', ordinario);
+                              console.log('📌 Columna Ordinario:', 'alumno.finalGrade.gradeOrdinary', '→ Valor:', ordinario);
+                              console.log('📌 Columna Calif Extraordinario (Input):', 'alumno.finalGrade.gradeExtraordinary', '→ Valor:', extraordinario);
+                              console.log('📌 Columna Extraordinario:', 'alumno.finalGrade.gradeExtraordinary', '→ Valor:', extraordinario);
+                              console.log('📋 Datos completos del alumno:', alumno);
+                              console.log('📋 ============================================================');
+                            }
                             
                             return (
-                              <tr key={alumno.id} className="hover:bg-gray-50">
+                              <tr key={alumno.id || index} className="hover:bg-gray-50">
                                 <td className="border border-gray-300 px-2 py-1 font-medium">{index + 1}</td>
                                 <td className="border border-gray-300 px-2 py-1">{alumno.registrationNumber}</td>
                                 <td className="border border-gray-300 px-2 py-1 font-medium text-left">{alumno.fullName}</td>
-                                <td className="border border-gray-300 px-2 py-1">{calificacionParcial1 > 0 ? calificacionParcial1.toFixed(2) : '--'}</td>
-                                <td className="border border-gray-300 px-2 py-1">{calificacionParcial2 > 0 ? calificacionParcial2.toFixed(2) : '--'}</td>
-                                <td className="border border-gray-300 px-2 py-1">{calificacionParcial3 > 0 ? calificacionParcial3.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">{parcial1 > 0 ? parcial1.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">{parcial2 > 0 ? parcial2.toFixed(2) : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">{parcial3 > 0 ? parcial3.toFixed(2) : '--'}</td>
                                 <td className="border border-gray-300 px-2 py-1 font-semibold">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
-                                <td className="border border-gray-300 px-2 py-1">{asistencia > 0 ? `${asistencia.toFixed(0)}%` : '--'}</td>
+                                <td className="border border-gray-300 px-2 py-1">{asistencia > 0 ? `${asistencia}%` : '--'}</td>
                                 <td className={`border border-gray-300 px-2 py-1 font-bold ${
                                   promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800" : "bg-green-100"
                                 }`}>
@@ -3426,20 +3390,38 @@ export default function MaestroAsignaturas() {
                                       value={ordinario !== null && ordinario > 0 ? ordinario : ''}
                                       onChange={async (e) => {
                                         const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
-                                        const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                        const studentId: number = courseGroupStudentId;
                                         
                                         // Actualizar estado local inmediatamente
                                         setCalificacionesFinalesGenerales(prev => ({
                                           ...prev,
-                                          [courseGroupStudentId]: {
-                                            ...prev[courseGroupStudentId],
+                                          [studentId]: {
+                                            ...prev[studentId],
                                             ordinario: value
                                           }
                                         }));
                                         
+                                        // Actualizar también el estado de alumnosGenerales
+                                        setAlumnosGenerales(prev => prev.map(al => {
+                                          const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                          if (alId === studentId) {
+                                            return {
+                                              ...al,
+                                              finalGrade: {
+                                                ...al.finalGrade,
+                                                gradeOrdinary: value,
+                                                grade: al.finalGrade?.grade || 0,
+                                                gradeExtraordinary: al.finalGrade?.gradeExtraordinary || 0,
+                                                date: al.finalGrade?.date || new Date().toISOString()
+                                              }
+                                            };
+                                          }
+                                          return al;
+                                        }));
+                                        
                                         // Guardar en la base de datos
                                         try {
-                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(studentId);
                                           if (finalGrades && finalGrades.length > 0) {
                                             await CourseService.updateFinalGrade(finalGrades[0].id, { gradeOrdinary: value });
                                           } else {
@@ -3449,7 +3431,7 @@ export default function MaestroAsignaturas() {
                                               gradeExtraordinary: 0,
                                               date: new Date().toISOString(),
                                               type: 'final',
-                                              courseGroupStudentId: courseGroupStudentId
+                                              courseGroupStudentId: studentId
                                             });
                                           }
                                           toast.success('Calificación ordinaria guardada');
@@ -3461,10 +3443,15 @@ export default function MaestroAsignaturas() {
                                     />
                                   ) : '--'}
                                 </td>
-                                <td className={`border border-gray-300 px-2 py-1 ${
-                                  ordinario !== null && ordinario < 6 && promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800 font-bold text-center" : ""
+                                <td className={`border border-gray-300 px-2 py-1 text-center ${
+                                  ordinario !== null && ordinario > 0 ? "font-semibold" : ""
                                 }`}>
-                                  {ordinario !== null && ordinario < 6 && promedio > 0 && Math.round(promedio) < 8 ? (
+                                  {ordinario !== null && ordinario > 0 ? ordinario : '--'}
+                                </td>
+                                <td className={`border border-gray-300 px-2 py-1 ${
+                                  ordinario !== null && ordinario < 6 && ordinario > 0 && promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800 font-bold text-center" : ""
+                                }`}>
+                                  {ordinario !== null && ordinario < 6 && ordinario > 0 && promedio > 0 && Math.round(promedio) < 8 ? (
                                     <input
                                       type="number"
                                       min="0"
@@ -3475,20 +3462,38 @@ export default function MaestroAsignaturas() {
                                       value={extraordinario !== null && extraordinario > 0 ? extraordinario : ''}
                                       onChange={async (e) => {
                                         const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
-                                        const courseGroupStudentId = alumno.courseGroupStudentId!;
+                                        const studentId: number = courseGroupStudentId;
                                         
                                         // Actualizar estado local inmediatamente
                                         setCalificacionesFinalesGenerales(prev => ({
                                           ...prev,
-                                          [courseGroupStudentId]: {
-                                            ...prev[courseGroupStudentId],
+                                          [studentId]: {
+                                            ...prev[studentId],
                                             extraordinario: value
                                           }
                                         }));
                                         
+                                        // Actualizar también el estado de alumnosGenerales
+                                        setAlumnosGenerales(prev => prev.map(al => {
+                                          const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                          if (alId === studentId) {
+                                            return {
+                                              ...al,
+                                              finalGrade: {
+                                                ...al.finalGrade,
+                                                gradeExtraordinary: value,
+                                                grade: al.finalGrade?.grade || 0,
+                                                gradeOrdinary: al.finalGrade?.gradeOrdinary || 0,
+                                                date: al.finalGrade?.date || new Date().toISOString()
+                                              }
+                                            };
+                                          }
+                                          return al;
+                                        }));
+                                        
                                         // Guardar en la base de datos
                                         try {
-                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(courseGroupStudentId);
+                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(studentId);
                                           if (finalGrades && finalGrades.length > 0) {
                                             await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
                                           } else {
@@ -3498,7 +3503,7 @@ export default function MaestroAsignaturas() {
                                               gradeExtraordinary: value,
                                               date: new Date().toISOString(),
                                               type: 'final',
-                                              courseGroupStudentId: courseGroupStudentId
+                                              courseGroupStudentId: studentId
                                             });
                                           }
                                           toast.success('Calificación extraordinaria guardada');
@@ -3510,7 +3515,11 @@ export default function MaestroAsignaturas() {
                                     />
                                   ) : '--'}
                                 </td>
-
+                                <td className={`border border-gray-300 px-2 py-1 text-center ${
+                                  extraordinario !== null && extraordinario > 0 ? "font-semibold" : ""
+                                }`}>
+                                  {extraordinario !== null && extraordinario > 0 ? extraordinario : '--'}
+                                </td>
                               </tr>
                             );
                           })}
