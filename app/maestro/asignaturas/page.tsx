@@ -3364,6 +3364,7 @@ export default function MaestroAsignaturas() {
                             <th className="bg-yellow-100 font-semibold border border-gray-300 px-2 py-1">Exentos</th>
                             <th className="bg-red-200 font-semibold border border-gray-300 px-2 py-1">Calif Ordinario</th>
                             <th className="bg-red-200 font-semibold border border-gray-300 px-2 py-1">Ordinario</th>
+                            <th className="bg-red-200 font-semibold border border-gray-300 px-2 py-1">Calif Extraordinario</th>
                             <th className="bg-red-200 font-semibold border border-gray-300 px-2 py-1">Extraordinario</th>
                           </tr>
                         </thead>

@@ -144,6 +144,12 @@ export default function ManejoPage() {
     setSelectedCourse(course);
     setCurrentView('grades');
     
+    // Console.log para ver la data completa del curso
+    console.log('=== DATA COMPLETA DEL CURSO ===');
+    console.log('Course:', course);
+    console.log('Partial Grades:', course.partialGrades);
+    console.log('Partial Evaluations:', course.partialEvaluations);
+    
     // Procesar calificaciones parciales
     const partialGradesData = course.partialGrades.map(pg => ({
       partial: pg.partial,
@@ -155,17 +161,29 @@ export default function ManejoPage() {
     // Procesar evaluaciones parciales como actividades
     const gradesData: Grade[] = [];
     course.partialEvaluations.forEach(evaluation => {
+      console.log('Processing evaluation:', evaluation);
       evaluation.grades.forEach(grade => {
-        gradesData.push({
+        const gradeData = {
           id: grade.id,
           activityName: evaluation.name,
           grade: grade.grade,
           maxGrade: 10, // Asumiendo escala de 10
           partial: evaluation.partial,
           type: evaluation.type as 'actividad' | 'evidencia' | 'producto' | 'examen'
-        });
+        };
+        console.log('Adding grade:', gradeData);
+        gradesData.push(gradeData);
       });
     });
+    
+    console.log('=== GRADES DATA FINAL ===');
+    console.log('All grades:', gradesData);
+    console.log('Grades by partial:', {
+      partial1: gradesData.filter(g => g.partial === 1),
+      partial2: gradesData.filter(g => g.partial === 2),
+      partial3: gradesData.filter(g => g.partial === 3)
+    });
+    
     setGrades(gradesData);
     
     // Calcular calificación final (promedio de parciales)
@@ -197,11 +215,19 @@ export default function ManejoPage() {
   };
 
   const handlePartialChange = (partial: number) => {
+    console.log(`=== CAMBIANDO A PARCIAL ${partial} ===`);
+    console.log('Previous partial:', selectedPartial);
+    console.log('New partial:', partial);
     setSelectedPartial(partial);
   };
 
   const getFilteredGrades = () => {
-    return grades.filter(grade => grade.partial === selectedPartial);
+    const filteredGrades = grades.filter(grade => grade.partial === selectedPartial);
+    console.log(`=== FILTRADO PARA PARCIAL ${selectedPartial} ===`);
+    console.log('Selected Partial:', selectedPartial);
+    console.log('All grades:', grades);
+    console.log('Filtered grades:', filteredGrades);
+    return filteredGrades;
   };
 
   const getPartialInfo = () => {
