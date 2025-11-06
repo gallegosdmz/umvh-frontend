@@ -385,24 +385,62 @@ export const CourseService = {
     },
 
     async createFinalGrade(dto: any) {
+      const headers = getAuthHeaders();
+      const body = JSON.stringify(dto);
+      
+      console.log('🔴 ========== DEBUG SERVICE: createFinalGrade ==========');
+      console.log('🔴 URL:', `${API_URL}/final-grades`);
+      console.log('🔴 Method: POST');
+      console.log('🔴 Headers:', headers);
+      console.log('🔴 Body (stringified):', body);
+      console.log('🔴 DTO (original):', dto);
+      console.log('🔴 Token presente:', !!headers.Authorization);
+      console.log('🔴 Token value:', headers.Authorization ? headers.Authorization.substring(0, 20) + '...' : 'NO TOKEN');
+      
       const response = await fetch(`${API_URL}/final-grades`, {
         method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(dto),
+        headers: headers,
+        body: body,
       });
+      
+      console.log('🔴 Response status:', response.status);
+      console.log('🔴 Response ok:', response.ok);
+      
       const data = await response.json();
-      console.log(data)
+      console.log('🔴 Response data:', data);
+      console.log('🔴 ============================================================');
+      
       if (!response.ok) throw new Error(data.message || 'Error al crear final grade');
       return data;
     },
 
     async updateFinalGrade(id: number, dto: any) {
+      const headers = getAuthHeaders();
+      const body = JSON.stringify(dto);
+      
+      console.log('🟠 ========== DEBUG SERVICE: updateFinalGrade ==========');
+      console.log('🟠 URL:', `${API_URL}/final-grades/${id}`);
+      console.log('🟠 Method: PATCH');
+      console.log('🟠 Headers:', headers);
+      console.log('🟠 Body (stringified):', body);
+      console.log('🟠 DTO (original):', dto);
+      console.log('🟠 ID:', id);
+      console.log('🟠 Token presente:', !!headers.Authorization);
+      console.log('🟠 Token value:', headers.Authorization ? headers.Authorization.substring(0, 20) + '...' : 'NO TOKEN');
+      
       const response = await fetch(`${API_URL}/final-grades/${id}`, {
         method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(dto),
+        headers: headers,
+        body: body,
       });
+      
+      console.log('🟠 Response status:', response.status);
+      console.log('🟠 Response ok:', response.ok);
+      
       const data = await response.json();
+      console.log('🟠 Response data:', data);
+      console.log('🟠 ============================================================');
+      
       if (!response.ok) throw new Error(data.message || 'Error al actualizar final grade');
       return data;
     },

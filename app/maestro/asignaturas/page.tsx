@@ -1198,23 +1198,8 @@ export default function MaestroAsignaturas() {
       
       setCalificacionesFinalesGenerales(calificacionesFinalesMap);
       
-      // Calcular y guardar automáticamente las calificaciones finales si es necesario
-      for (const alumno of mappedStudents) {
-        const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
-        const parcial1 = alumno.partialGrades?.find((pg: any) => pg.partial === 1)?.grade || 0;
-        const parcial2 = alumno.partialGrades?.find((pg: any) => pg.partial === 2)?.grade || 0;
-        const parcial3 = alumno.partialGrades?.find((pg: any) => pg.partial === 3)?.grade || 0;
-        
-        const parcialesValidos = [parcial1, parcial2, parcial3]
-          .filter(p => p > 0 && typeof p === 'number' && !isNaN(p));
-        const promedio = parcialesValidos.length > 0 
-          ? Math.round((parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) * 100) / 100
-          : 0;
-        
-        if (promedio > 0 && courseGroupStudentId > 0) {
-          await calcularYGuardarCalificacionesFinales(courseGroupStudentId, promedio);
-        }
-      }
+      // Los datos ya están cargados desde el endpoint, no es necesario guardar automáticamente
+      // El usuario puede usar el botón "Recalcular Finales" si desea actualizar las calificaciones
       
       
       toast.success(`Datos cargados correctamente: ${mappedStudents.length} estudiantes`);
@@ -1682,7 +1667,10 @@ export default function MaestroAsignaturas() {
     }
   }, [selectedPartial]); // Solo depende de selectedPartial
 
-  // useEffect para recalcular automáticamente calificaciones finales cuando se carguen los datos del modal general
+  // ELIMINADO: Este useEffect estaba causando errores 401 al intentar guardar automáticamente
+  // Las calificaciones finales ya vienen del endpoint, no necesitan guardarse automáticamente
+  // El usuario puede usar el botón "Recalcular Finales" si desea actualizar
+  /*
   useEffect(() => {
     if (isGeneralModalOpen && alumnosGenerales.length > 0 && Object.keys(calificacionesGenerales).length > 0) {
 
@@ -1701,6 +1689,7 @@ export default function MaestroAsignaturas() {
       recalcularFinales();
     }
   }, [isGeneralModalOpen, alumnosGenerales, calificacionesGenerales]);
+  */
 
   // FUNCIÓN DE LIMPIEZA FORZADA - SE EJECUTA CADA 500ms PARA VERIFICAR
   // ELIMINADO: Este useEffect estaba causando el bucle infinito
@@ -3339,6 +3328,7 @@ export default function MaestroAsignaturas() {
                             // Obtener calificaciones finales directamente
                             const ordinario = alumno.finalGrade?.gradeOrdinary || null;
                             const extraordinario = alumno.finalGrade?.gradeExtraordinary || null;
+                            const finalGradeId = alumno.finalGrade?.id || null;
                             const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
                             
                             // ========== CONSOLE.LOG: PROPIEDADES POR COLUMNA ==========
@@ -3404,15 +3394,16 @@ export default function MaestroAsignaturas() {
                                         // Actualizar también el estado de alumnosGenerales
                                         setAlumnosGenerales(prev => prev.map(al => {
                                           const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
-                                          if (alId === studentId) {
+                                          if (alId === studentId && al.finalGrade) {
                                             return {
                                               ...al,
                                               finalGrade: {
                                                 ...al.finalGrade,
+                                                id: al.finalGrade.id,
                                                 gradeOrdinary: value,
-                                                grade: al.finalGrade?.grade || 0,
-                                                gradeExtraordinary: al.finalGrade?.gradeExtraordinary || 0,
-                                                date: al.finalGrade?.date || new Date().toISOString()
+                                                grade: al.finalGrade.grade,
+                                                gradeExtraordinary: al.finalGrade.gradeExtraordinary,
+                                                date: al.finalGrade.date
                                               }
                                             };
                                           }
@@ -3421,22 +3412,42 @@ export default function MaestroAsignaturas() {
                                         
                                         // Guardar en la base de datos
                                         try {
-                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(studentId);
-                                          if (finalGrades && finalGrades.length > 0) {
-                                            await CourseService.updateFinalGrade(finalGrades[0].id, { gradeOrdinary: value });
+                                          console.log('🔵 ========== DEBUG: Guardar Calificación Ordinaria ==========');
+                                          console.log('🔵 Variables del contexto:', {
+                                            studentId,
+                                            value,
+                                            promedio,
+                                            ordinario,
+                                            courseGroupStudentId,
+                                            finalGradeId
+                                          });
+                                          
+                                          if (finalGradeId) {
+                                            // Usar PATCH con el ID del finalGrade que viene del endpoint
+                                            const updateData = { gradeOrdinary: value };
+                                            console.log('🔵 ACTUALIZANDO FinalGrade existente (PATCH):', {
+                                              finalGradeId,
+                                              updateData
+                                            });
+                                            await CourseService.updateFinalGrade(finalGradeId, updateData);
                                           } else {
-                                            await CourseService.createFinalGrade({
+                                            // Solo crear si no existe (no debería pasar si el endpoint siempre trae finalGrade)
+                                            console.warn('⚠️ No se encontró finalGradeId, creando nuevo FinalGrade');
+                                            const createData = {
                                               grade: Math.round(promedio),
                                               gradeOrdinary: value,
                                               gradeExtraordinary: 0,
                                               date: new Date().toISOString(),
                                               type: 'final',
                                               courseGroupStudentId: studentId
-                                            });
+                                            };
+                                            console.log('🔵 CREANDO nuevo FinalGrade:', createData);
+                                            await CourseService.createFinalGrade(createData);
                                           }
+                                          console.log('🔵 ============================================================');
                                           toast.success('Calificación ordinaria guardada');
                                         } catch (error) {
-                                          console.error('Error al guardar calificación ordinaria:', error);
+                                          console.error('❌ Error al guardar calificación ordinaria:', error);
                                           toast.error('Error al guardar calificación ordinaria');
                                         }
                                       }}
@@ -3476,15 +3487,16 @@ export default function MaestroAsignaturas() {
                                         // Actualizar también el estado de alumnosGenerales
                                         setAlumnosGenerales(prev => prev.map(al => {
                                           const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
-                                          if (alId === studentId) {
+                                          if (alId === studentId && al.finalGrade) {
                                             return {
                                               ...al,
                                               finalGrade: {
                                                 ...al.finalGrade,
+                                                id: al.finalGrade.id,
                                                 gradeExtraordinary: value,
-                                                grade: al.finalGrade?.grade || 0,
-                                                gradeOrdinary: al.finalGrade?.gradeOrdinary || 0,
-                                                date: al.finalGrade?.date || new Date().toISOString()
+                                                grade: al.finalGrade.grade,
+                                                gradeOrdinary: al.finalGrade.gradeOrdinary,
+                                                date: al.finalGrade.date
                                               }
                                             };
                                           }
@@ -3493,22 +3505,43 @@ export default function MaestroAsignaturas() {
                                         
                                         // Guardar en la base de datos
                                         try {
-                                          const finalGrades = await CourseService.getFinalGradesByCourseGroupStudentId(studentId);
-                                          if (finalGrades && finalGrades.length > 0) {
-                                            await CourseService.updateFinalGrade(finalGrades[0].id, { gradeExtraordinary: value });
+                                          console.log('🟡 ========== DEBUG: Guardar Calificación Extraordinaria ==========');
+                                          console.log('🟡 Variables del contexto:', {
+                                            studentId,
+                                            value,
+                                            promedio,
+                                            ordinario,
+                                            extraordinario,
+                                            courseGroupStudentId,
+                                            finalGradeId
+                                          });
+                                          
+                                          if (finalGradeId) {
+                                            // Usar PATCH con el ID del finalGrade que viene del endpoint
+                                            const updateData = { gradeExtraordinary: value };
+                                            console.log('🟡 ACTUALIZANDO FinalGrade existente (PATCH):', {
+                                              finalGradeId,
+                                              updateData
+                                            });
+                                            await CourseService.updateFinalGrade(finalGradeId, updateData);
                                           } else {
-                                            await CourseService.createFinalGrade({
+                                            // Solo crear si no existe (no debería pasar si el endpoint siempre trae finalGrade)
+                                            console.warn('⚠️ No se encontró finalGradeId, creando nuevo FinalGrade');
+                                            const createData = {
                                               grade: Math.round(promedio),
                                               gradeOrdinary: ordinario || 0,
                                               gradeExtraordinary: value,
                                               date: new Date().toISOString(),
                                               type: 'final',
                                               courseGroupStudentId: studentId
-                                            });
+                                            };
+                                            console.log('🟡 CREANDO nuevo FinalGrade:', createData);
+                                            await CourseService.createFinalGrade(createData);
                                           }
+                                          console.log('🟡 ============================================================');
                                           toast.success('Calificación extraordinaria guardada');
                                         } catch (error) {
-                                          console.error('Error al guardar calificación extraordinaria:', error);
+                                          console.error('❌ Error al guardar calificación extraordinaria:', error);
                                           toast.error('Error al guardar calificación extraordinaria');
                                         }
                                       }}

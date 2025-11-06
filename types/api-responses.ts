@@ -68,6 +68,7 @@ export interface FinalDataResponse {
       date: string;
     }>;
     finalGrade: {
+      id: number;
       grade: number;
       gradeOrdinary: number;
       gradeExtraordinary: number;
