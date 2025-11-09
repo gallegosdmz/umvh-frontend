@@ -3342,7 +3342,7 @@ export default function MaestroAsignaturas() {
                               console.log('📌 Columna Parcial 3:', 'alumno.partialGrades.find(pg => pg.partial === 3)?.grade', '→ Valor:', parcial3);
                               console.log('📌 Columna Promedio:', 'Calculado: promedio de parcial1, parcial2, parcial3', '→ Valor:', promedio);
                               console.log('📌 Columna Asistencia:', 'Calculado desde alumno.attendances', '→ Valor:', asistencia, '%');
-                              console.log('📌 Columna Exentos:', 'Calculado: Math.round(promedio)', '→ Valor:', promedio > 0 && Math.round(promedio) < 8 ? 'ORD' : (promedio > 0 ? Math.round(promedio) : '--'));
+                              console.log('📌 Columna Exentos:', 'Calculado: Math.round(promedio)', '→ Valor:', promedio > 0 && Math.round(promedio) < 8.5 ? 'ORD' : (promedio > 0 ? Math.round(promedio) : '--'));
                               console.log('📌 Columna Calif Ordinario (Input):', 'alumno.finalGrade.gradeOrdinary', '→ Valor:', ordinario);
                               console.log('📌 Columna Ordinario:', 'alumno.finalGrade.gradeOrdinary', '→ Valor:', ordinario);
                               console.log('📌 Columna Calif Extraordinario (Input):', 'alumno.finalGrade.gradeExtraordinary', '→ Valor:', extraordinario);
@@ -3362,14 +3362,14 @@ export default function MaestroAsignaturas() {
                                 <td className="border border-gray-300 px-2 py-1 font-semibold">{promedio > 0 ? promedio.toFixed(2) : '--'}</td>
                                 <td className="border border-gray-300 px-2 py-1">{asistencia > 0 ? `${asistencia}%` : '--'}</td>
                                 <td className={`border border-gray-300 px-2 py-1 font-bold ${
-                                  promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800" : "bg-green-100"
+                                  promedio > 0 && Math.round(promedio) < 8.5 ? "bg-red-200 text-red-800" : "bg-green-100"
                                 }`}>
-                                  {promedio > 0 && Math.round(promedio) < 8 ? 'ORD' : (promedio > 0 ? Math.round(promedio) : '--')}
+                                  {promedio > 0 && Math.round(promedio) < 8.5 ? 'ORD' : (promedio > 0 ? Math.round(promedio) : '--')}
                                 </td>
                                 <td className={`border border-gray-300 px-2 py-1 ${
-                                  promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800 font-bold text-center" : ""
+                                  promedio > 0 && Math.round(promedio) < 8.5 ? "bg-red-200 text-red-800 font-bold text-center" : ""
                                 }`}>
-                                  {promedio > 0 && Math.round(promedio) < 8 ? (
+                                  {promedio > 0 && Math.round(promedio) < 8.5 ? (
                                     <input
                                       type="number"
                                       min="0"
@@ -3460,9 +3460,9 @@ export default function MaestroAsignaturas() {
                                   {ordinario !== null && ordinario > 0 ? ordinario : '--'}
                                 </td>
                                 <td className={`border border-gray-300 px-2 py-1 ${
-                                  ordinario !== null && ordinario < 6 && ordinario > 0 && promedio > 0 && Math.round(promedio) < 8 ? "bg-red-200 text-red-800 font-bold text-center" : ""
+                                  ordinario !== null && ordinario < 6 && ordinario > 0 && promedio > 0 && Math.round(promedio) < 8.5 ? "bg-red-200 text-red-800 font-bold text-center" : ""
                                 }`}>
-                                  {ordinario !== null && ordinario < 6 && ordinario > 0 && promedio > 0 && Math.round(promedio) < 8 ? (
+                                  {ordinario !== null && ordinario < 6 && ordinario > 0 && promedio > 0 && Math.round(promedio) < 8.5 ? (
                                     <input
                                       type="number"
                                       min="0"
@@ -4070,22 +4070,22 @@ export default function MaestroAsignaturas() {
                     <td className="px-2 py-1">{calificacionesFinales.asistencia !== null ? calificacionesFinales.asistencia + '%' : '--'}</td>
                     <td className={
                       "px-2 py-1 font-bold " +
-                      (calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
+                      (calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8.5
                         ? "bg-red-200 text-red-800"
-                        : calificacionesFinales.exentos !== null && calificacionesFinales.exentos >= 8
+                        : calificacionesFinales.exentos !== null && calificacionesFinales.exentos >= 8.5
                           ? "bg-green-100 text-green-800"
                           : "")
                     }>
-                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
+                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8.5
                         ? 'ORD'
                         : (calificacionesFinales.exentos !== null ? Math.round(calificacionesFinales.exentos) : '--')}
                     </td>
                     <td className={
-                      calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
+                      calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8.5
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
-                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8 ? (
+                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8.5 ? (
                           <div className="flex items-center gap-2 justify-center">
                             <input
                               type="number"
@@ -4132,11 +4132,11 @@ export default function MaestroAsignaturas() {
                         ) : '--'}
                     </td>
                     <td className={
-                      calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
+                      calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8.5
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
-                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8 ? (
+                      {calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8.5 ? (
                           ordinarioGuardado !== null ? (
                             <input
                               type="number"
@@ -4152,11 +4152,11 @@ export default function MaestroAsignaturas() {
                         ) : '--'}
                     </td>
                     <td className={
-                      ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8
+                      ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8.5
                         ? "px-2 py-1 bg-red-200 text-red-800 font-bold text-center"
                         : "px-2 py-1"
                     }>
-                      {ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8 ? (
+                      {ordinarioGuardado !== null && ordinarioGuardado < 6 && calificacionesFinales.exentos !== null && calificacionesFinales.exentos < 8.5 ? (
                           extraordinarioGuardado !== null ? (
                             <div className="flex items-center gap-2 justify-center">
                               <span className="font-bold">{extraordinarioGuardado}</span>
