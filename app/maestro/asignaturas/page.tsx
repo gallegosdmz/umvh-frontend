@@ -938,7 +938,13 @@ export default function MaestroAsignaturas() {
     try {
       
       // Usar el parcial pasado como parámetro o el estado actual
-      const parcialActual = parcialSeleccionado || selectedPartial;
+      // Si se pasa un parcial explícito, usarlo y actualizar el estado para mantener consistencia
+      const parcialActual = parcialSeleccionado !== undefined ? parcialSeleccionado : selectedPartial;
+      
+      // Sincronizar el estado si se pasó un parcial explícito diferente al estado actual
+      if (parcialSeleccionado !== undefined && parcialSeleccionado !== selectedPartial) {
+        setSelectedPartial(parcialSeleccionado);
+      }
       
       console.log('🎯 PARCIAL ACTUAL:', parcialActual, 'SELECTED PARTIAL:', selectedPartial, 'PARCIAL SELECCIONADO:', parcialSeleccionado);
       
@@ -1000,13 +1006,41 @@ export default function MaestroAsignaturas() {
 
       
       // Crear mapa de calificaciones de actividades por estudiante y evaluación
+      // IMPORTANTE: Filtrar solo las calificaciones del parcial actual
       const calificacionesActividadesMap: {[key: number]: {[key: number]: any}} = {};
 
+      // Crear un mapa rápido de evaluaciones por ID para búsqueda eficiente
+      const evaluacionesPorId: {[key: number]: any} = {};
+      if (partialEvaluations && Array.isArray(partialEvaluations)) {
+        partialEvaluations.forEach((evaluation: any) => {
+          evaluacionesPorId[evaluation.id] = evaluation;
+        });
+      }
       
       if (partialEvaluationGrades && Array.isArray(partialEvaluationGrades)) {
         partialEvaluationGrades.forEach((grade: any) => {
           const courseGroupStudentId = grade.courseGroupStudentId;
           const partialEvaluationId = grade.partialEvaluationId;
+          
+          // Verificar que la evaluación pertenece al parcial actual
+          // Primero intentar usar partialEvaluation si está disponible
+          let evaluationPartial = grade.partialEvaluation?.partial;
+          
+          // Si no está disponible, buscar en el mapa de evaluaciones
+          if (evaluationPartial === undefined && evaluacionesPorId[partialEvaluationId]) {
+            evaluationPartial = evaluacionesPorId[partialEvaluationId].partial;
+          }
+          
+          // Filtrar solo las calificaciones del parcial actual
+          if (evaluationPartial !== undefined && evaluationPartial !== parcialActual) {
+            return; // Saltar calificaciones que no pertenecen al parcial actual
+          }
+          
+          // Si no se pudo determinar el parcial, incluir la calificación (por seguridad)
+          // pero registrar una advertencia
+          if (evaluationPartial === undefined) {
+            console.warn(`⚠️ No se pudo determinar el parcial para calificación ${grade.id}, incluyendo por seguridad`);
+          }
           
           if (!calificacionesActividadesMap[courseGroupStudentId]) {
             calificacionesActividadesMap[courseGroupStudentId] = {};
@@ -1019,6 +1053,12 @@ export default function MaestroAsignaturas() {
           };
         });
         
+        console.log(`📊 Calificaciones mapeadas para parcial ${parcialActual}:`, {
+          totalEstudiantes: Object.keys(calificacionesActividadesMap).length,
+          totalCalificaciones: Object.values(calificacionesActividadesMap).reduce((acc: number, studentGrades: any) => {
+            return acc + Object.keys(studentGrades).length;
+          }, 0)
+        });
       } else {
         console.log('⚠️ No se encontraron partialEvaluationGrades o no es un array');
       }
@@ -1041,52 +1081,84 @@ export default function MaestroAsignaturas() {
         if (partialEvaluations && Array.isArray(partialEvaluations)) {
           console.log(`🔍 PROCESANDO EVALUACIONES PARA ESTUDIANTE ${student.fullName} (ID: ${courseGroupStudentId})`);
           
-          partialEvaluations.forEach((evaluation: any) => {
-            if (evaluation.partial === parcialActual) {
-              // Buscar la calificación específica para esta actividad y estudiante
-              const studentGrades = calificacionesActividadesMap[courseGroupStudentId] || {};
-              const grade = studentGrades[evaluation.id];
+          // Obtener las calificaciones del estudiante
+          const studentGrades = calificacionesActividadesMap[courseGroupStudentId] || {};
+          
+          // Filtrar solo las evaluaciones del parcial actual
+          const evaluacionesDelParcial = partialEvaluations.filter((evaluation: any) => evaluation.partial === parcialActual);
+          
+          console.log(`📋 Evaluaciones del parcial ${parcialActual} para ${student.fullName}:`, evaluacionesDelParcial.length);
+          console.log(`📋 Calificaciones disponibles para ${student.fullName}:`, Object.keys(studentGrades).length);
+          
+          evaluacionesDelParcial.forEach((evaluation: any) => {
+            // Buscar la calificación específica para esta actividad y estudiante
+            const grade = studentGrades[evaluation.id];
+            
+            if (!grade) {
+              // No hay calificación para esta evaluación, continuar
+              return;
+            }
+            
+            console.log(`📋 EVALUACIÓN ENCONTRADA:`, {
+              type: evaluation.type,
+              slot: evaluation.slot,
+              partial: evaluation.partial,
+              evaluationId: evaluation.id,
+              grade: grade.grade,
+              studentName: student.fullName
+            });
+            
+            if (evaluation.type === 'Actividades' && typeof evaluation.slot === 'number' && evaluation.slot < 10) {
+              // Verificar que no haya otra evaluación ya asignada en este slot con calificación > 0
+              const existingGrade = nuevasCalificaciones[courseGroupStudentId].actividades[evaluation.slot]?.grade || 0;
+              if (existingGrade > 0 && existingGrade !== grade.grade) {
+                console.log(`⚠️ ADVERTENCIA: Slot ${evaluation.slot} ya tiene calificación ${existingGrade}, sobrescribiendo con ${grade.grade}`);
+              }
               
-              console.log(`📋 EVALUACIÓN ENCONTRADA:`, {
+              console.log(`✅ ASIGNANDO A ACTIVIDADES - Slot: ${evaluation.slot}, Grade: ${grade.grade}`);
+              nuevasCalificaciones[courseGroupStudentId].actividades[evaluation.slot] = {
+                grade: grade.grade,
+                id: grade.id
+              };
+            } else if (evaluation.type === 'Evidencias' && typeof evaluation.slot === 'number' && evaluation.slot < 5) {
+              const existingGrade = nuevasCalificaciones[courseGroupStudentId].evidencias[evaluation.slot]?.grade || 0;
+              if (existingGrade > 0 && existingGrade !== grade.grade) {
+                console.log(`⚠️ ADVERTENCIA: Evidencia slot ${evaluation.slot} ya tiene calificación ${existingGrade}, sobrescribiendo con ${grade.grade}`);
+              }
+              
+              console.log(`✅ ASIGNANDO A EVIDENCIAS - Slot: ${evaluation.slot}, Grade: ${grade.grade}`);
+              nuevasCalificaciones[courseGroupStudentId].evidencias[evaluation.slot] = {
+                grade: grade.grade,
+                id: grade.id
+              };
+            } else if (evaluation.type === 'Producto') {
+              const existingGrade = nuevasCalificaciones[courseGroupStudentId].producto?.grade || 0;
+              if (existingGrade > 0 && existingGrade !== grade.grade) {
+                console.log(`⚠️ ADVERTENCIA: Producto ya tiene calificación ${existingGrade}, sobrescribiendo con ${grade.grade}`);
+              }
+              
+              console.log(`✅ ASIGNANDO A PRODUCTO - Grade: ${grade.grade}`);
+              nuevasCalificaciones[courseGroupStudentId].producto = {
+                grade: grade.grade,
+                id: grade.id
+              };
+            } else if (evaluation.type === 'Examen') {
+              const existingGrade = nuevasCalificaciones[courseGroupStudentId].examen?.grade || 0;
+              if (existingGrade > 0 && existingGrade !== grade.grade) {
+                console.log(`⚠️ ADVERTENCIA: Examen ya tiene calificación ${existingGrade}, sobrescribiendo con ${grade.grade}`);
+              }
+              
+              console.log(`✅ ASIGNANDO A EXAMEN - Grade: ${grade.grade}`);
+              nuevasCalificaciones[courseGroupStudentId].examen = {
+                grade: grade.grade,
+                id: grade.id
+              };
+            } else {
+              console.log(`⚠️ EVALUACIÓN NO RECONOCIDA:`, {
                 type: evaluation.type,
                 slot: evaluation.slot,
-                partial: evaluation.partial,
-                evaluationId: evaluation.id,
-                grade: grade?.grade || 0,
-                studentName: student.fullName
+                message: 'No se pudo asignar a ninguna categoría'
               });
-              
-              if (evaluation.type === 'Actividades' && typeof evaluation.slot === 'number' && evaluation.slot < 10) {
-                console.log(`✅ ASIGNANDO A ACTIVIDADES - Slot: ${evaluation.slot}, Grade: ${grade?.grade || 0}`);
-                nuevasCalificaciones[courseGroupStudentId].actividades[evaluation.slot] = {
-                  grade: grade?.grade || 0,
-                  id: grade?.id || null
-                };
-              } else if (evaluation.type === 'Evidencias' && typeof evaluation.slot === 'number' && evaluation.slot < 5) {
-                console.log(`✅ ASIGNANDO A EVIDENCIAS - Slot: ${evaluation.slot}, Grade: ${grade?.grade || 0}`);
-                nuevasCalificaciones[courseGroupStudentId].evidencias[evaluation.slot] = {
-                  grade: grade?.grade || 0,
-                  id: grade?.id || null
-                };
-              } else if (evaluation.type === 'Producto') {
-                console.log(`✅ ASIGNANDO A PRODUCTO - Grade: ${grade?.grade || 0}`);
-                nuevasCalificaciones[courseGroupStudentId].producto = {
-                  grade: grade?.grade || 0,
-                  id: grade?.id || null
-                };
-              } else if (evaluation.type === 'Examen') {
-                console.log(`✅ ASIGNANDO A EXAMEN - Grade: ${grade?.grade || 0}`);
-                nuevasCalificaciones[courseGroupStudentId].examen = {
-                  grade: grade?.grade || 0,
-                  id: grade?.id || null
-                };
-              } else {
-                console.log(`⚠️ EVALUACIÓN NO RECONOCIDA:`, {
-                  type: evaluation.type,
-                  slot: evaluation.slot,
-                  message: 'No se pudo asignar a ninguna categoría'
-                });
-              }
             }
           });
         }
@@ -1739,10 +1811,9 @@ export default function MaestroAsignaturas() {
         // 4. Esperar a que se complete la limpieza
         await new Promise(resolve => setTimeout(resolve, 150));
         
-        // 5. Actualizar el parcial seleccionado
-        setSelectedPartial(newParcial);
-        
-        // 6. Cargar los datos del nuevo parcial
+        // 5. Cargar los datos del nuevo parcial
+        // Nota: selectedPartial ya se actualizó al inicio de la función (línea 1705)
+        // y procesarDatosOptimizados también sincronizará el estado si es necesario
 
         const evaluationsData = await CourseService.getCourseGroupEvaluationsData(selectedCourseGroup.id!)
         const actividadesDefinidasData = evaluationsData.partialEvaluations || []
@@ -2020,7 +2091,13 @@ export default function MaestroAsignaturas() {
     parcialSeleccionado?: number
   ) => {
     // Usar el parcial pasado como parámetro o el estado actual
-    const parcialActual = parcialSeleccionado || selectedPartial;
+    // Si se pasa un parcial explícito, usarlo y actualizar el estado para mantener consistencia
+    const parcialActual = parcialSeleccionado !== undefined ? parcialSeleccionado : selectedPartial;
+    
+    // Sincronizar el estado si se pasó un parcial explícito diferente al estado actual
+    if (parcialSeleccionado !== undefined && parcialSeleccionado !== selectedPartial) {
+      setSelectedPartial(parcialSeleccionado);
+    }
   
     console.log('🚀 INICIANDO CÁLCULO DE CALIFICACIONES PARCIALES OPTIMIZADO');
     console.log('📊 PARÁMETROS:', {
@@ -2299,7 +2376,13 @@ export default function MaestroAsignaturas() {
 
   const calcularCalificacionesParcialesTodosAlumnos = async (parcialSeleccionado?: number, calificacionesMapParam?: {[key: number]: {[key: number]: number}}) => {
     // Usar el parcial pasado como parámetro o el estado actual
-    const parcialActual = parcialSeleccionado || selectedPartial;
+    // Si se pasa un parcial explícito, usarlo y actualizar el estado para mantener consistencia
+    const parcialActual = parcialSeleccionado !== undefined ? parcialSeleccionado : selectedPartial;
+    
+    // Sincronizar el estado si se pasó un parcial explícito diferente al estado actual
+    if (parcialSeleccionado !== undefined && parcialSeleccionado !== selectedPartial) {
+      setSelectedPartial(parcialSeleccionado);
+    }
     
     // Usar el mapa de calificaciones pasado como parámetro o el estado actual
     const calificacionesMapToUse = calificacionesMapParam || calificacionesMap;
