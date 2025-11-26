@@ -179,6 +179,8 @@ export default function MaestroAsignaturas() {
     ordinario: number | null;
     extraordinario: number | null;
   }}>({})
+  // Estado para almacenar el valor del examen (input) por alumno, separado del resultado calculado
+  const [examenInputValues, setExamenInputValues] = useState<{[key: number]: number | null}>({})
   const [isLoadingGenerales, setIsLoadingGenerales] = useState(false)
   
   // 1. Agregar estados para el modal de calificación final
@@ -3414,6 +3416,15 @@ export default function MaestroAsignaturas() {
                             const finalGradeId = alumno.finalGrade?.id || null;
                             const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
                             
+                            // Obtener el valor del examen (input) para este alumno
+                            // Si no hay valor en el estado, usar null (no usar ordinario para evitar conflictos)
+                            const examenValue = examenInputValues[courseGroupStudentId] ?? null;
+                            
+                            // Calcular el resultado: (promedio + examen) / 2
+                            const resultadoOrdinario = (promedio > 0 && examenValue !== null && examenValue > 0) 
+                              ? Math.round(((promedio + examenValue) / 2) * 100) / 100 
+                              : null;
+                            
                             // ========== CONSOLE.LOG: PROPIEDADES POR COLUMNA ==========
                             if (index === 0) {
                               console.log('📋 ========== PROPIEDADES USADAS EN CADA COLUMNA - Reporte General ==========');
@@ -3460,65 +3471,102 @@ export default function MaestroAsignaturas() {
                                       step="0.01"
                                       className="w-16 text-center border rounded px-1 py-1 text-sm"
                                       placeholder="--"
-                                      value={ordinario !== null && ordinario > 0 ? ordinario : ''}
-                                      onChange={async (e) => {
-                                        const value = e.target.value === '' ? 0 : Math.round(Number(e.target.value));
+                                      value={examenValue !== null ? examenValue.toString() : ''}
+                                      onChange={(e) => {
+                                        const inputValue = e.target.value;
                                         const studentId: number = courseGroupStudentId;
                                         
-                                        // Actualizar estado local inmediatamente
-                                        setCalificacionesFinalesGenerales(prev => ({
-                                          ...prev,
-                                          [studentId]: {
-                                            ...prev[studentId],
-                                            ordinario: value
+                                        if (inputValue === '') {
+                                          setExamenInputValues(prev => ({
+                                            ...prev,
+                                            [studentId]: null
+                                          }));
+                                          setCalificacionesFinalesGenerales(prev => ({
+                                            ...prev,
+                                            [studentId]: {
+                                              ...prev[studentId],
+                                              ordinario: null
+                                            }
+                                          }));
+                                        } else {
+                                          const numValue = Number(inputValue);
+                                          if (!isNaN(numValue) && numValue >= 0) {
+                                            setExamenInputValues(prev => ({
+                                              ...prev,
+                                              [studentId]: numValue
+                                            }));
+                                            
+                                            if (promedio > 0 && numValue > 0) {
+                                              const resultadoCalculado = Math.round(((promedio + numValue) / 2) * 100) / 100;
+                                              
+                                              setCalificacionesFinalesGenerales(prev => ({
+                                                ...prev,
+                                                [studentId]: {
+                                                  ...prev[studentId],
+                                                  ordinario: resultadoCalculado
+                                                }
+                                              }));
+                                              
+                                              setAlumnosGenerales(prev => prev.map(al => {
+                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                if (alId === studentId && al.finalGrade) {
+                                                  return {
+                                                    ...al,
+                                                    finalGrade: {
+                                                      ...al.finalGrade,
+                                                      id: al.finalGrade.id,
+                                                      gradeOrdinary: resultadoCalculado,
+                                                      grade: al.finalGrade.grade,
+                                                      gradeExtraordinary: al.finalGrade.gradeExtraordinary,
+                                                      date: al.finalGrade.date
+                                                    }
+                                                  };
+                                                }
+                                                return al;
+                                              }));
+                                            }
                                           }
-                                        }));
+                                        }
+                                      }}
+                                      onBlur={async (e) => {
+                                        const inputValue = e.target.value;
+                                        const studentId: number = courseGroupStudentId;
                                         
-                                        // Actualizar también el estado de alumnosGenerales
-                                        setAlumnosGenerales(prev => prev.map(al => {
-                                          const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
-                                          if (alId === studentId && al.finalGrade) {
-                                            return {
-                                              ...al,
-                                              finalGrade: {
-                                                ...al.finalGrade,
-                                                id: al.finalGrade.id,
-                                                gradeOrdinary: value,
-                                                grade: al.finalGrade.grade,
-                                                gradeExtraordinary: al.finalGrade.gradeExtraordinary,
-                                                date: al.finalGrade.date
-                                              }
-                                            };
-                                          }
-                                          return al;
-                                        }));
+                                        if (inputValue === '' || inputValue === null) {
+                                          return;
+                                        }
                                         
-                                        // Guardar en la base de datos
+                                        const numValue = Number(inputValue);
+                                        if (isNaN(numValue) || numValue <= 0 || promedio <= 0) {
+                                          return;
+                                        }
+                                        
+                                        const resultadoCalculado = Math.round(((promedio + numValue) / 2) * 100) / 100;
+                                        
                                         try {
                                           console.log('🔵 ========== DEBUG: Guardar Calificación Ordinaria ==========');
                                           console.log('🔵 Variables del contexto:', {
                                             studentId,
-                                            value,
+                                            examenValue: numValue,
                                             promedio,
-                                            ordinario,
+                                            resultadoCalculado,
                                             courseGroupStudentId,
                                             finalGradeId
                                           });
                                           
                                           if (finalGradeId) {
-                                            // Usar PATCH con el ID del finalGrade que viene del endpoint
-                                            const updateData = { gradeOrdinary: value };
+                                            const updateData = { gradeOrdinary: resultadoCalculado };
                                             console.log('🔵 ACTUALIZANDO FinalGrade existente (PATCH):', {
                                               finalGradeId,
                                               updateData
                                             });
                                             await CourseService.updateFinalGrade(finalGradeId, updateData);
+                                            toast.success('Calificación ordinaria guardada');
                                           } else {
-                                            // Solo crear si no existe (no debería pasar si el endpoint siempre trae finalGrade)
                                             console.warn('⚠️ No se encontró finalGradeId, creando nuevo FinalGrade');
                                             const createData = {
                                               grade: Math.round(promedio),
-                                              gradeOrdinary: value,
+                                              gradeOrdinary: resultadoCalculado,
                                               gradeExtraordinary: 0,
                                               date: new Date().toISOString(),
                                               type: 'final',
@@ -3526,9 +3574,9 @@ export default function MaestroAsignaturas() {
                                             };
                                             console.log('🔵 CREANDO nuevo FinalGrade:', createData);
                                             await CourseService.createFinalGrade(createData);
+                                            toast.success('Calificación ordinaria guardada');
                                           }
                                           console.log('🔵 ============================================================');
-                                          toast.success('Calificación ordinaria guardada');
                                         } catch (error) {
                                           console.error('❌ Error al guardar calificación ordinaria:', error);
                                           toast.error('Error al guardar calificación ordinaria');
@@ -3538,9 +3586,9 @@ export default function MaestroAsignaturas() {
                                   ) : '--'}
                                 </td>
                                 <td className={`border border-gray-300 px-2 py-1 text-center ${
-                                  ordinario !== null && ordinario > 0 ? "font-semibold" : ""
+                                  resultadoOrdinario !== null && resultadoOrdinario > 0 ? "font-semibold" : ""
                                 }`}>
-                                  {ordinario !== null && ordinario > 0 ? ordinario : '--'}
+                                  {resultadoOrdinario !== null && resultadoOrdinario > 0 ? resultadoOrdinario : '--'}
                                 </td>
                                 <td className={`border border-gray-300 px-2 py-1 ${
                                   ordinario !== null && ordinario < 6 && ordinario > 0 && promedio > 0 && Math.round(promedio) < 8.5 ? "bg-red-200 text-red-800 font-bold text-center" : ""
