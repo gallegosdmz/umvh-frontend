@@ -217,12 +217,19 @@ export default function MaestroAsignaturas() {
   // Esto permite guardar decimales como enteros en el backend
   const convertirDecimalAEntero = (decimal: number | null): number => {
     if (decimal === null || decimal === undefined) return 0;
-    return Math.round(decimal * 100);
+    // Normalizar primero a 2 decimales para evitar errores de precisión
+    const decimalNormalizado = parseFloat(decimal.toFixed(2));
+    const entero = Math.round(decimalNormalizado * 100);
+    
+    return entero;
   };
 
   const convertirEnteroADecimal = (entero: number | null | undefined): number | null => {
     if (entero === null || entero === undefined || entero === 0) return null;
-    return Math.round((entero / 100) * 100) / 100; // Redondear a 2 decimales
+    // Usar parseFloat con toFixed para evitar errores de precisión
+    const decimal = parseFloat((entero / 100).toFixed(2));
+    
+    return decimal;
   };
 
   // Función helper para crear estructura vacía de calificaciones
@@ -1129,8 +1136,6 @@ export default function MaestroAsignaturas() {
   // Función optimizada para obtener todos los datos del grupo usando el nuevo endpoint
   const obtenerDatosCompletosGrupo = async (courseGroupId: number) => {
     try {
-
-      
       // Usar el nuevo endpoint específico para el modal de General
       const response = await CourseService.getCourseGroupFinalData(courseGroupId);
       
@@ -1177,17 +1182,44 @@ export default function MaestroAsignaturas() {
         extraordinario: number | null;
       }} = {};
       
+      // Inicializar examenInputValues calculando desde el ordinario guardado
+      const examenInputValuesMap: {[key: number]: number | null} = {};
+      
       for (const alumno of mappedStudents) {
         const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
         if (alumno.finalGrade) {
+          const ordinarioDecimal = convertirEnteroADecimal(alumno.finalGrade.gradeOrdinary);
           calificacionesFinalesMap[courseGroupStudentId] = {
-            ordinario: convertirEnteroADecimal(alumno.finalGrade.gradeOrdinary),
+            ordinario: ordinarioDecimal,
             extraordinario: alumno.finalGrade.gradeExtraordinary || null
           };
+          
+          // Calcular el valor del examen desde el ordinario guardado si existe
+          if (ordinarioDecimal !== null && ordinarioDecimal > 0) {
+            // Calcular promedio del alumno
+            const parcial1 = alumno.partialGrades?.find((pg: any) => pg.partial === 1)?.grade || 0;
+            const parcial2 = alumno.partialGrades?.find((pg: any) => pg.partial === 2)?.grade || 0;
+            const parcial3 = alumno.partialGrades?.find((pg: any) => pg.partial === 3)?.grade || 0;
+            
+            const parcialesValidos = [parcial1, parcial2, parcial3]
+              .filter(p => p > 0 && typeof p === 'number' && !isNaN(p));
+            const promedio = parcialesValidos.length > 0 
+              ? Math.round((parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) * 100) / 100
+              : 0;
+            
+            // Si hay promedio y ordinario, calcular el examen: examen = (ordinario * 2) - promedio
+            if (promedio > 0) {
+              const examenCalculado = (ordinarioDecimal * 2) - promedio;
+              if (examenCalculado > 0 && examenCalculado <= 10) {
+                examenInputValuesMap[courseGroupStudentId] = parseFloat(examenCalculado.toFixed(2));
+              }
+            }
+          }
         }
       }
       
       setCalificacionesFinalesGenerales(calificacionesFinalesMap);
+      setExamenInputValues(examenInputValuesMap);
       
       // Los datos ya están cargados desde el endpoint, no es necesario guardar automáticamente
       // El usuario puede usar el botón "Recalcular Finales" si desea actualizar las calificaciones
@@ -2568,6 +2600,7 @@ export default function MaestroAsignaturas() {
             type: 'final',
             courseGroupStudentId: alumno.courseGroupStudentId
           };
+          
           const created = await CourseService.createFinalGrade(dto);
           setFinalGradeId(created.id);
           setInputOrdinario("");
@@ -2584,6 +2617,7 @@ export default function MaestroAsignaturas() {
           const dto = {
             grade: promedio !== null ? Math.round(promedio) : 0
           };
+          
           await CourseService.updateFinalGrade(existingFinalGrade.id, dto);
           setFinalGradeId(existingFinalGrade.id);
           
@@ -3188,14 +3222,13 @@ export default function MaestroAsignaturas() {
                             const finalGradeId = alumno.finalGrade?.id || null;
                             const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
                             
-                            // Obtener el valor del examen (input) para este alumno
-                            // Si no hay valor en el estado, usar null (no usar ordinario para evitar conflictos)
                             const examenValue = examenInputValues[courseGroupStudentId] ?? null;
                             
-                            // Calcular el resultado: (promedio + examen) / 2
-                            const resultadoOrdinario = (promedio > 0 && examenValue !== null && examenValue > 0) 
-                              ? Math.round(((promedio + examenValue) / 2) * 100) / 100 
-                              : null;
+                            const resultadoOrdinario = ordinario !== null && ordinario > 0
+                              ? ordinario 
+                              : (promedio > 0 && examenValue !== null && examenValue > 0) 
+                                ? parseFloat(((promedio + examenValue) / 2).toFixed(2))
+                                : null;
                             
                             
                             return (
@@ -3224,7 +3257,7 @@ export default function MaestroAsignaturas() {
                                       step="0.01"
                                       className="w-16 text-center border rounded px-1 py-1 text-sm"
                                       placeholder="--"
-                                      value={examenValue !== null ? examenValue.toString() : ''}
+                                      value={examenValue !== null ? parseFloat(examenValue.toFixed(2)) : ''}
                                       onChange={(e) => {
                                         const inputValue = e.target.value;
                                         const studentId: number = courseGroupStudentId;
@@ -3244,13 +3277,15 @@ export default function MaestroAsignaturas() {
                                         } else {
                                           const numValue = Number(inputValue);
                                           if (!isNaN(numValue) && numValue >= 0) {
+                                            // Normalizar a 2 decimales para preservar el valor exacto
+                                            const numValueNormalizado = parseFloat(numValue.toFixed(2));
                                             setExamenInputValues(prev => ({
                                               ...prev,
-                                              [studentId]: numValue
+                                              [studentId]: numValueNormalizado
                                             }));
                                             
-                                            if (promedio > 0 && numValue > 0) {
-                                              const resultadoCalculado = Math.round(((promedio + numValue) / 2) * 100) / 100;
+                                            if (promedio > 0 && numValueNormalizado > 0) {
+                                              const resultadoCalculado = parseFloat(((promedio + numValueNormalizado) / 2).toFixed(2));
                                               
                                               setCalificacionesFinalesGenerales(prev => ({
                                                 ...prev,
@@ -3294,13 +3329,73 @@ export default function MaestroAsignaturas() {
                                           return;
                                         }
                                         
-                                        const resultadoCalculado = Math.round(((promedio + numValue) / 2) * 100) / 100;
+                                        // Normalizar a 2 decimales para preservar el valor exacto
+                                        const numValueNormalizado = parseFloat(numValue.toFixed(2));
+                                        // Actualizar el estado con el valor normalizado
+                                        setExamenInputValues(prev => ({
+                                          ...prev,
+                                          [studentId]: numValueNormalizado
+                                        }));
+                                        
+                                        // Calcular resultado normalizado a 2 decimales para evitar errores de precisión
+                                        const resultadoCalculado = parseFloat(((promedio + numValueNormalizado) / 2).toFixed(2));
                                         
                                         try {
+                                          let response: any;
                                           if (finalGradeId) {
                                             // Convertir decimal a entero para guardar en backend
                                             const updateData = { gradeOrdinary: convertirDecimalAEntero(resultadoCalculado) };
-                                            await CourseService.updateFinalGrade(finalGradeId, updateData);
+                                            
+                                            response = await CourseService.updateFinalGrade(finalGradeId, updateData);
+                                            
+                                            // ✅ Usar la respuesta del servidor para actualizar el estado
+                                            const ordinarioDelServidor = convertirEnteroADecimal(response.gradeOrdinary);
+                                            
+                                            // Actualizar estado local con el valor del servidor
+                                            setCalificacionesFinalesGenerales(prev => ({
+                                              ...prev,
+                                              [studentId]: {
+                                                ...prev[studentId],
+                                                ordinario: ordinarioDelServidor
+                                              }
+                                            }));
+                                            
+                                            // Actualizar alumnosGenerales con el valor del servidor
+                                            setAlumnosGenerales(prev => {
+                                              const updated = prev.map(al => {
+                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                if (alId === studentId && al.finalGrade) {
+                                                  const updatedAlumno = {
+                                                    ...al,
+                                                    finalGrade: {
+                                                      ...al.finalGrade,
+                                                      id: response.id || al.finalGrade.id,
+                                                      gradeOrdinary: response.gradeOrdinary,
+                                                      grade: response.grade ?? al.finalGrade.grade,
+                                                      gradeExtraordinary: response.gradeExtraordinary ?? al.finalGrade.gradeExtraordinary,
+                                                      date: response.date || al.finalGrade.date
+                                                    }
+                                                  };
+                                                  return updatedAlumno;
+                                                }
+                                                return al;
+                                              });
+                                              return updated;
+                                            });
+                                            
+                                            // 🔄 Forzar actualización del examenValue si es necesario para el cálculo
+                                            // Si el ordinario guardado es diferente del calculado, actualizar examenValue
+                                            if (ordinarioDelServidor !== null && ordinarioDelServidor > 0 && promedio > 0) {
+                                              // Calcular qué valor de examen daría este ordinario: (ordinario * 2) - promedio
+                                              const examenCalculado = parseFloat(((ordinarioDelServidor * 2) - promedio).toFixed(2));
+                                              if (examenCalculado > 0 && examenCalculado <= 10) {
+                                                setExamenInputValues(prev => ({
+                                                  ...prev,
+                                                  [studentId]: examenCalculado
+                                                }));
+                                              }
+                                            }
+                                            
                                             toast.success('Calificación ordinaria guardada');
                                           } else {
                                             const createData = {
@@ -3311,7 +3406,55 @@ export default function MaestroAsignaturas() {
                                               type: 'final',
                                               courseGroupStudentId: studentId
                                             };
-                                            await CourseService.createFinalGrade(createData);
+                                            
+                                            response = await CourseService.createFinalGrade(createData);
+                                            
+                                            // ✅ Usar la respuesta del servidor para actualizar el estado
+                                            const ordinarioDelServidor = convertirEnteroADecimal(response.gradeOrdinary);
+                                            
+                                            // Actualizar estado local con el valor del servidor
+                                            setCalificacionesFinalesGenerales(prev => ({
+                                              ...prev,
+                                              [studentId]: {
+                                                ...prev[studentId],
+                                                ordinario: ordinarioDelServidor
+                                              }
+                                            }));
+                                            
+                                            // Actualizar alumnosGenerales con el valor del servidor
+                                            setAlumnosGenerales(prev => {
+                                              const updated = prev.map(al => {
+                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                if (alId === studentId) {
+                                                  const updatedAlumno = {
+                                                    ...al,
+                                                    finalGrade: {
+                                                      id: response.id,
+                                                      gradeOrdinary: response.gradeOrdinary,
+                                                      grade: response.grade,
+                                                      gradeExtraordinary: response.gradeExtraordinary ?? 0,
+                                                      date: response.date
+                                                    }
+                                                  };
+                                                  return updatedAlumno;
+                                                }
+                                                return al;
+                                              });
+                                              return updated;
+                                            });
+                                            
+                                            // 🔄 Actualizar examenValue después de crear el FinalGrade
+                                            if (ordinarioDelServidor !== null && ordinarioDelServidor > 0 && promedio > 0) {
+                                              // Calcular qué valor de examen daría este ordinario: (ordinario * 2) - promedio
+                                              const examenCalculado = parseFloat(((ordinarioDelServidor * 2) - promedio).toFixed(2));
+                                              if (examenCalculado > 0 && examenCalculado <= 10) {
+                                                setExamenInputValues(prev => ({
+                                                  ...prev,
+                                                  [studentId]: examenCalculado
+                                                }));
+                                              }
+                                            }
+                                            
                                             toast.success('Calificación ordinaria guardada');
                                           }
                                         } catch (error) {
@@ -3373,10 +3516,49 @@ export default function MaestroAsignaturas() {
                                         
                                         // Guardar en la base de datos
                                         try {
+                                          let response: any;
                                           if (finalGradeId) {
                                             // Usar PATCH con el ID del finalGrade que viene del endpoint
                                             const updateData = { gradeExtraordinary: value };
-                                            await CourseService.updateFinalGrade(finalGradeId, updateData);
+                                            response = await CourseService.updateFinalGrade(finalGradeId, updateData);
+                                            
+                                            // ✅ Usar la respuesta del servidor para actualizar el estado
+                                            const extraordinarioDelServidor = response.gradeExtraordinary || null;
+                                            
+                                            // Actualizar estado local con el valor del servidor
+                                            setCalificacionesFinalesGenerales(prev => ({
+                                              ...prev,
+                                              [studentId]: {
+                                                ...prev[studentId],
+                                                extraordinario: extraordinarioDelServidor
+                                              }
+                                            }));
+                                            
+                                            // Actualizar alumnosGenerales con el valor del servidor
+                                            setAlumnosGenerales(prev => {
+                                              const updated = prev.map(al => {
+                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                if (alId === studentId && al.finalGrade) {
+                                                  const updatedAlumno = {
+                                                    ...al,
+                                                    finalGrade: {
+                                                      ...al.finalGrade,
+                                                      id: response.id || al.finalGrade.id,
+                                                      gradeExtraordinary: response.gradeExtraordinary,
+                                                      grade: response.grade ?? al.finalGrade.grade,
+                                                      gradeOrdinary: response.gradeOrdinary ?? al.finalGrade.gradeOrdinary,
+                                                      date: response.date || al.finalGrade.date
+                                                    }
+                                                  };
+                                                  // 🔍 Log para verificar la actualización
+                                                  return updatedAlumno;
+                                                }
+                                                return al;
+                                              });
+                                              return updated;
+                                            });
+                                            
+                                            toast.success('Calificación extraordinaria guardada');
                                           } else {
                                             // Solo crear si no existe (no debería pasar si el endpoint siempre trae finalGrade)
                                             const createData = {
@@ -3387,9 +3569,44 @@ export default function MaestroAsignaturas() {
                                               type: 'final',
                                               courseGroupStudentId: studentId
                                             };
-                                            await CourseService.createFinalGrade(createData);
+                                            response = await CourseService.createFinalGrade(createData);
+                                            
+                                            // ✅ Usar la respuesta del servidor para actualizar el estado
+                                            const extraordinarioDelServidor = response.gradeExtraordinary || null;
+                                            
+                                            // Actualizar estado local con el valor del servidor
+                                            setCalificacionesFinalesGenerales(prev => ({
+                                              ...prev,
+                                              [studentId]: {
+                                                ...prev[studentId],
+                                                extraordinario: extraordinarioDelServidor
+                                              }
+                                            }));
+                                            
+                                            // Actualizar alumnosGenerales con el valor del servidor
+                                            setAlumnosGenerales(prev => {
+                                              const updated = prev.map(al => {
+                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                if (alId === studentId) {
+                                                  const updatedAlumno = {
+                                                    ...al,
+                                                    finalGrade: {
+                                                      id: response.id,
+                                                      gradeOrdinary: response.gradeOrdinary,
+                                                      grade: response.grade,
+                                                      gradeExtraordinary: response.gradeExtraordinary ?? 0,
+                                                      date: response.date
+                                                    }
+                                                  };
+                                                  return updatedAlumno;
+                                                }
+                                                return al;
+                                              });
+                                              return updated;
+                                            });
+                                            
+                                            toast.success('Calificación extraordinaria guardada');
                                           }
-                                          toast.success('Calificación extraordinaria guardada');
                                         } catch (error) {
                                           console.error('❌ Error al guardar calificación extraordinaria:', error);
                                           toast.error('Error al guardar calificación extraordinaria');
@@ -3958,17 +4175,30 @@ export default function MaestroAsignaturas() {
                                 try {
                                   const valorDecimal = Number(inputOrdinario);
                                   // Convertir decimal a entero para guardar en backend
-                                  await CourseService.updateFinalGrade(finalGradeId, { gradeOrdinary: convertirDecimalAEntero(valorDecimal) });
-                                  setOrdinarioGuardado(valorDecimal);
+                                  const updateData = { gradeOrdinary: convertirDecimalAEntero(valorDecimal) };
                                   
-                                  // Actualizar el estado de calificaciones finales
+                                  const response = await CourseService.updateFinalGrade(finalGradeId, updateData);
+                                  
+                                  // ✅ Usar la respuesta del servidor para actualizar el estado
+                                  const ordinarioDelServidor = convertirEnteroADecimal(response.gradeOrdinary);
+                                  setOrdinarioGuardado(ordinarioDelServidor);
+                                  
+                                  // Actualizar el estado de calificaciones finales con el valor del servidor
                                   setCalificacionesFinalesAlumnos(prev => ({
                                     ...prev,
                                     [alumnoCalificacionFinal.courseGroupStudentId]: {
                                       ...prev[alumnoCalificacionFinal.courseGroupStudentId],
-                                      ordinario: valorDecimal
+                                      ordinario: ordinarioDelServidor
                                     }
                                   }));
+                                  
+                                  // Actualizar también calificacionesFinales si está disponible
+                                  if (calificacionesFinales) {
+                                    setCalificacionesFinales(prev => prev ? {
+                                      ...prev,
+                                      // Mantener otros valores, solo actualizar si es necesario
+                                    } : null);
+                                  }
                                   
                                   toast.success('Calificación ordinaria guardada correctamente');
                                 } catch (err) {
@@ -4044,15 +4274,18 @@ export default function MaestroAsignaturas() {
                                   if (!finalGradeId || !alumnoCalificacionFinal?.courseGroupStudentId) return;
                                   setIsSavingExtraordinario(true);
                                   try {
-                                    await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
-                                    setExtraordinarioGuardado(Number(inputExtraordinario));
+                                    // ✅ Usar la respuesta del servidor para actualizar el estado
+                                    const response = await CourseService.updateFinalGrade(finalGradeId, { gradeExtraordinary: Number(inputExtraordinario) });
                                     
-                                    // Actualizar el estado de calificaciones finales
+                                    const extraordinarioDelServidor = response.gradeExtraordinary || null;
+                                    setExtraordinarioGuardado(extraordinarioDelServidor);
+                                    
+                                    // Actualizar el estado de calificaciones finales con el valor del servidor
                                     setCalificacionesFinalesAlumnos(prev => ({
                                       ...prev,
                                       [alumnoCalificacionFinal.courseGroupStudentId]: {
                                         ...prev[alumnoCalificacionFinal.courseGroupStudentId],
-                                        extraordinario: Number(inputExtraordinario)
+                                        extraordinario: extraordinarioDelServidor
                                       }
                                     }));
                                     
