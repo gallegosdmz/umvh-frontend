@@ -262,8 +262,8 @@ export class ExcelDocumentService {
           right: { style: 'thin' }
         };
 
-        // Array para calcular el promedio
-        const ordinarioGrades: number[] = [];
+        // Array para calcular el promedio final de cada materia
+        const finalGrades: number[] = [];
 
         // Calificaciones por materia
         coursesList.forEach((courseName) => {
@@ -330,11 +330,6 @@ export class ExcelDocumentService {
             if (ord < 7 && ord > 0) {
               ordCell.font = { color: { argb: 'FFFF0000' } };
             }
-            
-            // Agregar al array de promedios si tiene calificación ordinaria
-            if (ord > 0) {
-              ordinarioGrades.push(ord);
-            }
 
             // Extraordinario
             const ext = course.finalGrades?.gradeExtraordinary || 0;
@@ -349,6 +344,28 @@ export class ExcelDocumentService {
             };
             if (ext < 7 && ext > 0) {
               extCell.font = { color: { argb: 'FFFF0000' } };
+            }
+
+            // Calcular el promedio final de la materia
+            // Si hay calificación ordinaria o extraordinaria, usar esa
+            // Si no, calcular el promedio de los 3 parciales
+            let finalGrade = 0;
+            if (ext > 0) {
+              // Prioridad: Extraordinario > Ordinario > Promedio de parciales
+              finalGrade = ext;
+            } else if (ord > 0) {
+              finalGrade = ord;
+            } else {
+              // Calcular promedio de los 3 parciales
+              const parciales = [p1, p2, p3].filter(p => p > 0);
+              if (parciales.length > 0) {
+                finalGrade = parciales.reduce((sum, grade) => sum + grade, 0) / parciales.length;
+              }
+            }
+
+            // Agregar al array de promedios finales si hay una calificación válida
+            if (finalGrade > 0) {
+              finalGrades.push(finalGrade);
             }
           } else {
             // Si el alumno no tiene esta materia, dejar las celdas vacías
@@ -365,9 +382,9 @@ export class ExcelDocumentService {
           }
         });
 
-        // Calcular y agregar el promedio
-        const promedio = ordinarioGrades.length > 0 
-          ? ordinarioGrades.reduce((sum, grade) => sum + grade, 0) / ordinarioGrades.length 
+        // Calcular y agregar el promedio general (promedio de todos los promedios finales)
+        const promedio = finalGrades.length > 0 
+          ? finalGrades.reduce((sum, grade) => sum + grade, 0) / finalGrades.length 
           : 0;
         
         const promedioCell = row.getCell(promedioCol);
