@@ -1135,16 +1135,40 @@ export default function MaestroAsignaturas() {
 
   // Función optimizada para obtener todos los datos del grupo usando el nuevo endpoint
   const obtenerDatosCompletosGrupo = async (courseGroupId: number) => {
+    console.log('🟢 ========== DEBUG: obtenerDatosCompletosGrupo ==========');
+    console.log('🟢 courseGroupId recibido:', courseGroupId);
+    console.log('🟢 Tipo de courseGroupId:', typeof courseGroupId);
+    
     try {
       // Usar el nuevo endpoint específico para el modal de General
+      console.log('🟢 Llamando a CourseService.getCourseGroupFinalData con ID:', courseGroupId);
       const response = await CourseService.getCourseGroupFinalData(courseGroupId);
+      console.log('🟢 Response recibido:', response);
+      console.log('🟢 Response.students:', response.students);
+      console.log('🟢 Cantidad de estudiantes en response:', response.students?.length || 0);
+      
+      if (response.students && response.students.length > 0) {
+        console.log('🟢 Primer estudiante del response:', response.students[0]);
+        console.log('🟢 Estructura del primer estudiante:', {
+          id: response.students[0].id,
+          courseGroupStudentId: response.students[0].courseGroupStudentId,
+          fullName: response.students[0].fullName,
+          hasPartialGrades: !!response.students[0].partialGrades,
+          hasFinalGrade: !!response.students[0].finalGrade,
+          partialGradesCount: response.students[0].partialGrades?.length || 0
+        });
+      }
       
       // Los datos ya vienen agrupados por estudiante, simplemente retornarlos
-      return {
+      const result = {
         students: response.students || []
       };
+      console.log('🟢 Resultado a retornar:', result);
+      console.log('🟢 ========== FIN DEBUG: obtenerDatosCompletosGrupo ==========');
+      return result;
     } catch (error) {
-      console.error('Error al obtener datos completos del grupo:', error);
+      console.error('❌ Error al obtener datos completos del grupo:', error);
+      console.error('❌ courseGroupId que causó el error:', courseGroupId);
       return {
         students: []
       };
@@ -1153,6 +1177,13 @@ export default function MaestroAsignaturas() {
 
   // Función para abrir el modal general
   const handleOpenGeneralModal = async (course: Course, courseGroup: any) => {
+    console.log('🔵 ========== DEBUG: ABRIENDO MODAL GENERAL ==========');
+    console.log('🔵 Course recibido:', course);
+    console.log('🔵 CourseGroup recibido:', courseGroup);
+    console.log('🔵 CourseGroup.id:', courseGroup?.id);
+    console.log('🔵 CourseGroup completo:', JSON.stringify(courseGroup, null, 2));
+    console.log('🔵 Course.id:', course?.id);
+    console.log('🔵 Course.name:', course?.name);
     
     setSelectedCourseForGeneral(course);
     setSelectedCourseGroupForGeneral(courseGroup);
@@ -1160,8 +1191,11 @@ export default function MaestroAsignaturas() {
     setIsLoadingGenerales(true);
     
     try {
+      console.log('🔵 Llamando a obtenerDatosCompletosGrupo con courseGroupId:', courseGroup.id);
       // Cargar todos los datos del grupo en una sola llamada (SUPER OPTIMIZADO)
       const datosCompletos = await obtenerDatosCompletosGrupo(courseGroup.id);
+      console.log('🔵 Datos completos obtenidos:', datosCompletos);
+      console.log('🔵 Cantidad de estudiantes:', datosCompletos.students?.length || 0);
       
       
       // Validar que students existe y es un array
@@ -1174,6 +1208,18 @@ export default function MaestroAsignaturas() {
       
       // Los estudiantes ya vienen en el formato correcto del endpoint
       const mappedStudents = datosCompletos.students || [];
+      console.log('🔵 Estudiantes mapeados:', mappedStudents);
+      console.log('🔵 Primer estudiante (ejemplo):', mappedStudents[0]);
+      console.log('🔵 Estructura del primer estudiante:', mappedStudents[0] ? {
+        id: mappedStudents[0].id,
+        courseGroupStudentId: mappedStudents[0].courseGroupStudentId,
+        fullName: mappedStudents[0].fullName,
+        registrationNumber: mappedStudents[0].registrationNumber,
+        partialGrades: mappedStudents[0].partialGrades,
+        finalGrade: mappedStudents[0].finalGrade,
+        attendances: mappedStudents[0].attendances?.length || 0
+      } : 'No hay estudiantes');
+      
       setAlumnosGenerales(mappedStudents);
       
       // Crear mapas de calificaciones finales desde los datos de los estudiantes
@@ -1185,13 +1231,33 @@ export default function MaestroAsignaturas() {
       // Inicializar examenInputValues calculando desde el ordinario guardado
       const examenInputValuesMap: {[key: number]: number | null} = {};
       
+      console.log('🔵 Procesando calificaciones finales para', mappedStudents, 'estudiantes');
+      
       for (const alumno of mappedStudents) {
-        const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
+        // courseGroupStudentId ahora es requerido en la nueva estructura
+        const courseGroupStudentId: number = alumno.courseGroupStudentId;
+        
+        if (!courseGroupStudentId) {
+          console.warn(`🔵 ⚠️ Alumno ${alumno.fullName} (ID: ${alumno.id}) no tiene courseGroupStudentId válido, saltando...`);
+          continue;
+        }
+        
+        console.log(`🔵 Procesando alumno: ${alumno.fullName} (ID: ${courseGroupStudentId})`);
+        console.log(`🔵   - finalGrade:`, alumno.finalGrade);
+        console.log(`🔵   - partialGrades:`, alumno.partialGrades);
+        
+        // Inicializar siempre el mapa, incluso si no hay finalGrade
         if (alumno.finalGrade) {
-          const ordinarioDecimal = convertirEnteroADecimal(alumno.finalGrade.gradeOrdinary);
+          // gradeOrdinary puede ser null, manejarlo correctamente
+          const ordinarioDecimal = alumno.finalGrade.gradeOrdinary !== null 
+            ? convertirEnteroADecimal(alumno.finalGrade.gradeOrdinary) 
+            : null;
+          console.log(`🔵   - gradeOrdinary (entero):`, alumno.finalGrade.gradeOrdinary);
+          console.log(`🔵   - ordinarioDecimal (convertido):`, ordinarioDecimal);
+          
           calificacionesFinalesMap[courseGroupStudentId] = {
             ordinario: ordinarioDecimal,
-            extraordinario: alumno.finalGrade.gradeExtraordinary || null
+            extraordinario: alumno.finalGrade.gradeExtraordinary ?? null
           };
           
           // Calcular el valor del examen desde el ordinario guardado si existe
@@ -1201,22 +1267,38 @@ export default function MaestroAsignaturas() {
             const parcial2 = alumno.partialGrades?.find((pg: any) => pg.partial === 2)?.grade || 0;
             const parcial3 = alumno.partialGrades?.find((pg: any) => pg.partial === 3)?.grade || 0;
             
+            console.log(`🔵   - Parciales: P1=${parcial1}, P2=${parcial2}, P3=${parcial3}`);
+            
             const parcialesValidos = [parcial1, parcial2, parcial3]
               .filter(p => p > 0 && typeof p === 'number' && !isNaN(p));
             const promedio = parcialesValidos.length > 0 
               ? Math.round((parcialesValidos.reduce((a, b) => a + b, 0) / parcialesValidos.length) * 100) / 100
               : 0;
             
+            console.log(`🔵   - Promedio calculado:`, promedio);
+            
             // Si hay promedio y ordinario, calcular el examen: examen = (ordinario * 2) - promedio
             if (promedio > 0) {
               const examenCalculado = (ordinarioDecimal * 2) - promedio;
+              console.log(`🔵   - Examen calculado: (${ordinarioDecimal} * 2) - ${promedio} = ${examenCalculado}`);
               if (examenCalculado > 0 && examenCalculado <= 10) {
                 examenInputValuesMap[courseGroupStudentId] = parseFloat(examenCalculado.toFixed(2));
+                console.log(`🔵   - Examen asignado a examenInputValuesMap:`, examenInputValuesMap[courseGroupStudentId]);
               }
             }
           }
+        } else {
+          // Inicializar con null si no hay finalGrade
+          console.log(`🔵   - ⚠️ No tiene finalGrade, inicializando con null`);
+          calificacionesFinalesMap[courseGroupStudentId] = {
+            ordinario: null,
+            extraordinario: null
+          };
         }
       }
+      
+      console.log('🔵 Calificaciones finales mapeadas:', calificacionesFinalesMap);
+      console.log('🔵 Examen input values mapeados:', examenInputValuesMap);
       
       setCalificacionesFinalesGenerales(calificacionesFinalesMap);
       setExamenInputValues(examenInputValuesMap);
@@ -1225,10 +1307,13 @@ export default function MaestroAsignaturas() {
       // El usuario puede usar el botón "Recalcular Finales" si desea actualizar las calificaciones
       
       
+      console.log('🔵 ========== FIN DEBUG: MODAL GENERAL ==========');
       toast.success(`Datos cargados correctamente: ${mappedStudents.length} estudiantes`);
       
     } catch (error) {
-      console.error('Error al cargar datos para el modal general:', error);
+      console.error('❌ Error al cargar datos para el modal general:', error);
+      console.error('❌ CourseGroup que causó el error:', courseGroup);
+      console.error('❌ Course que causó el error:', course);
       toast.error('Error al cargar los datos');
     } finally {
       setIsLoadingGenerales(false);
@@ -3216,11 +3301,18 @@ export default function MaestroAsignaturas() {
                               ? Math.round((asistenciasPresentes / todasLasAsistencias.length) * 100) 
                               : 0;
                             
-                            // Obtener calificaciones finales directamente (convertir de entero a decimal)
-                            const ordinario = convertirEnteroADecimal(alumno.finalGrade?.gradeOrdinary) || null;
-                            const extraordinario = alumno.finalGrade?.gradeExtraordinary || null;
+                            // courseGroupStudentId ahora es requerido en la nueva estructura
+                            const courseGroupStudentId: number = alumno.courseGroupStudentId;
+                            
+                            // Obtener calificaciones finales: primero del estado, luego del objeto alumno como fallback
+                            const calificacionFinalEstado = calificacionesFinalesGenerales[courseGroupStudentId];
+                            const ordinario = calificacionFinalEstado?.ordinario ?? 
+                                              (alumno.finalGrade && alumno.finalGrade.gradeOrdinary !== null 
+                                                ? convertirEnteroADecimal(alumno.finalGrade.gradeOrdinary) 
+                                                : null);
+                            const extraordinario = calificacionFinalEstado?.extraordinario ?? 
+                                                   (alumno.finalGrade?.gradeExtraordinary ?? null);
                             const finalGradeId = alumno.finalGrade?.id || null;
-                            const courseGroupStudentId: number = (alumno.courseGroupStudentId || alumno.id || 0) as number;
                             
                             const examenValue = examenInputValues[courseGroupStudentId] ?? null;
                             
@@ -3296,7 +3388,8 @@ export default function MaestroAsignaturas() {
                                               }));
                                               
                                               setAlumnosGenerales(prev => prev.map(al => {
-                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                // courseGroupStudentId ahora es requerido, pero mantener fallback por seguridad
+                                                const alId: number = al.courseGroupStudentId ?? (al.id || 0);
                                                 if (alId === studentId && al.finalGrade) {
                                                   return {
                                                     ...al,
@@ -3363,7 +3456,8 @@ export default function MaestroAsignaturas() {
                                             // Actualizar alumnosGenerales con el valor del servidor
                                             setAlumnosGenerales(prev => {
                                               const updated = prev.map(al => {
-                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                // courseGroupStudentId ahora es requerido, pero mantener fallback por seguridad
+                                                const alId: number = al.courseGroupStudentId ?? (al.id || 0);
                                                 if (alId === studentId && al.finalGrade) {
                                                   const updatedAlumno = {
                                                     ...al,
@@ -3424,7 +3518,8 @@ export default function MaestroAsignaturas() {
                                             // Actualizar alumnosGenerales con el valor del servidor
                                             setAlumnosGenerales(prev => {
                                               const updated = prev.map(al => {
-                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                // courseGroupStudentId ahora es requerido, pero mantener fallback por seguridad
+                                                const alId: number = al.courseGroupStudentId ?? (al.id || 0);
                                                 if (alId === studentId) {
                                                   const updatedAlumno = {
                                                     ...al,
@@ -3537,7 +3632,8 @@ export default function MaestroAsignaturas() {
                                             // Actualizar alumnosGenerales con el valor del servidor
                                             setAlumnosGenerales(prev => {
                                               const updated = prev.map(al => {
-                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                // courseGroupStudentId ahora es requerido, pero mantener fallback por seguridad
+                                                const alId: number = al.courseGroupStudentId ?? (al.id || 0);
                                                 if (alId === studentId && al.finalGrade) {
                                                   const updatedAlumno = {
                                                     ...al,
@@ -3586,7 +3682,8 @@ export default function MaestroAsignaturas() {
                                             // Actualizar alumnosGenerales con el valor del servidor
                                             setAlumnosGenerales(prev => {
                                               const updated = prev.map(al => {
-                                                const alId: number = (al.courseGroupStudentId || al.id || 0) as number;
+                                                // courseGroupStudentId ahora es requerido, pero mantener fallback por seguridad
+                                                const alId: number = al.courseGroupStudentId ?? (al.id || 0);
                                                 if (alId === studentId) {
                                                   const updatedAlumno = {
                                                     ...al,

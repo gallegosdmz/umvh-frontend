@@ -50,29 +50,37 @@ export interface EvaluationsDataResponse {
   }>;
 }
 
+// Interfaces para el endpoint de final-data
+export interface PartialGradeData {
+  partial: number;
+  grade: number;
+  date: string; // Formato: 'YYYY-MM-DD'
+}
+
+export interface AttendanceData {
+  partial: number;
+  attend: boolean;
+  date: string; // Formato: 'YYYY-MM-DD'
+}
+
+export interface FinalGradeData {
+  id: number;
+  grade: number;
+  gradeOrdinary: number | null;
+  gradeExtraordinary: number | null;
+  date: string; // Formato: 'YYYY-MM-DD'
+}
+
+export interface StudentData {
+  id: number;                        // ID del estudiante (Student.id)
+  fullName: string;                  // Nombre completo del estudiante
+  registrationNumber: string;        // Número de matrícula
+  courseGroupStudentId: number;      // ID de la relación CourseGroupStudent (tabla intermedia)
+  attendances: AttendanceData[];     // Lista de asistencias
+  partialGrades: PartialGradeData[]; // Lista de calificaciones parciales (solo las más recientes)
+  finalGrade: FinalGradeData | null; // Calificación final (la más reciente) o null
+}
+
 export interface FinalDataResponse {
-  students: Array<{
-    id?: number;
-    courseGroupStudentId?: number;
-    fullName: string;
-    registrationNumber: string;
-    semester?: number;
-    attendances: Array<{
-      partial: number;
-      attend: boolean;
-      date: string;
-    }>;
-    partialGrades: Array<{
-      partial: number;
-      grade: number;
-      date: string;
-    }>;
-    finalGrade: {
-      id: number;
-      grade: number;
-      gradeOrdinary: number;
-      gradeExtraordinary: number;
-      date: string;
-    } | null;
-  }>;
+  students: StudentData[];
 } 

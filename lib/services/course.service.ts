@@ -616,20 +616,44 @@ export const CourseService = {
 
     // MÉTODO ESPECÍFICO PARA EL MODAL DE GENERAL: Obtener datos finales del grupo
     async getCourseGroupFinalData(courseGroupId: number): Promise<FinalDataResponse> {
-      console.log('🔍 DEBUG getCourseGroupFinalData - courseGroupId:', courseGroupId);
+      console.log('🟢 ========== DEBUG SERVICE: getCourseGroupFinalData ==========');
+      console.log('🟢 courseGroupId:', courseGroupId);
+      console.log('🟢 Tipo de courseGroupId:', typeof courseGroupId);
+      console.log('🟢 URL completa:', `${API_URL}/courses-groups/${courseGroupId}/final-data`);
+      
+      const headers = getAuthHeaders();
+      console.log('🟢 Headers:', headers);
+      console.log('🟢 Token presente:', !!headers.Authorization);
       
       const response = await fetch(`${API_URL}/courses-groups/${courseGroupId}/final-data`, {
-        headers: getAuthHeaders(),
+        headers: headers,
       });
       
+      console.log('🟢 Response status:', response.status);
+      console.log('🟢 Response ok:', response.ok);
+      
       const data = await response.json();
+      console.log('🟢 Response data:', data);
       
       if (!response.ok) {
-        console.error('🔍 DEBUG getCourseGroupFinalData - Error response:', data);
+        console.error('❌ DEBUG getCourseGroupFinalData - Error response:', data);
+        console.error('❌ Status:', response.status);
+        console.error('❌ ========== FIN DEBUG SERVICE: getCourseGroupFinalData (ERROR) ==========');
         throw new Error(data.message || 'Error al obtener datos finales del grupo');
       }
       
-      console.log('🔍 DEBUG getCourseGroupFinalData - Success, returning:', data);
+      console.log('🟢 DEBUG getCourseGroupFinalData - Success');
+      console.log('🟢 Cantidad de estudiantes:', data.students?.length || 0);
+      if (data.students && data.students.length > 0) {
+        console.log('🟢 Primer estudiante:', {
+          id: data.students[0].id,
+          courseGroupStudentId: data.students[0].courseGroupStudentId,
+          fullName: data.students[0].fullName,
+          hasPartialGrades: !!data.students[0].partialGrades,
+          hasFinalGrade: !!data.students[0].finalGrade
+        });
+      }
+      console.log('🟢 ========== FIN DEBUG SERVICE: getCourseGroupFinalData (SUCCESS) ==========');
       return data as FinalDataResponse;
     },
 }; 
