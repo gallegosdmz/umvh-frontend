@@ -267,44 +267,51 @@ export class WordDocumentService {
             children: [new Paragraph({
               children: [new TextRun({ text: "Asignatura", bold: true, font: "Arial" })]
             })],
-            width: { size: 25, type: WidthType.PERCENTAGE },
+            width: { size: 22, type: WidthType.PERCENTAGE },
             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
           }),
           new TableCell({
             children: [new Paragraph({
               children: [new TextRun({ text: "Parcial 1", bold: true, font: "Arial" })]
             })],
-            width: { size: 15, type: WidthType.PERCENTAGE },
+            width: { size: 11, type: WidthType.PERCENTAGE },
             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
           }),
           new TableCell({
             children: [new Paragraph({
               children: [new TextRun({ text: "Parcial 2", bold: true, font: "Arial" })]
             })],
-            width: { size: 15, type: WidthType.PERCENTAGE },
+            width: { size: 11, type: WidthType.PERCENTAGE },
             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
           }),
-          new TableCell({
-            children: [new Paragraph({
-              children: [new TextRun({ text: "Parcial 3", bold: true, font: "Arial" })]
-            })],
-            width: { size: 15, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
-          }),
-          new TableCell({
-            children: [new Paragraph({
-              children: [new TextRun({ text: "Ordinario", bold: true, font: "Arial" })]
-            })],
-            width: { size: 15, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
-          }),
-          new TableCell({
-            children: [new Paragraph({
-              children: [new TextRun({ text: "Extraord.", bold: true, font: "Arial" })]
-            })],
-            width: { size: 15, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
-          }),
+           new TableCell({
+             children: [new Paragraph({
+               children: [new TextRun({ text: "Parcial 3", bold: true, font: "Arial" })]
+             })],
+             width: { size: 12, type: WidthType.PERCENTAGE },
+             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+           }),
+           new TableCell({
+             children: [new Paragraph({
+               children: [new TextRun({ text: "Ordinario", bold: true, font: "Arial" })]
+             })],
+             width: { size: 12, type: WidthType.PERCENTAGE },
+             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+           }),
+           new TableCell({
+             children: [new Paragraph({
+               children: [new TextRun({ text: "Extraord.", bold: true, font: "Arial" })]
+             })],
+             width: { size: 11, type: WidthType.PERCENTAGE },
+             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+           }),
+           new TableCell({
+             children: [new Paragraph({
+               children: [new TextRun({ text: "Prom. General", bold: true, font: "Arial" })]
+             })],
+             width: { size: 13, type: WidthType.PERCENTAGE },
+             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+           }),
         ],
       })
     ];
@@ -314,8 +321,29 @@ export class WordDocumentService {
       const partial1 = course.grades.find(g => g.partial === 1)?.grade || 0;
       const partial2 = course.grades.find(g => g.partial === 2)?.grade || 0;
       const partial3 = course.grades.find(g => g.partial === 3)?.grade || 0;
-      const ordinary = course.finalGrades.gradeOrdinary || 0;
+      const ordinaryFromBD = course.finalGrades.gradeOrdinary || 0;
       const extraordinary = course.finalGrades.gradeExtraordinary || 0;
+      
+      // Calcular promedio general: promedio de los 3 parciales (suma / número de parciales válidos)
+      const parcialesValidos = [partial1, partial2, partial3].filter(p => p > 0);
+      const promedioCalculado = parcialesValidos.length > 0 
+        ? (partial1 + partial2 + partial3) / parcialesValidos.length 
+        : 0;
+      
+      // Calcular Ordinario: (Promedio General + gradeOrdinary de BD) / 2
+      const ordinary = (promedioCalculado > 0 && ordinaryFromBD > 0)
+        ? (promedioCalculado + ordinaryFromBD) / 2
+        : (ordinaryFromBD > 0 ? ordinaryFromBD : 0);
+      
+      // Lógica de prioridad para Promedio General:
+      // 1. Si existe Extraordinario: usar Extraordinario
+      // 2. Si no existe Extraordinario pero existe Ordinario calculado: usar Ordinario
+      // 3. Si no existe ninguno: usar el promedio calculado
+      const promedioGeneral = extraordinary > 0 
+        ? extraordinary 
+        : (ordinary > 0 
+          ? ordinary 
+          : promedioCalculado);
 
       allRows.push(new TableRow({
         children: [
@@ -355,6 +383,12 @@ export class WordDocumentService {
             })],
             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
           }),
+          new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({ text: promedioGeneral > 0 ? promedioGeneral.toFixed(2) : "", font: "Arial", bold: true })]
+            })],
+            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+          }),
         ],
       }));
     });
@@ -366,9 +400,49 @@ export class WordDocumentService {
     const validPartial2Grades = boleta.courses
       .map(course => course.grades.find(g => g.partial === 2)?.grade)
       .filter((g): g is number => g !== undefined && g > 0);
+    const validPartial3Grades = boleta.courses
+      .map(course => course.grades.find(g => g.partial === 3)?.grade)
+      .filter((g): g is number => g !== undefined && g > 0);
 
     const avgPartial1 = validPartial1Grades.length > 0 ? validPartial1Grades.reduce((sum, grade) => sum + grade, 0) / validPartial1Grades.length : 0;
     const avgPartial2 = validPartial2Grades.length > 0 ? validPartial2Grades.reduce((sum, grade) => sum + grade, 0) / validPartial2Grades.length : 0;
+    const avgPartial3 = validPartial3Grades.length > 0 ? validPartial3Grades.reduce((sum, grade) => sum + grade, 0) / validPartial3Grades.length : 0;
+    
+    // Calcular el promedio general de cada curso usando la misma lógica de prioridad
+    // y luego promediar esos valores para obtener el promedio general final
+    const promediosGeneralesPorCurso = boleta.courses.map(course => {
+      const partial1 = course.grades.find(g => g.partial === 1)?.grade || 0;
+      const partial2 = course.grades.find(g => g.partial === 2)?.grade || 0;
+      const partial3 = course.grades.find(g => g.partial === 3)?.grade || 0;
+      const ordinary = course.finalGrades.gradeOrdinary || 0;
+      const extraordinary = course.finalGrades.gradeExtraordinary || 0;
+      
+      // Calcular promedio calculado de los parciales
+      const parcialesValidos = [partial1, partial2, partial3].filter(p => p > 0);
+      const promedioCalculado = parcialesValidos.length > 0 
+        ? (partial1 + partial2 + partial3) / parcialesValidos.length 
+        : 0;
+      
+      // Aplicar lógica de prioridad: extraordinario > ordinario > promedio calculado
+      return extraordinary > 0 
+        ? extraordinary 
+        : (ordinary > 0 
+          ? ordinary 
+          : promedioCalculado);
+    }).filter(p => p > 0);
+    
+    // Calcular promedio general: promedio de todos los promedios generales de los cursos
+    const avgPromedioGeneral = promediosGeneralesPorCurso.length > 0
+      ? promediosGeneralesPorCurso.reduce((sum, grade) => sum + grade, 0) / promediosGeneralesPorCurso.length
+      : 0;
+    
+    // Para la columna "Ordinario" en la fila de promedios, NO promediar las calificaciones ordinarias
+    // En su lugar, mostrar vacío o el promedio general calculado
+    // (El campo Ordinario en la fila de promedios no tiene sentido promediar)
+    const avgOrdinario = 0; // No se promedia, se deja vacío
+    
+    // Para la columna "Extraordinario" en la fila de promedios, tampoco se promedia
+    const avgExtraordinary = 0; // No se promedia, se deja vacío
 
     allRows.push(
       new TableRow({
@@ -401,7 +475,11 @@ export class WordDocumentService {
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "", font: "Arial" })]
+              children: [new TextRun({
+                text: avgPartial3 > 0 ? avgPartial3.toFixed(2) : "",
+                bold: true,
+                font: "Arial"
+              })]
             })],
             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
           }),
@@ -414,6 +492,16 @@ export class WordDocumentService {
           new TableCell({
             children: [new Paragraph({
               children: [new TextRun({ text: "", font: "Arial" })]
+            })],
+            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+          }),
+          new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({
+                text: avgPromedioGeneral > 0 ? avgPromedioGeneral.toFixed(2) : "",
+                bold: true,
+                font: "Arial"
+              })]
             })],
             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
           }),
