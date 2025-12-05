@@ -251,10 +251,26 @@ export default function MaestroAsignaturas() {
       const limit = itemsPerPage
       const offset = (page - 1) * limit
       const data = await handleGetCourses(limit, offset)
-      setAsignaturas(data.items || data)
-      setFilteredAsignaturas(data.items || data)
+      const asignaturasCargadas = data.items || data
+      setAsignaturas(asignaturasCargadas)
+      setFilteredAsignaturas(asignaturasCargadas)
       setTotalItems(data.total || (data.items ? data.items.length : data.length))
       setCurrentPage(page)
+      
+      // Console.log para ver las materias que se muestran al maestro
+      console.log('📚 ========== MATERIAS DEL MAESTRO ==========')
+      console.log('📚 Total de materias cargadas:', asignaturasCargadas.length)
+      console.log('📚 Materias:', asignaturasCargadas.map((asignatura: Course) => ({
+        id: asignatura.id,
+        nombre: asignatura.name,
+        grupos: asignatura.coursesGroups?.map((cg: any) => ({
+          id: cg.id,
+          grupo: cg.group?.name,
+          periodo: cg.group?.period?.name,
+          horario: cg.schedule
+        })) || []
+      })))
+      console.log('📚 ========== FIN MATERIAS DEL MAESTRO ==========')
     } catch (error) {
       console.error('Error al cargar las asignaturas:', error)
     }
