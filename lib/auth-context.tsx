@@ -15,11 +15,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Usuario administrador por defecto (sin autenticación requerida)
+  const defaultUser: User = {
+    id: 1,
+    fullName: "Administrador",
+    email: "admin@sistema.edu",
+    role: "administrador",
+  }
+
+  const [user, setUser] = useState<User | null>(defaultUser)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // Verificar si hay una sesión guardada
+    // Verificar si hay una sesión guardada (opcional)
     try {
       const savedUser = localStorage.getItem("currentUser")
       if (savedUser) {

@@ -2,27 +2,15 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
 
 export default function Home() {
-  const { user, loading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading) {
-      if (user) {
-        if (user.role === "administrador") {
-          router.push("/admin/dashboard")
-        } else {
-          router.push("/maestro/asignaturas")
-        }
-      } else {
-        router.push("/auth/signin")
-      }
-    }
-  }, [user, loading, router])
+    router.push("/admin/dashboard")
+  }, [router])
 
-  // Mostrar pantalla de carga mientras se verifica la autenticación
+  // Mostrar pantalla de carga mientras se redirige
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
       <div className="text-center">

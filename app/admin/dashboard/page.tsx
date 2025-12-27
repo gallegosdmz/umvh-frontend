@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Users, BookOpen, Calendar, GraduationCap, TrendingUp, Award, Clock, Settings } from "lucide-react"
+import { Users, BookOpen, Calendar, GraduationCap, TrendingUp, Award, Clock, Settings, BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import { useTeacher } from "@/lib/hooks/useTeacher"
@@ -335,6 +335,12 @@ export default function AdminDashboard() {
                   <Link href="/admin/periodos">
                     <Calendar className="h-6 w-6 mb-2 text-purple-600" />
                     <span className="text-sm font-medium">Periodos</span>
+                  </Link>
+                </Button>
+                <Button variant="outline" className="h-16 flex flex-col items-center justify-center p-4 hover:bg-amber-50 hover:border-amber-300 transition-colors" asChild>
+                  <Link href="/admin/evaluacion">
+                    <BarChart3 className="h-6 w-6 mb-2 text-amber-600" />
+                    <span className="text-sm font-medium">Ponderaciones</span>
                   </Link>
                 </Button>
               </div>

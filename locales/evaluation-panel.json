@@ -1,0 +1,34 @@
+{
+  "labels": {
+    "teacherName": "Nombre del Docente",
+    "semester": "Semestre",
+    "subject": "Asignatura",
+    "safis": "Safis"
+  },
+  "evaluation": {
+    "title": "Con los siguientes barras de desplazamiento, establece las ponderaciones correctas para la Evaluación",
+    "criteria": {
+      "attendance": "Asistencia",
+      "activities": "Actividades de",
+      "evidence": "Evidencias de",
+      "integrativeProduct": "Producto Integrador",
+      "exam": "Examen"
+    },
+    "percentage": "%",
+    "accept": "Aceptar",
+    "cancel": "Cancelar"
+  },
+  "validation": {
+    "totalMustBe100": "La suma total debe ser 100%",
+    "invalidValue": "Valor inválido",
+    "minValue": "El valor mínimo es 0%",
+    "maxValue": "El valor máximo es 100%"
+  },
+  "messages": {
+    "loading": "Cargando...",
+    "saving": "Guardando...",
+    "saved": "Ponderaciones guardadas correctamente",
+    "error": "Error al guardar las ponderaciones"
+  }
+}
+
