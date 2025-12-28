@@ -1,28 +1,18 @@
 "use client"
 
-import { useAuth } from "@/lib/auth-context"
 import Link from "next/link"
-import { useRouter, usePathname } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { GraduationCap, User, LogOut, Settings, Home } from "lucide-react"
+import { GraduationCap, User, Settings, Home } from "lucide-react"
 
 export function Navigation() {
-  const { user, logout } = useAuth()
-  const router = useRouter()
   const pathname = usePathname()
 
   // No mostrar la navegación en la página de login
-  if (!user || pathname === "/auth/signin") return null
+  if (pathname === "/auth/signin") return null
 
-  const isAdmin = user.role === "administrador"
-  const isDirector = user.role === "director"
-  const dashboardPath = isAdmin ? "/admin/dashboard" : isDirector ? "/director/alumnos" : "/maestro/dashboard"
-
-  const handleLogout = () => {
-    logout()
-    router.push("/auth/signin")
-  }
+  const dashboardPath = "/admin/dashboard"
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
@@ -38,7 +28,7 @@ export function Navigation() {
                   Sistema Escolar
                 </span>
                 <div className="text-xs text-gray-500">
-                  {isAdmin ? "Panel de Administración" : isDirector ? "Panel del Director" : "Panel del Maestro"}
+                  Panel de Administración
                 </div>
               </div>
             </Link>
@@ -47,8 +37,8 @@ export function Navigation() {
           <div className="flex items-center space-x-4">
             <div className="hidden md:flex items-center space-x-2 text-sm">
               <div className="text-right">
-                <div className="font-medium text-gray-900">{user.fullName}</div>
-                <div className="text-gray-500 capitalize">{user.role}</div>
+                <div className="font-medium text-gray-900">Administrador</div>
+                <div className="text-gray-500">Panel de Administración</div>
               </div>
             </div>
 
@@ -64,9 +54,9 @@ export function Navigation() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <div className="px-3 py-2 border-b">
-                  <div className="font-medium text-gray-900">{user.fullName}</div>
-                  <div className="text-sm text-gray-500">{user.email}</div>
-                  <div className="text-xs text-gray-400 capitalize mt-1">{user.role}</div>
+                  <div className="font-medium text-gray-900">Administrador</div>
+                  <div className="text-sm text-gray-500">Sistema de Gestión Escolar</div>
+                  <div className="text-xs text-gray-400 capitalize mt-1">administrador</div>
                 </div>
                 <DropdownMenuItem asChild>
                   <Link href={dashboardPath} className="cursor-pointer">
@@ -79,10 +69,6 @@ export function Navigation() {
                     <Settings className="h-4 w-4 mr-2" />
                     Perfil
                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Cerrar Sesión
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
