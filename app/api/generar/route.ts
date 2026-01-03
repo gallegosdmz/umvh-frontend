@@ -70,20 +70,6 @@ export async function POST(request: NextRequest) {
     const scriptPath = join(process.cwd(), 'scripts', 'generar_XLSX.py');
     const templatePath = join(process.cwd(), 'templates', 'Template.xlsx');
 
-    console.log('=== DEBUG EVALUACION ===');
-    console.log('UUID:', uuid);
-    console.log('Input JSON:', inputJsonPath);
-    console.log('Output XLSX:', outputXlsxPath);
-    console.log('Script Path:', scriptPath);
-    console.log('Template Path:', templatePath);
-    console.log('Data:', JSON.stringify(data, null, 2));
-
-    console.log('¿Script existe?', existsSync(scriptPath));
-    console.log('¿Template existe?', existsSync(templatePath));
-    console.log('¿Input JSON existe?', existsSync(inputJsonPath));
-
-
-
     // Ejecutar script Python
     const pythonResult = await executePythonScript(scriptPath, [
       inputJsonPath,

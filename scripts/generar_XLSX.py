@@ -65,18 +65,18 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
         # ========================================
         sheet.Range("C5").Value = data.get("grupo", "")
         sheet.Range("C6").Value = data.get("asignatura", "")
-        sheet.Range("C7").Value = data.get("docente", "")
+        sheet.Range("C7").Value = data.get("maestro", "")
 
         # ========================================
         # SECCIÓN 2: Ponderaciones
         # Ajusta las celdas según tu template
         # ========================================
         ponderaciones = data.get("ponderaciones", {})
-        sheet.Range("D7").Value = ponderaciones.get("asistencia", 0)
-        sheet.Range("E7").Value = ponderaciones.get("actividades", 0)
-        sheet.Range("F7").Value = ponderaciones.get("evidencias", 0)
-        sheet.Range("G7").Value = ponderaciones.get("productoIntegrador", 0)
-        sheet.Range("H7").Value = ponderaciones.get("examen", 0)
+        sheet.Range("D7").Value = ponderaciones.get("asistencia", 0) / 100
+        sheet.Range("E7").Value = ponderaciones.get("actividades", 0) / 100
+        sheet.Range("F7").Value = ponderaciones.get("evidencias", 0) / 100
+        sheet.Range("G7").Value = ponderaciones.get("productoIntegrador", 0) / 100
+        sheet.Range("H7").Value = ponderaciones.get("examen", 0) / 100
 
         # ========================================
         # SECCIÓN 3: Lista de Alumnos
