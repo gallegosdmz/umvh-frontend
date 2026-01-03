@@ -89,7 +89,6 @@
     maestro: string
     semestre: number
     asignatura: string
-    safis: string
 
     // Ponderaciones (deben sumar 100%)
     ponderaciones: {

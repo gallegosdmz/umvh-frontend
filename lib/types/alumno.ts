@@ -1,0 +1,4 @@
+export interface Alumno {
+  matricula: string;
+  nombre: string;
+}

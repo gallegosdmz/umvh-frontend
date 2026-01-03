@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
 import { toast } from "react-toastify"
 import { ArrowLeft, BookOpen, FileSpreadsheet, Upload } from "lucide-react"
-import Link from "next/link"
-import { EvaluationFormData } from "@/lib/types"
+import { Alumno, EvaluationFormData } from "@/lib/types"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
+import { StudentImport } from "@/components/evaluation/StudentImport"
+import Link from "next/link"
 
 interface CourseGroupOption {
   id: number
@@ -25,7 +26,7 @@ interface CourseGroupOption {
 export default function EvaluacionPage() {
   const [formData, setFormData] = useState<EvaluationFormData>({
     maestro: '',
-    semestre: null,
+    grupo: '',
     asignatura: '',
     safis: '',
     ponderaciones: {
@@ -52,7 +53,7 @@ export default function EvaluacionPage() {
   // Validar formulario completo
   const isFormatValid =
     formData.maestro.trim() !== '' &&
-    formData.semestre !== null &&
+    formData.grupo.trim() !== '' &&
     formData.asignatura.trim() !== '' &&
     formData.safis.trim() !== '' &&
     isPonderacionesValid &&
@@ -85,7 +86,7 @@ export default function EvaluacionPage() {
 
     try {
       // TODO: Llamar a la API para generar el Excel
-      const response = await fetch('/api/evaluaciones/generar', {
+      const response = await fetch('/api/generar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -115,6 +116,14 @@ export default function EvaluacionPage() {
       setIsGenerating(false);
     }
   }
+
+  // Handler para actualizar alumnos desde StudentImport
+  const handleStudentsChange = (alumnos: Alumno[]) => {
+    setFormData((prev) => ({
+      ...prev,
+      alumnos,
+    }));
+  };
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -160,22 +169,13 @@ export default function EvaluacionPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="semestre">Semestre</Label>
-              <Select
-                value={formData.semestre?.toString() || ""}
-                onValueChange={(value) => handleInputChange("semestre", parseInt(value))}
-              >
-                <SelectTrigger id="semestre">
-                  <SelectValue placeholder="Selecciona el semestre" />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                    <SelectItem key={sem} value={sem.toString()}>
-                      {sem}° Semestre
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="grupo">Grupo</Label>
+              <Input
+                id="grupo"
+                placeholder="Ej: 4A, 6B, 2C"
+                value={formData.grupo}
+                onChange={(e) => handleInputChange("grupo", e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="asignatura">Asignatura</Label>
@@ -257,41 +257,19 @@ export default function EvaluacionPage() {
         </CardContent>
       </Card>
 
-      {/* Paso 3: Lista de Alumnos (placeholder para el siguiente paso) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      {/* Paso 3: Lista de Alumnos */}
+        <div className="relative">
+          <div className="absolute -top-3 left-6 z-10">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
               3
             </span>
-            Lista de Alumnos
-            {formData.alumnos.length > 0 && (
-              <span className="ml-auto text-sm font-normal px-2 py-1 rounded bg-blue-100 text-blue-700">
-                {formData.alumnos.length} alumnos cargados
-              </span>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Importa un archivo Excel con la lista de alumnos
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* TODO: Aquí irá el componente StudentImport */}
-          <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-            <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-2">
-              Arrastra un archivo Excel o haz clic para seleccionar
-            </p>
-            <Button variant="outline" disabled>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Seleccionar archivo
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Formato esperado: .xlsx con columnas Matrícula y Nombre
-            </p>
           </div>
-        </CardContent>
-      </Card>
+          <StudentImport
+            alumnos={formData.alumnos}
+            onStudentChange={handleStudentsChange}
+          />
+        </div>
+
 
       {/* Botón de generar */}
       <div className="flex justify-end">

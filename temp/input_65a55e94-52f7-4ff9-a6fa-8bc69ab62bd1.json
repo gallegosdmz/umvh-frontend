@@ -1,0 +1,159 @@
+{
+  "maestro": "Eduardo Gallegos Domínguez",
+  "grupo": "4A",
+  "asignatura": "Matematicas",
+  "safis": "2026-1",
+  "ponderaciones": {
+    "asistencia": 10,
+    "actividades": 20,
+    "evidencias": 20,
+    "productoIntegrador": 20,
+    "examen": 30
+  },
+  "alumnos": [
+    {
+      "matricula": "2233810003",
+      "nombre": "AGUIRRE MOYEDA ZIANIA MONSERRATH"
+    },
+    {
+      "matricula": "2233810004",
+      "nombre": "AGUIRRE SANDOVAL RICARDO"
+    },
+    {
+      "matricula": "2233810012",
+      "nombre": "ALVAREZ MARTINEZ YESENIA"
+    },
+    {
+      "matricula": "2233810023",
+      "nombre": "BARBOSA GARCIA KENIA"
+    },
+    {
+      "matricula": "2233810032",
+      "nombre": "BRAVO GARCIA DAMIAN"
+    },
+    {
+      "matricula": "2233810038",
+      "nombre": "CALVO ZAPATA ALEJANDRO"
+    },
+    {
+      "matricula": "2233810042",
+      "nombre": "CAMPOS ALVAREZ MONICA"
+    },
+    {
+      "matricula": "2233810058",
+      "nombre": "CASTRO PEÑA JENNIFER ALEXA"
+    },
+    {
+      "matricula": "2233810060",
+      "nombre": "CAVAZOS PEREZ AZUL ESTRELLA"
+    },
+    {
+      "matricula": "2233810063",
+      "nombre": "CHAGOLLA SANTILLAN JACQUELINE"
+    },
+    {
+      "matricula": "2233810064",
+      "nombre": "CHAIDEZ AMAYA EMILIO GAEL (INTERNO)"
+    },
+    {
+      "matricula": "2233810082",
+      "nombre": "DE LEON GARZA REBECA"
+    },
+    {
+      "matricula": "2233810102",
+      "nombre": "ESPINOZA MORENO FABIAN EMILIO"
+    },
+    {
+      "matricula": "2223810136",
+      "nombre": "FIGUEROA GARZA SANTIAGO"
+    },
+    {
+      "matricula": "2233810108",
+      "nombre": "FLORES BOCANEGRA SAMANTHA AILYN"
+    },
+    {
+      "matricula": "2233810462",
+      "nombre": "GARCIA VEGA SHERLY NAOMI"
+    },
+    {
+      "matricula": "2251810001",
+      "nombre": "GOMEZ SANCHEZ KAREN MELISSA"
+    },
+    {
+      "matricula": "2233810348",
+      "nombre": "GONZALEZ GALVAN MARIA JOSE"
+    },
+    {
+      "matricula": "2233810134",
+      "nombre": "GONZALEZ GARZA ISABELLA ANALY"
+    },
+    {
+      "matricula": "2233810135",
+      "nombre": "GONZALEZ GARZA MARIA FERNANDA"
+    },
+    {
+      "matricula": "2233810413",
+      "nombre": "GUERRERO VALERIA (INTERNO)"
+    },
+    {
+      "matricula": "2233810178",
+      "nombre": "MACIAS BALDERAS DAJASH GABRIEL"
+    },
+    {
+      "matricula": "2233810195",
+      "nombre": "MATA DE LA CRUZ HILLARY VIANEY"
+    },
+    {
+      "matricula": "2233810206",
+      "nombre": "MENDOZA PIMENTEL DAYLIN"
+    },
+    {
+      "matricula": "2233810233",
+      "nombre": "PEÑAFLOR FLORES ASHLEY YARETZI"
+    },
+    {
+      "matricula": "2233810235",
+      "nombre": "PEREZ MURAIRA KATIA ANAHI"
+    },
+    {
+      "matricula": "2233810250",
+      "nombre": "RANGEL RODRIGUEZ FATIMA"
+    },
+    {
+      "matricula": "2233810272",
+      "nombre": "RODRIGUEZ LUGO ROBERTO CARLO"
+    },
+    {
+      "matricula": "2233810282",
+      "nombre": "ROSAS RODRIGUEZ RUBI"
+    },
+    {
+      "matricula": "2233810283",
+      "nombre": "RUBIO CAVAZOS BRIANA YAREMI"
+    },
+    {
+      "matricula": "2233810294",
+      "nombre": "SANCHEZ IRAHCHEA JOSE ANGEL"
+    },
+    {
+      "matricula": "2233810301",
+      "nombre": "SEPULVEDA MUÑOZ GERONIMO ALEJANDRO"
+    },
+    {
+      "matricula": "2233810312",
+      "nombre": "TELLEZ GAMEZ ALEJANDRA IVETH"
+    },
+    {
+      "matricula": "2233810323",
+      "nombre": "VALDEZ IBARRA JOSE FERNANDO"
+    },
+    {
+      "matricula": "2233810325",
+      "nombre": "VASQUEZ ORTIZ SESILU ANELY"
+    },
+    {
+      "matricula": "2233810334",
+      "nombre": "VILLEGAS HERRERA GONZALO RAFAEL"
+    }
+  ]
+}
