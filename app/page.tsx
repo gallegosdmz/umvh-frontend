@@ -7,7 +7,7 @@ export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
-    router.push("/admin/dashboard")
+    router.push("/admin/evaluacion")
   }, [router])
 
   // Mostrar pantalla de carga mientras se redirige
