@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     // Generar nombres únicos para archivos temporales
     const uuid = randomUUID();
     const inputJsonPath = join(process.cwd(), 'temp', `input_${uuid}.json`);
-    const outputXlsxPath = join(process.cwd(), 'temp', `output_${uuid}.xlsx`);
+    const outputXlsxPath = join(process.cwd(), 'temp', `output_${uuid}.xlsm`); // CAMBIO
 
     tempFiles.push(inputJsonPath, outputXlsxPath);
 
@@ -96,12 +96,12 @@ export async function POST(request: NextRequest) {
     // Generar nombre del archivo de descarga
     const safeAsignatura = data.asignatura.replace(/[^a-zA-Z0-9]/g, "_");
     const safeSafis = data.safis.replace(/[^a-zA-Z0-9]/g, "_");
-    const filename = `evaluacion_${safeAsignatura}_${safeSafis}.xlsx`;
+    const filename = `evaluacion_${safeAsignatura}_${safeSafis}.xlsm`;
     
     // Retornar el archivo Excel
     return new NextResponse(uint8Array, {
       headers: {
-          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Type": "application/vnd.ms-excel.sheet.macroEnabled.12",
           "Content-Disposition": `attachment; filename="${filename}"`,
         },
     });
