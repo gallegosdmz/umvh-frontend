@@ -65,11 +65,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <Navigation />
-          <OfflineStatus />
-          <InternetStatus />
+          {/* <OfflineStatus />
+          <InternetStatus /> */}
           {children}
-          <PWAInstallPrompt />
-          <OfflineIndicator />
+          {/* <PWAInstallPrompt />
+          <OfflineIndicator /> */}
           <ToastContainer position="top-right" autoClose={3000} />
         </AuthProvider>
       </body>

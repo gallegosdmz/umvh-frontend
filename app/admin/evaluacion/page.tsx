@@ -29,26 +29,10 @@ export default function EvaluacionPage() {
     grupo: '',
     asignatura: '',
     safis: '',
-    ponderaciones: {
-      asistencia: 10,
-      actividades: 20,
-      evidencias: 20,
-      productoIntegrador: 20,
-      examen: 30,
-    },
     alumnos: [],
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
-
-  // Calcular total de ponderaciones
-  const totalPonderaciones =
-    formData.ponderaciones.asistencia +
-    formData.ponderaciones.actividades +
-    formData.ponderaciones.evidencias +
-    formData.ponderaciones.productoIntegrador +
-    formData.ponderaciones.examen;
-  const isPonderacionesValid = totalPonderaciones === 100;
 
   // Validar formulario completo
   const isFormatValid =
@@ -56,23 +40,12 @@ export default function EvaluacionPage() {
     formData.grupo.trim() !== '' &&
     formData.asignatura.trim() !== '' &&
     formData.safis.trim() !== '' &&
-    isPonderacionesValid &&
     formData.alumnos.length > 0;
 
   const handleInputChange = (field: keyof EvaluationFormData, value: string | number) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
-    }));
-  };
-
-  const handlePonderacionChange = (key: keyof EvaluationFormData["ponderaciones"], value: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      ponderaciones: {
-        ...prev.ponderaciones,
-        [key]: value,
-      },
     }));
   };
 
@@ -144,12 +117,25 @@ export default function EvaluacionPage() {
         </div>
       </div>
 
-      {/* Paso 1: Información General */}
+      {/* Paso 1: Lista de Alumnos */}
+        <div className="relative">
+          <div className="absolute -top-3 left-6 z-10">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
+              1
+            </span>
+          </div>
+          <StudentImport
+            alumnos={formData.alumnos}
+            onStudentChange={handleStudentsChange}
+          />
+        </div>
+
+      {/* Paso 2: Información General */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
-              1
+              2
             </span>
             Información General
           </CardTitle>
@@ -198,78 +184,6 @@ export default function EvaluacionPage() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Paso 2: Ponderaciones */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
-              2
-            </span>
-            Ponderaciones
-            <span
-              className={`ml-auto text-sm font-normal px-2 py-1 rounded ${isPonderacionesValid
-                  ? "bg-green-100 text-green-700"
-                  : "bg-red-100 text-red-700"
-                }`}
-            >
-              Total: {totalPonderaciones}%
-            </span>
-          </CardTitle>
-          <CardDescription>
-            Define los porcentajes de evaluación (deben sumar 100%)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <PercentageSlider
-            label="Asistencia"
-            value={formData.ponderaciones.asistencia}
-            onChange={(value) => handlePonderacionChange("asistencia", value)}
-          />
-          <PercentageSlider
-            label="Actividades"
-            value={formData.ponderaciones.actividades}
-            onChange={(value) => handlePonderacionChange("actividades", value)}
-          />
-          <PercentageSlider
-            label="Evidencias"
-            value={formData.ponderaciones.evidencias}
-            onChange={(value) => handlePonderacionChange("evidencias", value)}
-          />
-          <PercentageSlider
-            label="Producto Integrador"
-            value={formData.ponderaciones.productoIntegrador}
-            onChange={(value) => handlePonderacionChange("productoIntegrador", value)}
-          />
-          <PercentageSlider
-            label="Examen"
-            value={formData.ponderaciones.examen}
-            onChange={(value) => handlePonderacionChange("examen", value)}
-          />
-
-          {!isPonderacionesValid && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                Las ponderaciones deben sumar exactamente 100%. Actualmente suman {totalPonderaciones}%.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Paso 3: Lista de Alumnos */}
-        <div className="relative">
-          <div className="absolute -top-3 left-6 z-10">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
-              3
-            </span>
-          </div>
-          <StudentImport
-            alumnos={formData.alumnos}
-            onStudentChange={handleStudentsChange}
-          />
-        </div>
-
 
       {/* Botón de generar */}
       <div className="flex justify-end">

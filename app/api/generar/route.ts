@@ -4,21 +4,12 @@ import { writeFile, unlink, readFile } from "fs/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { join } from "path";
 import { z } from "zod";
-import { existsSync } from 'fs';
 
 interface PythonResult {
   success: boolean;
   output?: string;
   error?: string;
 }
-
-const PonderacionSchema = z.object({
-  asistencia: z.number().min(0).max(100),
-  actividades: z.number().min(0).max(100),
-  evidencias: z.number().min(0).max(100),
-  productoIntegrador: z.number().min(0).max(100),
-  examen: z.number().min(0).max(100),
-});
 
 const AlumnoSchema = z.object({
   matricula: z.string().min(1),
@@ -30,10 +21,6 @@ const EvaluacionRequestSchema = z.object({
   grupo: z.string().min(1, 'El grupo es requerido'),
   asignatura: z.string().min(1, 'La asignatura es requerida'),
   safis: z.string().min(1, 'El periodo es requerido'),
-  ponderaciones: PonderacionSchema.refine(
-    (p) => p.asistencia + p.actividades + p.evidencias + p.productoIntegrador + p.examen === 100,
-    { message: 'Las ponderaciones deben sumar 100%' }
-  ),
   alumnos: z.array(AlumnoSchema).min(1, 'Debe haber al menos un alumno'),
 });
 
