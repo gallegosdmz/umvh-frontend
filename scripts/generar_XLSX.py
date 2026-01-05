@@ -95,6 +95,40 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
             sheet.Range(f"{col_nombre}{fila}").Value = alumno.get("nombre", "")
 
         # ========================================
+        # SECCIÓN 4: Proteger hojas
+        # ========================================
+        password = "ppcdsalv"
+
+        # Para cada hoja del workbook
+        for i in range(1, 5):  # Hojas 1 a 4
+            ws = workbook.Worksheets(i)
+
+            # Primero: Bloquear todas las celdas de la hoja
+            ws.Cells.Locked = True
+
+            # Segundo: Desbloquear el rango editable (D7:BJ53)
+            ws.Range("D7:BJ53").Locked = False
+
+            # Tercero: Proteger la hoja
+            ws.Protect(
+                Password=password,
+                DrawingObjects=True,
+                Contents=True,
+                Scenarios=True,
+                AllowFormattingCells=False,
+                AllowFormattingColumns=False,
+                AllowFormattingRows=False,
+                AllowInsertingColumns=False,
+                AllowInsertingRows=False,
+                AllowInsertingHyperlinks=False,
+                AllowDeletingColumns=False,
+                AllowDeletingRows=False,
+                AllowSorting=False,
+                AllowFiltering=False,
+                AllowUsingPivotTables=False
+              )
+
+        # ========================================
         # Guardar archivo
         # ========================================
         # Formato 51 = xlOpenXMLWorkbook (.xlsx)
