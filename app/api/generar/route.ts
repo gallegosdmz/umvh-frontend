@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // Rutas del script y template
     const scriptPath = join(process.cwd(), 'scripts', 'generar_XLSX.py');
-    const templatePath = join(process.cwd(), 'templates', 'Template.xlsx');
+    const templatePath = join(process.cwd(), 'templates', 'Template.xlsm');
 
     // Ejecutar script Python
     const pythonResult = await executePythonScript(scriptPath, [
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     // Generar nombre del archivo de descarga
     const safeAsignatura = data.asignatura.replace(/[^a-zA-Z0-9]/g, "_");
     const safeSafis = data.safis.replace(/[^a-zA-Z0-9]/g, "_");
-    const filename = `evaluacion_${safeAsignatura}_${safeSafis}.xlsx`;
+    const filename = `evaluacion_${safeAsignatura}_${safeSafis}.xlsm`;
     
     // Retornar el archivo Excel
     return new NextResponse(uint8Array, {
