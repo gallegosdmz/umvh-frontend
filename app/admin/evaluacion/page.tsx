@@ -101,7 +101,7 @@ export default function EvaluacionPage() {
       const a = document.createElement("a");
 
       a.href = url;
-      a.download = `evaluacion_${formData.asignatura}_${formData.safis}.xlsm` // Al final me di cuenta que el archivo es un .xlsx
+      a.download = `evaluacion_${formData.asignatura}_${formData.safis}.xlsx` // Al final me di cuenta que el archivo es un .xlsx
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
