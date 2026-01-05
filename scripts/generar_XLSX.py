@@ -99,34 +99,33 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
         # ========================================
         password = "ppcdsalv"
 
-        # Para cada hoja del workbook
         for i in range(1, 5):  # Hojas 1 a 4
             ws = workbook.Worksheets(i)
 
-            # Primero: Bloquear todas las celdas de la hoja
+            # Bloquear todas las celdas
             ws.Cells.Locked = True
 
-            # Segundo: Desbloquear el rango editable (D7:BJ53)
-            ws.Range("D7:BJ53").Locked = False
+            # Desbloquear rango D7:BJ53 manejando celdas combinadas
+            for row in range(7, 54):  # Filas 7-53
+                for col in range(4, 63):  # Columnas D(4) a BJ(62)
+                    try:
+                        cell = ws.Cells(row, col)
+                        # Si es celda combinada, desbloquear todo el MergeArea
+                        if cell.MergeCells:
+                            cell.MergeArea.Locked = False
+                        else:
+                            cell.Locked = False
+                    except:
+                        pass  # Ignorar errores
 
-            # Tercero: Proteger la hoja
+            # Proteger la hoja
             ws.Protect(
                 Password=password,
                 DrawingObjects=True,
                 Contents=True,
-                Scenarios=True,
-                AllowFormattingCells=False,
-                AllowFormattingColumns=False,
-                AllowFormattingRows=False,
-                AllowInsertingColumns=False,
-                AllowInsertingRows=False,
-                AllowInsertingHyperlinks=False,
-                AllowDeletingColumns=False,
-                AllowDeletingRows=False,
-                AllowSorting=False,
-                AllowFiltering=False,
-                AllowUsingPivotTables=False
-              )
+                Scenarios=True
+            )
+
 
         # ========================================
         # Guardar archivo
