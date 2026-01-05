@@ -99,6 +99,9 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
         # Contraseña para proteger
         password = "ppcdsalv"
 
+        # ===== HOJA PRINCIPAL =====
+        sheet.Unprotect(Password=password)
+
         sheet.Range("D6:BJ53").Locked = False
 
         sheet.Protect(
@@ -119,17 +122,11 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
             AllowUsingPivotTables=False
         )
 
-        # Proteger otras hojas específicas
-        # Hoja 1
-        workbook.Worksheets(1).Protect(Password=password, Contents=True)
-        # Hoja 2
-        workbook.Worksheets(2).Protect(Password=password, Contents=True)
-        # Hoja 3
-        workbook.Worksheets(3).Protect(Password=password, Contents=True)
-        # Hoja 4
-        workbook.Worksheets(4).Protect(Password=password, Contents=True)
-
-        sheet.Protect(Password=password, Contents=True)
+        # ===== OTRAS HOJAS =====
+        for i in range(2, 5):
+            ws = workbook.Worksheets(i)
+            ws.Unprotect(Password=password)
+            ws.Protect(Password=password, Contents=True)
 
         # ========================================
         # Guardar archivo
