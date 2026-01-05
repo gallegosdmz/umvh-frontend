@@ -94,40 +94,6 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
             sheet.Range(f"{col_matricula}{fila}").Value = alumno.get("matricula", "")
             sheet.Range(f"{col_nombre}{fila}").Value = alumno.get("nombre", "")
 
-        # SECCIÓN 4: Proteger hojas
-
-        # Contraseña para proteger
-        password = "ppcdsalv"
-
-        # ===== HOJA PRINCIPAL =====
-        sheet.Unprotect(Password=password)
-
-        sheet.Range("D6:BJ53").Locked = False
-
-        sheet.Protect(
-            Password=password,
-            DrawingObjects=True,
-            Contents=True,
-            Scenarios=True,
-            AllowFormattingCells=False,
-            AllowFormattingColumns=False,
-            AllowFormattingRows=False,
-            AllowInsertingColumns=False,
-            AllowInsertingRows=False,
-            AllowInsertingHyperlinks=False,
-            AllowDeletingColumns=False,
-            AllowDeletingRows=False,
-            AllowSorting=False,
-            AllowFiltering=False,
-            AllowUsingPivotTables=False
-        )
-
-        # ===== OTRAS HOJAS =====
-        for i in range(2, 5):
-            ws = workbook.Worksheets(i)
-            ws.Unprotect(Password=password)
-            ws.Protect(Password=password, Contents=True)
-
         # ========================================
         # Guardar archivo
         # ========================================
