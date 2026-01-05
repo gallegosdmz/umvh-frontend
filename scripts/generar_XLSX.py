@@ -299,6 +299,7 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
 
         # Contraseña para proteger
         password = "ppcdsalv"
+        sheet.Range("D6:BJ53").Locked = False
 
         sheet.Protect(
             Password=password,
@@ -327,8 +328,7 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
         workbook.Worksheets(3).Protect(Password=password, Contents=True)
         # Hoja 4
         workbook.Worksheets(4).Protect(Password=password, Contents=True)
-
-        sheet.Range("D6:BJ53").Locked = False
+        
         sheet.Protect(Password=password, Contents=True)
 
         # ========================================
