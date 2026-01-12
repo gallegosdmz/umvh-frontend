@@ -17,10 +17,6 @@ const AlumnoSchema = z.object({
 });
 
 const EvaluacionRequestSchema = z.object({
-  maestro: z.string().min(1, 'El nombre del maestro es requerido'),
-  grupo: z.string().min(1, 'El grupo es requerido'),
-  asignatura: z.string().min(1, 'La asignatura es requerida'),
-  safis: z.string().min(1, 'El periodo es requerido'),
   alumnos: z.array(AlumnoSchema).min(1, 'Debe haber al menos un alumno'),
 });
 
@@ -81,9 +77,7 @@ export async function POST(request: NextRequest) {
     await cleanupTempFiles(tempFiles);
 
     // Generar nombre del archivo de descarga
-    const safeAsignatura = data.asignatura.replace(/[^a-zA-Z0-9]/g, "_");
-    const safeSafis = data.safis.replace(/[^a-zA-Z0-9]/g, "_");
-    const filename = `evaluacion_${safeAsignatura}_${safeSafis}.xlsm`;
+    const filename = `evaluacion.xlsm`;
     
     // Retornar el archivo Excel
     return new NextResponse(uint8Array, {

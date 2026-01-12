@@ -25,10 +25,6 @@ interface CourseGroupOption {
 
 export default function EvaluacionPage() {
   const [formData, setFormData] = useState<EvaluationFormData>({
-    maestro: '',
-    grupo: '',
-    asignatura: '',
-    safis: '',
     alumnos: [],
   });
 
@@ -36,18 +32,14 @@ export default function EvaluacionPage() {
 
   // Validar formulario completo
   const isFormatValid =
-    formData.maestro.trim() !== '' &&
-    formData.grupo.trim() !== '' &&
-    formData.asignatura.trim() !== '' &&
-    formData.safis.trim() !== '' &&
     formData.alumnos.length > 0;
 
-  const handleInputChange = (field: keyof EvaluationFormData, value: string | number) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  // const handleInputChange = (field: keyof EvaluationFormData, value: string | number) => {
+  //   setFormData((prev) => ({
+  //     ...prev,
+  //     [field]: value,
+  //   }));
+  // };
 
   const handleGenerarEvaluacion = async () => {
     if (!isFormatValid) {
@@ -74,7 +66,7 @@ export default function EvaluacionPage() {
       const a = document.createElement("a");
 
       a.href = url;
-      a.download = `evaluacion_${formData.asignatura}_${formData.safis}.xlsm` // Al final me di cuenta que el archivo es un .xlsx
+      a.download = `evaluacion.xlsm` // Al final me di cuenta que el archivo es un .xlsx
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -143,46 +135,6 @@ export default function EvaluacionPage() {
             Ingresa los datos del maestro y la asignatura
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="maestro">Nombre del Maestro</Label>
-              <Input
-                id="maestro"
-                placeholder="Ej: Juan Pérez García"
-                value={formData.maestro}
-                onChange={(e) => handleInputChange("maestro", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="grupo">Grupo</Label>
-              <Input
-                id="grupo"
-                placeholder="Ej: 4A, 6B, 2C"
-                value={formData.grupo}
-                onChange={(e) => handleInputChange("grupo", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="asignatura">Asignatura</Label>
-              <Input
-                id="asignatura"
-                placeholder="Ej: Matemáticas Avanzadas"
-                value={formData.asignatura}
-                onChange={(e) => handleInputChange("asignatura", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="safis">SAFIS (Periodo)</Label>
-              <Input
-                id="safis"
-                placeholder="Ej: 2024-1"
-                value={formData.safis}
-                onChange={(e) => handleInputChange("safis", e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
       </Card>
 
       {/* Botón de generar */}
