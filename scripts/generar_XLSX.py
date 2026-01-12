@@ -274,7 +274,6 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
             # Verificar si es la hoja "general"
             if ws.Name == "General":
                 # Para la hoja "general": bloquear solo el rango D10:H54
-                # Primero desbloquear todas las celdas
                 
                 # Bloquear solo el rango D10:H54 y ocultar su contenido
                 # D = columna 4, H = columna 8
@@ -283,16 +282,12 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
                     for col in range(4, 9):  # Columnas D(4) a H(8) (range es exclusivo al final)
                         try:
                             cell = ws.Cells(row, col)
-                            # Si es celda combinada, bloquear y ocultar todo el MergeArea
+                            # Si es celda combinada, bloquear todo el MergeArea
                             if cell.MergeCells:
                                 merge_area = cell.MergeArea
                                 merge_area.Locked = True
-                                merge_area.NumberFormat = ";;;"  # Ocultar contenido
-                                merge_area.FormulaHidden = True  # Ocultar fórmulas
                             else:
                                 cell.Locked = True
-                                cell.NumberFormat = ";;;"  # Ocultar contenido
-                                cell.FormulaHidden = True  # Ocultar fórmulas
                         except:
                             pass  # Ignorar errores
             else:
