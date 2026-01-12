@@ -63,9 +63,9 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
         # SECCIÓN 1: Metadata
         # Ajusta las celdas según tu template
         # ========================================
-        # sheet.Range("C5").Value = data.get("grupo", "")
-        # sheet.Range("C6").Value = data.get("asignatura", "")
-        # sheet.Range("C7").Value = data.get("maestro", "")
+        sheet.Range("C5").Value = ""
+        sheet.Range("C6").Value = ""
+        sheet.Range("C7").Value = ""
 
         # ========================================
         # SECCIÓN 2: Ponderaciones
