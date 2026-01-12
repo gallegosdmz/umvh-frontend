@@ -1,0 +1,48 @@
+{
+  "maestro": "Juan perez",
+  "grupo": "4A",
+  "asignatura": "Matematicas",
+  "safis": "2021-1",
+  "alumnos": [
+    {
+      "matricula": "20240001",
+      "nombre": "Juan Pérez González"
+    },
+    {
+      "matricula": "20240002",
+      "nombre": "María García López"
+    },
+    {
+      "matricula": "20240003",
+      "nombre": "Carlos Rodríguez Martínez"
+    },
+    {
+      "matricula": "20240004",
+      "nombre": "Ana López Fernández"
+    },
+    {
+      "matricula": "20240005",
+      "nombre": "Pedro Sánchez Ruiz"
+    },
+    {
+      "matricula": "20240006",
+      "nombre": "Laura Martínez Díaz"
+    },
+    {
+      "matricula": "20240007",
+      "nombre": "Miguel Hernández Torres"
+    },
+    {
+      "matricula": "20240008",
+      "nombre": "Sofía Ramírez Vega"
+    },
+    {
+      "matricula": "20240009",
+      "nombre": "Diego Morales Castro"
+    },
+    {
+      "matricula": "20240010",
+      "nombre": "Valentina Jiménez Soto"
+    }
+  ]
+}
