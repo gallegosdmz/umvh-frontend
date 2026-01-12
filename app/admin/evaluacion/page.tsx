@@ -110,32 +110,17 @@ export default function EvaluacionPage() {
       </div>
 
       {/* Paso 1: Lista de Alumnos */}
-        <div className="relative">
-          <div className="absolute -top-3 left-6 z-10">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
-              1
-            </span>
-          </div>
-          <StudentImport
-            alumnos={formData.alumnos}
-            onStudentChange={handleStudentsChange}
-          />
+      <div className="relative">
+        <div className="absolute -top-3 left-6 z-10">
+          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
+            1
+          </span>
         </div>
-
-      {/* Paso 2: Información General */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-sm">
-              2
-            </span>
-            Información General
-          </CardTitle>
-          <CardDescription>
-            Ingresa los datos del maestro y la asignatura
-          </CardDescription>
-        </CardHeader>
-      </Card>
+        <StudentImport
+          alumnos={formData.alumnos}
+          onStudentChange={handleStudentsChange}
+        />
+      </div>
 
       {/* Botón de generar */}
       <div className="flex justify-end">
