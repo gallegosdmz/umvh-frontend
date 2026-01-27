@@ -19,15 +19,25 @@ export interface IBoleta {
   }[]
 }
 
-const getAuthHeaders = () => {
-  const currentUser = localStorage.getItem("currentUser");
-  const user = currentUser ? JSON.parse(currentUser) : null;
-
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': user?.token ? `Bearer ${user.token}` : ''
-  };
-};
+interface IBoletaProcessed {
+  fullName: string;
+  registrationNumber: string;
+  groupName: string;
+  periodName: string;
+  semester: number;
+  courses: {
+    name: string;
+    grades: {
+      grade: number | null;
+      partial: number;
+    }[];
+    finalGrades: {
+      gradeOrdinary: number | null;
+      gradeExtraordinary: number | null;
+    };
+    promedioFinal: number | null;
+  }[];
+}
 
 export class WordDocumentService {
   private static async getLogoBuffer() {
@@ -38,51 +48,8 @@ export class WordDocumentService {
     return await blob.arrayBuffer();
   }
 
-  static async generateGroupBoleta(groupId: string): Promise<Blob> {
+  static async generateGroupBoleta(boletas: IBoletaProcessed[]): Promise<Blob> {
     try {
-      console.log('🔍 === INICIO GENERACIÓN DE BOLETÍN ===');
-      console.log('📋 Group ID recibido:', groupId);
-      
-      const response = await fetch(`https://uamvh.cloud/api/groups/${groupId}/find-boletas`, {
-        method: 'GET',
-        headers: getAuthHeaders(),
-      });
-
-      console.log('📡 Respuesta del API:', response.status, response.statusText);
-
-      if (!response.ok) {
-        throw new Error(`Error al obtener datos: ${response.status}`);
-      }
-
-      const boletas: IBoleta[] = await response.json();
-      
-      console.log('📊 Número de boletas recibidas:', boletas.length);
-      console.log('📦 DATA COMPLETA DE BOLETAS:', JSON.stringify(boletas, null, 2));
-      
-      // Inspeccionar cada boleta
-      boletas.forEach((boleta, index) => {
-        console.log(`\n👤 === BOLETA ${index + 1} ===`);
-        console.log('Alumno:', boleta.fullName);
-        console.log('Matrícula:', boleta.registrationNumber);
-        console.log('Grupo:', boleta.groupName);
-        console.log('Semestre:', boleta.semester);
-        console.log('Período:', boleta.periodName);
-        console.log('Número de cursos:', boleta.courses?.length || 0);
-        
-        if (boleta.courses && boleta.courses.length > 0) {
-          boleta.courses.forEach((course, courseIndex) => {
-            console.log(`  📚 Curso ${courseIndex + 1}: ${course.name}`);
-            console.log(`     Calificaciones parciales:`, course.grades);
-            console.log(`     Calificación ordinario:`, course.finalGrades?.gradeOrdinary);
-            console.log(`     Calificación extraordinario:`, course.finalGrades?.gradeExtraordinary);
-          });
-        }
-      });
-
-      if (boletas.length === 0) {
-        throw new Error('No hay boletas disponibles para este grupo');
-      }
-
       const logoBuffer = await this.getLogoBuffer();
 
       const doc = new Document({
@@ -99,7 +66,7 @@ export class WordDocumentService {
     }
   }
 
-  private static generateSections(boletas: IBoleta[], logoBuffer: ArrayBuffer) {
+  private static generateSections(boletas: IBoletaProcessed[], logoBuffer: ArrayBuffer) {
     return boletas.map(boleta => ({
       properties: {
         page: {
@@ -151,7 +118,7 @@ export class WordDocumentService {
 
 
 
-  private static generateSingleBoleta(boleta: IBoleta) {
+  private static generateSingleBoleta(boleta: IBoletaProcessed) {
     const children: any[] = [];
 
     // Información del alumno
@@ -284,34 +251,34 @@ export class WordDocumentService {
             width: { size: 11, type: WidthType.PERCENTAGE },
             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
           }),
-           new TableCell({
-             children: [new Paragraph({
-               children: [new TextRun({ text: "Parcial 3", bold: true, font: "Arial" })]
-             })],
-             width: { size: 12, type: WidthType.PERCENTAGE },
-             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
-           }),
-           new TableCell({
-             children: [new Paragraph({
-               children: [new TextRun({ text: "Ordinario", bold: true, font: "Arial" })]
-             })],
-             width: { size: 12, type: WidthType.PERCENTAGE },
-             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
-           }),
-           new TableCell({
-             children: [new Paragraph({
-               children: [new TextRun({ text: "Extraord.", bold: true, font: "Arial" })]
-             })],
-             width: { size: 11, type: WidthType.PERCENTAGE },
-             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
-           }),
-           new TableCell({
-             children: [new Paragraph({
-               children: [new TextRun({ text: "Prom. General", bold: true, font: "Arial" })]
-             })],
-             width: { size: 13, type: WidthType.PERCENTAGE },
-             borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
-           }),
+          new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({ text: "Parcial 3", bold: true, font: "Arial" })]
+            })],
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+          }),
+          new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({ text: "Ordinario", bold: true, font: "Arial" })]
+            })],
+            width: { size: 12, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+          }),
+          new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({ text: "Extraord.", bold: true, font: "Arial" })]
+            })],
+            width: { size: 11, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+          }),
+          new TableCell({
+            children: [new Paragraph({
+              children: [new TextRun({ text: "Prom. General", bold: true, font: "Arial" })]
+            })],
+            width: { size: 13, type: WidthType.PERCENTAGE },
+            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+          }),
         ],
       })
     ];
@@ -323,26 +290,26 @@ export class WordDocumentService {
       const partial3 = course.grades.find(g => g.partial === 3)?.grade || 0;
       const ordinaryFromBD = course.finalGrades.gradeOrdinary || 0;
       const extraordinary = course.finalGrades.gradeExtraordinary || 0;
-      
+
       // Calcular promedio general: promedio de los 3 parciales (suma / número de parciales válidos)
       const parcialesValidos = [partial1, partial2, partial3].filter(p => p > 0);
-      const promedioCalculado = parcialesValidos.length > 0 
-        ? (partial1 + partial2 + partial3) / parcialesValidos.length 
+      const promedioCalculado = parcialesValidos.length > 0
+        ? (partial1 + partial2 + partial3) / parcialesValidos.length
         : 0;
-      
+
       // Calcular Ordinario: (Promedio General + gradeOrdinary de BD) / 2
       const ordinary = (promedioCalculado > 0 && ordinaryFromBD > 0)
         ? (promedioCalculado + ordinaryFromBD) / 2
         : (ordinaryFromBD > 0 ? ordinaryFromBD : 0);
-      
+
       // Lógica de prioridad para Promedio General:
       // 1. Si existe Extraordinario: usar Extraordinario
       // 2. Si no existe Extraordinario pero existe Ordinario calculado: usar Ordinario
       // 3. Si no existe ninguno: usar el promedio calculado
-      const promedioGeneral = extraordinary > 0 
-        ? extraordinary 
-        : (ordinary > 0 
-          ? ordinary 
+      const promedioGeneral = extraordinary > 0
+        ? extraordinary
+        : (ordinary > 0
+          ? ordinary
           : promedioCalculado);
 
       allRows.push(new TableRow({
@@ -394,20 +361,20 @@ export class WordDocumentService {
     });
 
     // Agregar fila de promedio
-    const validPartial1Grades = boleta.courses
-      .map(course => course.grades.find(g => g.partial === 1)?.grade)
-      .filter((g): g is number => g !== undefined && g > 0);
-    const validPartial2Grades = boleta.courses
-      .map(course => course.grades.find(g => g.partial === 2)?.grade)
-      .filter((g): g is number => g !== undefined && g > 0);
-    const validPartial3Grades = boleta.courses
-      .map(course => course.grades.find(g => g.partial === 3)?.grade)
-      .filter((g): g is number => g !== undefined && g > 0);
+    const validPartial1Grades = boleta.courses                                                         
+      .map(course => course.grades.find(g => g.partial === 1)?.grade)                                  
+      .filter((g): g is number => g !== null && g !== undefined && g > 0);                             
+    const validPartial2Grades = boleta.courses                                                         
+      .map(course => course.grades.find(g => g.partial === 2)?.grade)                                  
+      .filter((g): g is number => g !== null && g !== undefined && g > 0);                             
+    const validPartial3Grades = boleta.courses                                                         
+      .map(course => course.grades.find(g => g.partial === 3)?.grade)                                  
+      .filter((g): g is number => g !== null && g !== undefined && g > 0);   
 
     const avgPartial1 = validPartial1Grades.length > 0 ? validPartial1Grades.reduce((sum, grade) => sum + grade, 0) / validPartial1Grades.length : 0;
     const avgPartial2 = validPartial2Grades.length > 0 ? validPartial2Grades.reduce((sum, grade) => sum + grade, 0) / validPartial2Grades.length : 0;
     const avgPartial3 = validPartial3Grades.length > 0 ? validPartial3Grades.reduce((sum, grade) => sum + grade, 0) / validPartial3Grades.length : 0;
-    
+
     // Calcular el promedio general de cada curso usando la misma lógica de prioridad
     // y luego promediar esos valores para obtener el promedio general final
     const promediosGeneralesPorCurso = boleta.courses.map(course => {
@@ -416,31 +383,31 @@ export class WordDocumentService {
       const partial3 = course.grades.find(g => g.partial === 3)?.grade || 0;
       const ordinary = course.finalGrades.gradeOrdinary || 0;
       const extraordinary = course.finalGrades.gradeExtraordinary || 0;
-      
+
       // Calcular promedio calculado de los parciales
       const parcialesValidos = [partial1, partial2, partial3].filter(p => p > 0);
-      const promedioCalculado = parcialesValidos.length > 0 
-        ? (partial1 + partial2 + partial3) / parcialesValidos.length 
+      const promedioCalculado = parcialesValidos.length > 0
+        ? (partial1 + partial2 + partial3) / parcialesValidos.length
         : 0;
-      
+
       // Aplicar lógica de prioridad: extraordinario > ordinario > promedio calculado
-      return extraordinary > 0 
-        ? extraordinary 
-        : (ordinary > 0 
-          ? ordinary 
+      return extraordinary > 0
+        ? extraordinary
+        : (ordinary > 0
+          ? ordinary
           : promedioCalculado);
     }).filter(p => p > 0);
-    
+
     // Calcular promedio general: promedio de todos los promedios generales de los cursos
     const avgPromedioGeneral = promediosGeneralesPorCurso.length > 0
       ? promediosGeneralesPorCurso.reduce((sum, grade) => sum + grade, 0) / promediosGeneralesPorCurso.length
       : 0;
-    
+
     // Para la columna "Ordinario" en la fila de promedios, NO promediar las calificaciones ordinarias
     // En su lugar, mostrar vacío o el promedio general calculado
     // (El campo Ordinario en la fila de promedios no tiene sentido promediar)
     const avgOrdinario = 0; // No se promedia, se deja vacío
-    
+
     // Para la columna "Extraordinario" en la fila de promedios, tampoco se promedia
     const avgExtraordinary = 0; // No se promedia, se deja vacío
 
