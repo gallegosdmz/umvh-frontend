@@ -98,6 +98,9 @@ export default function AlumnosPage() {
   const [processedData, setProcessedData] = useState<Map<string, IBoletaProcessed>>(new Map());
   const [boletaPeriodo, setBoletaPeriodo] = useState("");
   const [boletaSemestre, setBoletaSemestre] = useState("");
+  const [openWarningsModal, setOpenWarningsModal] = useState(false);
+  const [processingWarnings, setProcessingWarnings] = useState<string[]>([]);
+  const [processingErrors, setProcessingErrors] = useState<string[]>([]);
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -151,36 +154,82 @@ export default function AlumnosPage() {
     files: File[],
     periodName: string,
     semester: number
-  ): Promise<Map<string, IBoletaProcessed>> => {
+  ): Promise<{ dataMap: Map<string, IBoletaProcessed>, warnings: string[], errors: string[] }> => {
     const dataMap = new Map<string, IBoletaProcessed>();
+    const warnings: string[] = [];
+    const errors: string[] = [];
+    const processedMatriculasInFile = new Set<string>(); // Para detectar duplicados en el mismo archivo
 
     for (const file of files) {
       try {
+        processedMatriculasInFile.clear(); // Limpiar para cada archivo
         const arrayBuffer = await file.arrayBuffer();
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.load(arrayBuffer);
 
         const worksheet = workbook.worksheets[0];
-        if (!worksheet) continue;
+        if (!worksheet) {
+          warnings.push(`⚠️ Archivo "${file.name}": No contiene hojas de cálculo válidas`);
+          continue;
+        }
 
-        const groupName = String(getCellValue(worksheet.getCell('C5')) || '');
-        const asignatura = String(getCellValue(worksheet.getCell('C6')) || '');
-        const docente = String(getCellValue(worksheet.getCell('C7')) || '');
+        // Validar estructura básica del archivo
+        try {
+          getCellValue(worksheet.getCell('C5'));
+          getCellValue(worksheet.getCell('C6'));
+          getCellValue(worksheet.getCell('C7'));
+        } catch (e) {
+          errors.push(`❌ Archivo "${file.name}": Estructura inválida (faltan encabezados)`);
+          continue;
+        }
+
+        const groupName = String(getCellValue(worksheet.getCell('C5')) || '').trim();
+        const asignatura = String(getCellValue(worksheet.getCell('C6')) || '').trim();
+        const docente = String(getCellValue(worksheet.getCell('C7')) || '').trim();
+
+        if (!asignatura) {
+          warnings.push(`⚠️ Archivo "${file.name}": No se encontró nombre de asignatura`);
+        }
 
         console.log(`📁 Procesando: ${file.name}`);
         console.log(`   Grupo: ${groupName}, Asignatura: ${asignatura}, Docente: ${docente}`);
 
         let row = 10;
+        let alumnosEnArchivo = 0;
+
         while (true) {
           const matriculaCell = worksheet.getCell(`B${row}`);
           const matricula = getCellValue(matriculaCell);
 
+          // Detectar fin de datos (celda vacía o nula)
           if (!matricula || matricula === '' || matricula === null) {
             break;
           }
 
-          const registrationNumber = String(matricula);
-          const fullName = String(getCellValue(worksheet.getCell(`C${row}`)) || '');
+          const registrationNumber = String(matricula).trim();
+          
+          // Validar matrícula
+          if (!registrationNumber || registrationNumber === '') {
+            row++;
+            continue;
+          }
+
+          // CASO EDGE 1: Detectar duplicados en el mismo archivo
+          if (processedMatriculasInFile.has(registrationNumber)) {
+            warnings.push(`⚠️ Archivo "${file.name}": Matrícula ${registrationNumber} duplicada en la fila ${row}`);
+            row++;
+            continue;
+          }
+          processedMatriculasInFile.add(registrationNumber);
+
+          const fullName = String(getCellValue(worksheet.getCell(`C${row}`)) || '').trim();
+
+          // Validar que tenga nombre
+          if (!fullName || fullName === '') {
+            warnings.push(`⚠️ Archivo "${file.name}": Matrícula ${registrationNumber} sin nombre en fila ${row}`);
+            row++;
+            continue;
+          }
 
           const parcial1 = getNumericValue(worksheet.getCell(`D${row}`));
           const parcial2 = getNumericValue(worksheet.getCell(`E${row}`));
@@ -214,7 +263,33 @@ export default function AlumnosPage() {
 
           if (dataMap.has(registrationNumber)) {
             const existing = dataMap.get(registrationNumber)!;
-            existing.courses.push(courseData);
+            
+            // CASO EDGE 2: Alumno con misma matrícula pero nombre diferente
+            if (existing.fullName !== fullName && existing.fullName !== '' && fullName !== '') {
+              // Usar el nombre más completo (más largo)
+              if (fullName.length > existing.fullName.length) {
+                warnings.push(`⚠️ Matrícula ${registrationNumber}: Nombre diferente detectado. Original: "${existing.fullName}", Nuevo: "${fullName}". Se usará el más completo.`);
+                existing.fullName = fullName;
+              } else {
+                warnings.push(`⚠️ Matrícula ${registrationNumber}: Nombre diferente detectado. Original: "${existing.fullName}", Nuevo: "${fullName}". Se mantiene el original.`);
+              }
+            }
+
+            // CASO EDGE 3: Diferente grupo para el mismo alumno
+            if (existing.groupName !== groupName && groupName !== '') {
+              warnings.push(`⚠️ Matrícula ${registrationNumber}: Diferente grupo detectado. Original: "${existing.groupName}", Nuevo: "${groupName}". Se mantiene el original.`);
+            }
+
+            // CASO EDGE 4: Materia duplicada para el mismo alumno
+            const materiaExistente = existing.courses.find(c => c.name === asignatura);
+            if (materiaExistente) {
+              warnings.push(`⚠️ Matrícula ${registrationNumber}: Materia "${asignatura}" duplicada. Se reemplazará con los datos más recientes.`);
+              // Reemplazar la materia existente en lugar de duplicar
+              const index = existing.courses.findIndex(c => c.name === asignatura);
+              existing.courses[index] = courseData;
+            } else {
+              existing.courses.push(courseData);
+            }
           } else {
             dataMap.set(registrationNumber, {
               fullName,
@@ -226,16 +301,48 @@ export default function AlumnosPage() {
             });
           }
 
+          alumnosEnArchivo++;
           row++;
         }
 
-        console.log(`   Alumnos procesados: ${row - 10}`);
+        console.log(`   Alumnos procesados: ${alumnosEnArchivo}`);
       } catch (error) {
-        console.error('Error procesando archivo:', file.name, error);
+        const errorMsg = `❌ Error procesando archivo "${file.name}": ${error instanceof Error ? error.message : 'Error desconocido'}`;
+        errors.push(errorMsg);
+        console.error(errorMsg, error);
       }
     }
 
-    return dataMap;
+    // Mostrar resumen de advertencias y errores
+    if (warnings.length > 0) {
+      console.warn('📋 Advertencias durante el procesamiento:');
+      warnings.forEach(w => console.warn(w));
+    }
+
+    if (errors.length > 0) {
+      console.error('❌ Errores durante el procesamiento:');
+      errors.forEach(e => console.error(e));
+    }
+
+    // CASO EDGE 5: Validar que todos los alumnos tengan al menos una materia
+    const alumnosSinMaterias: string[] = [];
+    dataMap.forEach((boleta, matricula) => {
+      if (boleta.courses.length === 0) {
+        alumnosSinMaterias.push(matricula);
+      }
+    });
+
+    if (alumnosSinMaterias.length > 0) {
+      warnings.push(`⚠️ ${alumnosSinMaterias.length} alumno(s) sin materias: ${alumnosSinMaterias.join(', ')}`);
+    }
+
+    // Mostrar resumen final
+    console.log(`\n✅ Procesamiento completado:`);
+    console.log(`   Total de alumnos: ${dataMap.size}`);
+    console.log(`   Advertencias: ${warnings.length}`);
+    console.log(`   Errores: ${errors.length}`);
+
+    return { dataMap, warnings, errors };
   };
 
   const handleRemoveFile = (index: number) => {
@@ -286,15 +393,25 @@ export default function AlumnosPage() {
     }
 
     setGeneratingBoleta('modal');
+    // Limpiar advertencias y errores previos
+    setProcessingWarnings([]);
+    setProcessingErrors([]);
     try {
-      const dataMap = await processAllExcelFiles(
+      const { dataMap, warnings, errors } = await processAllExcelFiles(
         selectedFiles,
         boletaPeriodo,
         Number(boletaSemestre)
       );
       setProcessedData(dataMap);
+      setProcessingWarnings(warnings);
+      setProcessingErrors(errors);
 
       const boletasArray = Array.from(dataMap.values());
+
+      // Mostrar modal con advertencias/errores si existen
+      if (warnings.length > 0 || errors.length > 0) {
+        setOpenWarningsModal(true);
+      }
 
       console.log('📊 ===== DATOS PROCESADOS =====');
       console.log(`Total de alumnos: ${boletasArray.length}`);
@@ -326,7 +443,15 @@ export default function AlumnosPage() {
       const filename = `Boletas_${boletaPeriodo}_${new Date().toISOString().split('T')[0]}.docx`;
       WordDocumentService.downloadDocument(blob, filename);
 
-      toast.success(`Boletas generadas: ${boletasArray.length} alumnos`);
+      // Mensaje de éxito adaptado según si hay advertencias
+      if (warnings.length > 0 || errors.length > 0) {
+        toast.success(`Boletas generadas: ${boletasArray.length} alumnos. Revisa las advertencias.`, {
+          autoClose: 4000,
+        });
+      } else {
+        toast.success(`Boletas generadas correctamente: ${boletasArray.length} alumnos`);
+      }
+
       setOpenBoletaModal(false);
       setSelectedFiles([]);
       setBoletaPeriodo("");
@@ -537,6 +662,8 @@ export default function AlumnosPage() {
                   setSelectedFiles([]);
                   setBoletaPeriodo("");
                   setBoletaSemestre("");
+                  setProcessingWarnings([]);
+                  setProcessingErrors([]);
                 }}
               >
                 Cancelar
@@ -547,6 +674,84 @@ export default function AlumnosPage() {
                 className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
               >
                 {generatingBoleta === 'modal' ? 'Generando...' : 'Generar Boletas'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para mostrar advertencias y errores */}
+        <Dialog open={openWarningsModal} onOpenChange={setOpenWarningsModal}>
+          <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {processingErrors.length > 0 && (
+                  <span className="text-red-600">⚠️ Errores y Advertencias</span>
+                )}
+                {processingErrors.length === 0 && processingWarnings.length > 0 && (
+                  <span className="text-yellow-600">⚠️ Advertencias</span>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                Se encontraron {processingWarnings.length} advertencia(s) y {processingErrors.length} error(es) durante el procesamiento
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+              {/* Errores */}
+              {processingErrors.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-red-600 flex items-center gap-2">
+                    <span>❌ Errores ({processingErrors.length})</span>
+                  </h3>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                    {processingErrors.map((error, index) => (
+                      <div key={index} className="text-sm text-red-800 flex items-start gap-2">
+                        <span className="mt-0.5">•</span>
+                        <span className="flex-1">{error}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Advertencias */}
+              {processingWarnings.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-yellow-600 flex items-center gap-2">
+                    <span>⚠️ Advertencias ({processingWarnings.length})</span>
+                  </h3>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2 max-h-[300px] overflow-y-auto">
+                    {processingWarnings.map((warning, index) => (
+                      <div key={index} className="text-sm text-yellow-800 flex items-start gap-2">
+                        <span className="mt-0.5">•</span>
+                        <span className="flex-1">{warning}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resumen */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Nota:</strong> Las boletas se generaron correctamente, pero algunos datos pueden requerir revisión.
+                  {processingErrors.length > 0 && (
+                    <span className="block mt-1">Algunos archivos no pudieron procesarse completamente.</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setOpenWarningsModal(false);
+                  setProcessingWarnings([]);
+                  setProcessingErrors([]);
+                }}
+                className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
+              >
+                Entendido
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -12,7 +12,7 @@ export function Navigation() {
   // No mostrar la navegación en la página de login
   if (pathname === "/auth/signin") return null
 
-  const dashboardPath = "/admin/dashboard"
+  const dashboardPath = "/"
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">

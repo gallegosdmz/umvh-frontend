@@ -25,7 +25,7 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
       // Si el usuario no tiene el rol permitido, redirigir según su rol
       if (!allowedRoles.includes(user.role as "administrador" | "maestro" | "director")) {
         if (user.role === "administrador") {
-          router.push("/admin/dashboard")
+          router.push("/")
         } else if (user.role === "maestro") {
           router.push("/maestro/dashboard")
         } else if (user.role === "director") {

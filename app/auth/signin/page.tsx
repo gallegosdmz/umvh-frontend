@@ -32,7 +32,7 @@ export default function SignIn() {
         // Redirigir según el rol del usuario
         const user = JSON.parse(localStorage.getItem("currentUser") || "{}")
         if (user.role === "administrador") {
-          router.push("/admin/dashboard")
+          router.push("/")
         } else if (user.role === "director") {
           router.push("/director/alumnos")
         } else {
