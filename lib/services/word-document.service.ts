@@ -1,4 +1,4 @@
-import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, WidthType, BorderStyle, Header, ImageRun } from 'docx';
+import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, WidthType, BorderStyle, Header, ImageRun, PageBreak } from 'docx';
 
 export interface IBoleta {
   fullName: string;
@@ -52,8 +52,73 @@ export class WordDocumentService {
     try {
       const logoBuffer = await this.getLogoBuffer();
 
+      // Crear una sola sección con todas las boletas
+      const allChildren: any[] = [];
+
+      boletas.forEach((boleta, index) => {
+        // Salto de página antes de cada boleta excepto la primera
+        if (index > 0) {
+          allChildren.push(
+            new Paragraph({
+              children: [new PageBreak()],
+            })
+          );
+        }
+
+        // Header de la UAT
+        allChildren.push(
+          new Paragraph({
+            children: [
+              new ImageRun({
+                data: logoBuffer,
+              transformation: {
+                width: 150,
+                height: 35,
+              },
+                type: "png",
+              }),
+            ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 20 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "Unidad Académica Multidisciplinaria 'VALLE HERMOSO'",
+              bold: true,
+              size: 20,
+              font: "Arial",
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 80 },
+        })
+        );
+
+        // Contenido de la boleta del alumno
+        allChildren.push(...this.generateSingleBoleta(boleta));
+      });
+
       const doc = new Document({
-        sections: this.generateSections(boletas, logoBuffer),
+        sections: [
+          {
+            properties: {
+              page: {
+                size: {
+                  width: 16838, // A4 height in TWIPs (now width for landscape)
+                  height: 11906, // A4 width in TWIPs (now height for landscape)
+                },
+                margin: {
+                  top: 360, // 0.25 inch - muy reducido
+                  right: 360,
+                  bottom: 360,
+                  left: 360,
+                },
+              },
+            },
+            children: allChildren,
+          },
+        ],
       });
 
       const blob = await Packer.toBlob(doc);
@@ -64,56 +129,6 @@ export class WordDocumentService {
       console.error('❌ Error generando la boleta:', error);
       throw error;
     }
-  }
-
-  private static generateSections(boletas: IBoletaProcessed[], logoBuffer: ArrayBuffer) {
-    return boletas.map(boleta => ({
-      properties: {
-        page: {
-          size: {
-            width: 16838, // A4 height in TWIPs (now width for landscape)
-            height: 11906, // A4 width in TWIPs (now height for landscape)
-          },
-          margin: {
-            top: 1440, // 1 inch
-            right: 1440,
-            bottom: 1440,
-            left: 1440,
-          },
-        },
-      },
-      children: [
-        // Header de la UAT
-        new Paragraph({
-          children: [
-            new ImageRun({
-              data: logoBuffer,
-              transformation: {
-                width: 230,
-                height: 60,
-              },
-              type: "png",
-            }),
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 100 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: "Unidad Académica Multidisciplinaria 'VALLE HERMOSO'",
-              bold: true,
-              size: 24,
-              font: "Arial",
-            }),
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 300 },
-        }),
-        // Contenido de la boleta del alumno
-        ...this.generateSingleBoleta(boleta),
-      ],
-    }));
   }
 
 
@@ -129,44 +144,107 @@ export class WordDocumentService {
           size: 100,
           type: WidthType.PERCENTAGE,
         },
+        borders: {
+          top: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          left: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          right: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          insideVertical: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+        },
         rows: [
           new TableRow({
             children: [
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Nombre del Alumno", bold: true, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: "Nombre del Alumno", bold: true, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
                 width: { size: 30, type: WidthType.PERCENTAGE },
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                shading: {
+                  fill: "E8E8E8",
+                  type: "clear",
+                },
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Matrícula", bold: true, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: "Matrícula", bold: true, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                shading: {
+                  fill: "E8E8E8",
+                  type: "clear",
+                },
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Grupo", bold: true, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: "Grupo", bold: true, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                shading: {
+                  fill: "E8E8E8",
+                  type: "clear",
+                },
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Semestre", bold: true, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: "Semestre", bold: true, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                shading: {
+                  fill: "E8E8E8",
+                  type: "clear",
+                },
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Período", bold: true, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: "Período", bold: true, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                shading: {
+                  fill: "E8E8E8",
+                  type: "clear",
+                },
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
             ]
           }),
@@ -174,44 +252,78 @@ export class WordDocumentService {
             children: [
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.fullName, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
-
+                  children: [new TextRun({ text: boleta.fullName, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
                 width: { size: 30, type: WidthType.PERCENTAGE },
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
 
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.registrationNumber, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: boleta.registrationNumber, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
 
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.groupName, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: boleta.groupName, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
 
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.semester.toString(), font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: boleta.semester.toString(), font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
 
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: boleta.periodName, font: "Arial" })],
-                  spacing: { before: 150, after: 150 },
+                  children: [new TextRun({ text: boleta.periodName, font: "Arial", size: 16 })],
+                  spacing: { before: 50, after: 50 },
+                  alignment: AlignmentType.CENTER,
                 })],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
             ],
           }),
@@ -221,7 +333,7 @@ export class WordDocumentService {
 
       // Título de calificaciones
       new Paragraph({
-        spacing: { after: 100 },
+        spacing: { after: 20 },
       })
     );
 
@@ -232,52 +344,136 @@ export class WordDocumentService {
         children: [
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "Asignatura", bold: true, font: "Arial" })]
+              children: [new TextRun({ text: "Asignatura", bold: true, font: "Arial", size: 16 })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 40, after: 40 },
             })],
             width: { size: 22, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "D3D3D3",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6 }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6 }, 
+              left: { style: BorderStyle.SINGLE, size: 6 }, 
+              right: { style: BorderStyle.SINGLE, size: 4 } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "Parcial 1", bold: true, font: "Arial" })]
+              children: [new TextRun({ text: "Parcial 1", bold: true, font: "Arial", size: 16 })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 150, after: 150 },
             })],
             width: { size: 11, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "D3D3D3",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "Parcial 2", bold: true, font: "Arial" })]
+              children: [new TextRun({ text: "Parcial 2", bold: true, font: "Arial", size: 16 })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 150, after: 150 },
             })],
             width: { size: 11, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "D3D3D3",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "Parcial 3", bold: true, font: "Arial" })]
+              children: [new TextRun({ text: "Parcial 3", bold: true, font: "Arial", size: 16 })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 150, after: 150 },
             })],
             width: { size: 12, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "D3D3D3",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "Ordinario", bold: true, font: "Arial" })]
+              children: [new TextRun({ text: "Ordinario", bold: true, font: "Arial", size: 16 })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 150, after: 150 },
             })],
             width: { size: 12, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "D3D3D3",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "Extraord.", bold: true, font: "Arial" })]
+              children: [new TextRun({ text: "Extraord.", bold: true, font: "Arial", size: 16 })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 150, after: 150 },
             })],
             width: { size: 11, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "D3D3D3",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "Prom. General", bold: true, font: "Arial" })]
+              children: [new TextRun({ text: "Prom. General", bold: true, font: "Arial", size: 16 })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 150, after: 150 },
             })],
             width: { size: 13, type: WidthType.PERCENTAGE },
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "D3D3D3",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6 }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6 }, 
+              left: { style: BorderStyle.SINGLE, size: 4 }, 
+              right: { style: BorderStyle.SINGLE, size: 6 } 
+            },
           }),
         ],
       })
@@ -316,45 +512,101 @@ export class WordDocumentService {
         children: [
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: course.name, font: "Arial" })]
+              children: [new TextRun({ text: course.name, font: "Arial", size: 16 })],
+              spacing: { before: 30, after: 30 },
+              alignment: AlignmentType.LEFT,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: partial1.toFixed(2), font: "Arial" })]
+              children: [new TextRun({ text: partial1.toFixed(2), font: "Arial", size: 16 })],
+              spacing: { before: 30, after: 30 },
+              alignment: AlignmentType.CENTER,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: partial2 > 0 ? partial2.toFixed(2) : "", font: "Arial" })]
+              children: [new TextRun({ text: partial2 > 0 ? partial2.toFixed(2) : "", font: "Arial", size: 16 })],
+              spacing: { before: 30, after: 30 },
+              alignment: AlignmentType.CENTER,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: partial3 > 0 ? partial3.toFixed(2) : "", font: "Arial" })]
+              children: [new TextRun({ text: partial3 > 0 ? partial3.toFixed(2) : "", font: "Arial", size: 16 })],
+              spacing: { before: 30, after: 30 },
+              alignment: AlignmentType.CENTER,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: ordinary > 0 ? ordinary.toFixed(2) : "", font: "Arial" })]
+              children: [new TextRun({ text: ordinary > 0 ? ordinary.toFixed(2) : "", font: "Arial", size: 16 })],
+              spacing: { before: 30, after: 30 },
+              alignment: AlignmentType.CENTER,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: extraordinary > 0 ? extraordinary.toFixed(2) : "", font: "Arial" })]
+              children: [new TextRun({ text: extraordinary > 0 ? extraordinary.toFixed(2) : "", font: "Arial", size: 16 })],
+              spacing: { before: 30, after: 30 },
+              alignment: AlignmentType.CENTER,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: promedioGeneral > 0 ? promedioGeneral.toFixed(2) : "", font: "Arial", bold: true })]
+              children: [new TextRun({ text: promedioGeneral > 0 ? promedioGeneral.toFixed(2) : "", font: "Arial", size: 16, bold: true })],
+              spacing: { before: 30, after: 30 },
+              alignment: AlignmentType.CENTER,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 4 }, 
+              bottom: { style: BorderStyle.SINGLE, size: 4 }, 
+              left: { style: BorderStyle.SINGLE, size: 4 }, 
+              right: { style: BorderStyle.SINGLE, size: 6 } 
+            },
           }),
         ],
       }));
@@ -416,61 +668,145 @@ export class WordDocumentService {
         children: [
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "Promedio", bold: true, font: "Arial" })]
+              children: [new TextRun({ text: "Promedio", bold: true, font: "Arial", size: 16 })]
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "F0F0F0",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6 }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6 }, 
+              left: { style: BorderStyle.SINGLE, size: 6 }, 
+              right: { style: BorderStyle.SINGLE, size: 4 } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
               children: [new TextRun({
                 text: avgPartial1.toFixed(2),
                 bold: true,
-                font: "Arial"
-              })]
+                font: "Arial",
+                size: 16
+              })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 30, after: 30 },
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "F0F0F0",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
               children: [new TextRun({
-                text: avgPartial2.toFixed(2),
+                text: avgPartial2 > 0 ? avgPartial2.toFixed(2) : "",
                 bold: true,
-                font: "Arial"
-              })]
+                font: "Arial",
+                size: 16
+              })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 30, after: 30 },
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "F0F0F0",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
               children: [new TextRun({
                 text: avgPartial3 > 0 ? avgPartial3.toFixed(2) : "",
                 bold: true,
-                font: "Arial"
-              })]
+                font: "Arial",
+                size: 16
+              })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 30, after: 30 },
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "F0F0F0",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "", font: "Arial" })]
+              children: [new TextRun({ text: "", font: "Arial" })],
+              alignment: AlignmentType.CENTER,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "F0F0F0",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
-              children: [new TextRun({ text: "", font: "Arial" })]
+              children: [new TextRun({ text: "", font: "Arial" })],
+              alignment: AlignmentType.CENTER,
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "F0F0F0",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, 
+              left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+              right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+            },
           }),
           new TableCell({
             children: [new Paragraph({
               children: [new TextRun({
                 text: avgPromedioGeneral > 0 ? avgPromedioGeneral.toFixed(2) : "",
                 bold: true,
-                font: "Arial"
-              })]
+                font: "Arial",
+                size: 16
+              })],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 30, after: 30 },
             })],
-            borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+            verticalAlign: AlignmentType.CENTER,
+            shading: {
+              fill: "F0F0F0",
+              type: "clear",
+            },
+            borders: { 
+              top: { style: BorderStyle.SINGLE, size: 6 }, 
+              bottom: { style: BorderStyle.SINGLE, size: 6 }, 
+              left: { style: BorderStyle.SINGLE, size: 4 }, 
+              right: { style: BorderStyle.SINGLE, size: 6 } 
+            },
           }),
         ],
       })
@@ -482,6 +818,14 @@ export class WordDocumentService {
         size: 100,
         type: WidthType.PERCENTAGE,
       },
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
+        bottom: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
+        left: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
+        right: { style: BorderStyle.SINGLE, size: 8, color: "000000" },
+        insideHorizontal: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
+        insideVertical: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
+      },
       rows: allRows,
     });
 
@@ -490,7 +834,7 @@ export class WordDocumentService {
     // Espacio para firmas
     children.push(
       new Paragraph({
-        spacing: { after: 100 },
+        spacing: { after: 20 },
       }),
 
       // Tabla de firmas
@@ -499,22 +843,46 @@ export class WordDocumentService {
           size: 100,
           type: WidthType.PERCENTAGE,
         },
+        borders: {
+          top: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          left: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          right: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          insideHorizontal: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+          insideVertical: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+        },
         rows: [
           new TableRow({
             children: [
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Firma del Tutor de Grupo", bold: true, font: "Arial" })]
+                  children: [new TextRun({ text: "Firma del Tutor de Grupo", bold: true, font: "Arial", size: 16 })],
+                  alignment: AlignmentType.CENTER,
+                  spacing: { before: 150, after: 150 },
                 })],
                 width: { size: 50, type: WidthType.PERCENTAGE },
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
               new TableCell({
                 children: [new Paragraph({
-                  children: [new TextRun({ text: "Firma del Padre o Tutor", bold: true, font: "Arial" })]
+                  children: [new TextRun({ text: "Firma del Padre o Tutor", bold: true, font: "Arial", size: 16 })],
+                  alignment: AlignmentType.CENTER,
+                  spacing: { before: 50, after: 50 },
                 })],
                 width: { size: 50, type: WidthType.PERCENTAGE },
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                verticalAlign: AlignmentType.CENTER,
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
             ],
           }),
@@ -523,42 +891,38 @@ export class WordDocumentService {
               new TableCell({
                 children: [
                   new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
+                    children: [new TextRun({ text: "", font: "Arial" })],
+                    spacing: { before: 0, after: 0 },
                   }),
                   new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
-                  }),
-                  new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
-                  }),
-                  new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
-                  }),
-                  new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
+                    children: [new TextRun({ text: "", font: "Arial" })],
+                    spacing: { before: 0, after: 0 },
                   })
                 ],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
               new TableCell({
                 children: [
                   new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
+                    children: [new TextRun({ text: "", font: "Arial" })],
+                    spacing: { before: 0, after: 0 },
                   }),
                   new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
-                  }),
-                  new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
-                  }),
-                  new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
-                  }),
-                  new Paragraph({
-                    children: [new TextRun({ text: "", font: "Arial" })]
+                    children: [new TextRun({ text: "", font: "Arial" })],
+                    spacing: { before: 0, after: 0 },
                   })
                 ],
-                borders: { top: { style: BorderStyle.SINGLE }, bottom: { style: BorderStyle.SINGLE }, left: { style: BorderStyle.SINGLE }, right: { style: BorderStyle.SINGLE } },
+                borders: { 
+                  top: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, 
+                  right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } 
+                },
               }),
             ],
           }),
