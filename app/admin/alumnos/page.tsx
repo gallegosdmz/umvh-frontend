@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'react-toastify';
 import { Checkbox } from '@/components/ui/checkbox';
 import { WordDocumentService } from '@/lib/services/word-document.service';
-import { ExcelDocumentService } from '@/lib/services/excel-document.service';
+import { ExcelDocumentService, IBoleta } from '@/lib/services/excel-document.service';
 
 interface GroupWithStudents extends Group {
   students?: Student[];
@@ -101,6 +101,13 @@ export default function AlumnosPage() {
   const [openWarningsModal, setOpenWarningsModal] = useState(false);
   const [processingWarnings, setProcessingWarnings] = useState<string[]>([]);
   const [processingErrors, setProcessingErrors] = useState<string[]>([]);
+  const [openExcelModal, setOpenExcelModal] = useState(false);
+  const [excelFiles, setExcelFiles] = useState<File[]>([]);
+  const [excelPeriodo, setExcelPeriodo] = useState("");
+  const [excelSemestre, setExcelSemestre] = useState("");
+  const [excelWarnings, setExcelWarnings] = useState<string[]>([]);
+  const [excelErrors, setExcelErrors] = useState<string[]>([]);
+  const [openExcelWarningsModal, setOpenExcelWarningsModal] = useState(false);
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -147,6 +154,40 @@ export default function AlumnosPage() {
       setSelectedFiles(prev => [...prev, ...newFiles]);
     }
     e.target.value = '';
+  };
+
+  const handleExcelFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      setExcelFiles(prev => [...prev, ...newFiles]);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveExcelFile = (index: number) => {
+    setExcelFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const convertToIBoleta = (processed: IBoletaProcessed[]): IBoleta[] => {
+    return processed.map(boleta => ({
+      fullName: boleta.fullName,
+      registrationNumber: boleta.registrationNumber,
+      groupName: boleta.groupName,
+      semester: boleta.semester,
+      periodName: boleta.periodName,
+      courses: boleta.courses.map(course => ({
+        name: course.name,
+        grades: course.grades.map(g => ({
+          grade: g.grade ?? 0,
+          partial: g.partial,
+        })),
+        finalGrades: {
+          gradeOrdinary: course.finalGrades.gradeOrdinary ?? 0,
+          gradeExtraordinary: course.finalGrades.gradeExtraordinary ?? 0,
+        },
+      })),
+    }));
   };
 
   // Procesar todos los archivos Excel                                                                   
@@ -207,7 +248,7 @@ export default function AlumnosPage() {
           }
 
           const registrationNumber = String(matricula).trim();
-          
+
           // Validar matrícula
           if (!registrationNumber || registrationNumber === '') {
             row++;
@@ -263,7 +304,7 @@ export default function AlumnosPage() {
 
           if (dataMap.has(registrationNumber)) {
             const existing = dataMap.get(registrationNumber)!;
-            
+
             // CASO EDGE 2: Alumno con misma matrícula pero nombre diferente
             if (existing.fullName !== fullName && existing.fullName !== '' && fullName !== '') {
               // Usar el nombre más completo (más largo)
@@ -520,19 +561,63 @@ export default function AlumnosPage() {
     setFilteredStudents(filtered);
   };
 
-  const handleGenerateGroupExcel = async () => {
-    try {
-      console.log('🚀 Iniciando generación de Excel general');
-      setGeneratingExcel('general');
-      const blob = await ExcelDocumentService.generateGroupGradesExcel('general');
-      const filename = `Calificaciones_Grupo_${new Date().toISOString().split('T')[0]}.xlsx`;
+  const handleGenerateExcel = async () => {
+    if (excelFiles.length === 0) return;
 
-      console.log('💾 Descargando archivo:', filename);
+    if (!excelPeriodo || !excelSemestre) {
+      toast.error('Debes ingresar el período y el semestre');
+      return;
+    }
+
+    setGeneratingExcel('modal');
+    setExcelWarnings([]);
+    setExcelErrors([]);
+
+    try {
+      const { dataMap, warnings, errors } = await processAllExcelFiles(
+        excelFiles,
+        excelPeriodo,
+        Number(excelSemestre)
+      );
+
+      setExcelWarnings(warnings);
+      setExcelErrors(errors);
+
+      const processedArray = Array.from(dataMap.values());
+
+      // Mostrar modal con advertencias/errores si existen                                               
+      if (warnings.length > 0 || errors.length > 0) {
+        setOpenExcelWarningsModal(true);
+      }
+
+      // Convertir a IBoleta (null -> 0)                                                                 
+      const boletasArray = convertToIBoleta(processedArray);
+
+      console.log('📊 ===== DATOS PARA EXCEL =====');
+      console.log(`Total de alumnos: ${boletasArray.length}`);
+      console.log('📊 ===== FIN DATOS PARA EXCEL =====');
+
+      // Generar el documento Excel                                                                      
+      const blob = await ExcelDocumentService.generateGroupGradesExcel(boletasArray);
+      const filename = `Calificaciones_${excelPeriodo}_${new Date().toISOString().split('T')[0]}.xlsx`;
       ExcelDocumentService.downloadDocument(blob, filename);
-      toast.success('Excel generado correctamente');
+
+      if (warnings.length > 0 || errors.length > 0) {
+        toast.success(`Excel generado: ${boletasArray.length} alumnos. Revisa las advertencias.`, {
+          autoClose: 4000,
+        });
+      } else {
+        toast.success(`Excel generado correctamente: ${boletasArray.length} alumnos`);
+      }
+
+      setOpenExcelModal(false);
+      setExcelFiles([]);
+      setExcelPeriodo("");
+      setExcelSemestre("");
+
     } catch (error) {
-      console.error('❌ Error generando el Excel:', error);
-      toast.error('Error al generar el Excel');
+      console.error('Error generando Excel:', error);
+      toast.error('Error al procesar los archivos');
     } finally {
       setGeneratingExcel(null);
     }
@@ -557,14 +642,14 @@ export default function AlumnosPage() {
               Generar Boletín
             </Button>
             <Button
-              onClick={() => handleGenerateGroupExcel()}
+              onClick={() => setOpenExcelModal(true)}
               variant="outline"
               size="lg"
               className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
               disabled={generatingBoleta !== null || generatingExcel !== null}
             >
               <FileSpreadsheet className="h-5 w-5 mr-2" />
-              {generatingExcel === 'general' ? 'Generando...' : 'Generar Excel'}
+              Generar Excel
             </Button>
           </div>
         </div>
@@ -750,6 +835,196 @@ export default function AlumnosPage() {
                   setProcessingErrors([]);
                 }}
                 className="bg-gradient-to-r from-[#bc4b26] to-[#d05f27] text-white font-semibold"
+              >
+                Entendido
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para generar Excel */}
+        <Dialog open={openExcelModal} onOpenChange={setOpenExcelModal}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Generar Concentrado Excel</DialogTitle>
+              <DialogDescription>
+                Sube los archivos Excel de calificaciones para generar el concentrado
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {/* Período y Semestre */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="excel-periodo">Período</Label>
+                  <Input
+                    id="excel-periodo"
+                    value={excelPeriodo}
+                    onChange={e => setExcelPeriodo(e.target.value)}
+                    placeholder="Ej. Enero - Junio 2026"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="excel-semestre">Semestre</Label>
+                  <Input
+                    id="excel-semestre"
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={excelSemestre}
+                    onChange={e => setExcelSemestre(e.target.value)}
+                    placeholder="Ej. 1"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Input de archivos */}
+              <div className="space-y-2">
+                <Label htmlFor="excel-modal-files">Archivos Excel</Label>
+                <Input
+                  id="excel-modal-files"
+                  type="file"
+                  multiple
+                  accept=".xlsx,.xls,.xlsm"
+                  onChange={handleExcelFileChange}
+                  className="cursor-pointer"
+                />
+                <p className="text-sm text-gray-500">
+                  Puedes seleccionar múltiples archivos Excel (.xlsx, .xls, .xlsm)
+                </p>
+              </div>
+
+              {/* Lista de archivos seleccionados */}
+              {excelFiles.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Archivos seleccionados ({excelFiles.length})</Label>
+                  <div className="border rounded-lg p-3 max-h-[200px] overflow-y-auto space-y-2">
+                    {excelFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-gray-50 p-2 rounded"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                          <span className="text-sm truncate max-w-[300px]">
+                            {file.name}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleRemoveExcelFile(index)}
+                        >
+                          <X className="h-4 w-4 text-gray-500 hover:text-red-500" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setOpenExcelModal(false);
+                  setExcelFiles([]);
+                  setExcelPeriodo("");
+                  setExcelSemestre("");
+                  setExcelWarnings([]);
+                  setExcelErrors([]);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleGenerateExcel}
+                disabled={excelFiles.length === 0 || generatingExcel !== null}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+              >
+                {generatingExcel === 'modal' ? 'Generando...' : 'Generar Excel'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para mostrar advertencias y errores del Excel */}
+        <Dialog open={openExcelWarningsModal} onOpenChange={setOpenExcelWarningsModal}>
+          <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {excelErrors.length > 0 && (
+                  <span className="text-red-600">⚠️ Errores y Advertencias</span>
+                )}
+                {excelErrors.length === 0 && excelWarnings.length > 0 && (
+                  <span className="text-yellow-600">⚠️ Advertencias</span>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                Se encontraron {excelWarnings.length} advertencia(s) y {excelErrors.length} error(es) durante
+                el procesamiento
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+              {/* Errores */}
+              {excelErrors.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-red-600 flex items-center gap-2">
+                    <span>❌ Errores ({excelErrors.length})</span>
+                  </h3>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                    {excelErrors.map((error, index) => (
+                      <div key={index} className="text-sm text-red-800 flex items-start gap-2">
+                        <span className="mt-0.5">•</span>
+                        <span className="flex-1">{error}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Advertencias */}
+              {excelWarnings.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-yellow-600 flex items-center gap-2">
+                    <span>⚠️ Advertencias ({excelWarnings.length})</span>
+                  </h3>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2 max-h-[300px] overflow-y-auto">
+                    {excelWarnings.map((warning, index) => (
+                      <div key={index} className="text-sm text-yellow-800 flex items-start gap-2">
+                        <span className="mt-0.5">•</span>
+                        <span className="flex-1">{warning}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resumen */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Nota:</strong> El Excel se generó correctamente, pero algunos datos pueden requerir
+                  revisión.
+                  {excelErrors.length > 0 && (
+                    <span className="block mt-1">Algunos archivos no pudieron procesarse completamente.</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setOpenExcelWarningsModal(false);
+                  setExcelWarnings([]);
+                  setExcelErrors([]);
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold"
               >
                 Entendido
               </Button>

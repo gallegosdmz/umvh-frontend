@@ -39,23 +39,23 @@ export class ExcelDocumentService {
     return Buffer.from(arrayBuffer);
   }
 
-  static async generateGroupGradesExcel(groupId: string): Promise<Blob> {
+  static async generateGroupGradesExcel(boletas: IBoleta[]): Promise<Blob> {
     try {
-      console.log('🔍 === INICIO GENERACIÓN DE EXCEL ===');
-      console.log('📋 Group ID recibido:', groupId);
+      // console.log('🔍 === INICIO GENERACIÓN DE EXCEL ===');
+      // console.log('📋 Group ID recibido:', groupId);
       
-      const response = await fetch(`https://uamvh.cloud/api/groups/${groupId}/find-boletas`, {
-        method: 'GET',
-        headers: getAuthHeaders(),
-      });
+      // const response = await fetch(`https://uamvh.cloud/api/groups/${groupId}/find-boletas`, {
+      //   method: 'GET',
+      //   headers: getAuthHeaders(),
+      // });
 
-      console.log('📡 Respuesta del API:', response.status, response.statusText);
+      // console.log('📡 Respuesta del API:', response.status, response.statusText);
 
-      if (!response.ok) {
-        throw new Error(`Error al obtener datos: ${response.status}`);
-      }
+      // if (!response.ok) {
+      //   throw new Error(`Error al obtener datos: ${response.status}`);
+      // }
 
-      const boletas: IBoleta[] = await response.json();
+      // const boletas: IBoleta[] = await response.json();
       
       console.log('📊 Número de boletas recibidas:', boletas.length);
       
