@@ -104,10 +104,10 @@ export function StudentImport({ onStudentChange, alumnos }: AlumnoImportProps) {
     e.preventDefault();
 
     const file = e.dataTransfer.files[0];
-    if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+    if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.name.endsWith('.xlsm'))) {
       parseExcel(file);
     } else {
-      setError('Solo se permitan archivos Excel (.xlsx, .xls)');
+      setError('Solo se permitan archivos Excel (.xlsx, .xls, .xlsm)');
     }
   }, [parseExcel]);
 
@@ -134,7 +134,7 @@ export function StudentImport({ onStudentChange, alumnos }: AlumnoImportProps) {
           <input
             ref={inputRef}
             type="file"
-            accept=".xlsx,.xls"
+            accept=".xlsx,.xls,.xlsm"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -152,7 +152,7 @@ export function StudentImport({ onStudentChange, alumnos }: AlumnoImportProps) {
             )}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Formatos: .xlsx, .xls | Columnas: Matrícula, Nombre
+            Formatos: .xlsx, .xls, .xlsm | Columnas: Matrícula, Nombre
           </p>
         </div>
 
