@@ -81,16 +81,23 @@ export async function parseConcentradoExcel(file: File): Promise<ConcentradoData
 
   // Buscar cursos en la fila de headers
   // Col 1 = Alumno, Col 2 = Matrícula, luego cada 5 cols es un curso
+  // Limitamos la búsqueda: no puede haber más de 200 columnas reales
   let col = 3;
-  while (col <= headerRow.cellCount + 5) {
+  const maxCol = Math.min(col + 200, 16384);
+  let emptyStreak = 0;
+
+  while (col <= maxCol) {
     const cellValue = getCellStringValue(headerRow.getCell(col));
     if (cellValue && cellValue !== 'Promedio') {
       courses.push(cellValue);
       courseStartCols.push(col);
       col += 5; // Saltar P1, P2, P3, Ord, Ext
+      emptyStreak = 0;
     } else if (cellValue === 'Promedio') {
       break;
     } else {
+      emptyStreak++;
+      if (emptyStreak > 5) break; // No hay más cursos
       col++;
     }
   }
