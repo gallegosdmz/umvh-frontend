@@ -1,10 +1,10 @@
 "use client"
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, X, BarChart3, FileSpreadsheet, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Upload, X, BarChart3, FileSpreadsheet, Loader2, AlertCircle, ArrowLeft, Download } from 'lucide-react';
 import Link from 'next/link';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -14,6 +14,7 @@ import {
   computeStatistics,
   type ConcentradoData,
   type StatisticsResult,
+  type SemesterStatistics,
 } from '@/lib/services/statistics.service';
 
 // Paleta de colores para grupos en las gráficas
@@ -22,6 +23,10 @@ const GROUP_COLORS = [
   '#2a7ab5', '#f5a623', '#1a5276', '#c0392b', '#27ae60',
 ];
 
+// Dimensiones para captura PDF (landscape A4 proporciones)
+const PDF_WIDTH = 1120;
+const PDF_HEIGHT = 720;
+
 interface LoadedFile {
   file: File;
   groupName: string;
@@ -29,14 +34,105 @@ interface LoadedFile {
   periodName: string;
 }
 
+// Componentes de gráficas reutilizables (para pantalla y PDF)
+function ChartPromediosGenerales({ data }: { data: StatisticsResult['promediosGenerales'] }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="semester" tickFormatter={(val) => `Semestre ${val}`} />
+        <YAxis domain={[0, 10]} />
+        <Tooltip
+          formatter={(value: number) => [value.toFixed(2), 'Promedio']}
+          labelFormatter={(label) => `Semestre ${label}`}
+        />
+        <Bar dataKey="promedio" name="Promedio" radius={[4, 4, 0, 0]}>
+          {data.map((_, index) => (
+            <Cell key={index} fill={GROUP_COLORS[index % GROUP_COLORS.length]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ChartPromediosPorGrupo({ sem }: { sem: SemesterStatistics }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={sem.groups.map(g => ({ name: g.groupName, promedio: g.promedio }))}
+        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" />
+        <YAxis domain={[0, 10]} />
+        <Tooltip formatter={(value: number) => [value.toFixed(2), 'Promedio']} />
+        <Bar dataKey="promedio" name="Promedio" radius={[4, 4, 0, 0]}>
+          {sem.groups.map((_, index) => (
+            <Cell key={index} fill={GROUP_COLORS[index % GROUP_COLORS.length]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ChartPromediosPorGrupoAsignatura({ sem }: { sem: SemesterStatistics }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={sem.allCourses.map(course => {
+          const entry: Record<string, string | number> = { name: course };
+          sem.groups.forEach(g => {
+            entry[g.groupName] = g.promediosPorAsignatura[course] || 0;
+          });
+          return entry;
+        })}
+        margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" angle={-25} textAnchor="end" height={100} interval={0} tick={{ fontSize: 11 }} />
+        <YAxis domain={[0, 10]} />
+        <Tooltip formatter={(value: number) => value.toFixed(2)} />
+        <Legend />
+        {sem.groups.map((g, index) => (
+          <Bar key={g.groupName} dataKey={g.groupName} fill={GROUP_COLORS[index % GROUP_COLORS.length]} radius={[2, 2, 0, 0]} />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ChartReprobados({ sem }: { sem: SemesterStatistics }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart
+        data={sem.allCourses.map(course => ({
+          name: course,
+          reprobados: sem.reprobadosPorAsignatura[course] || 0,
+        }))}
+        margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" angle={-25} textAnchor="end" height={100} interval={0} tick={{ fontSize: 11 }} />
+        <YAxis allowDecimals={false} />
+        <Tooltip formatter={(value: number) => [value, 'Reprobados']} />
+        <Bar dataKey="reprobados" name="Reprobados" fill="#c0392b" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
 export default function EstadisticasPage() {
   const [loadedFiles, setLoadedFiles] = useState<LoadedFile[]>([]);
   const [parsing, setParsing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [concentrados, setConcentrados] = useState<ConcentradoData[]>([]);
   const [statistics, setStatistics] = useState<StatisticsResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
     setParsing(true);
@@ -114,6 +210,50 @@ export default function EstadisticasPage() {
     }
     setGenerating(false);
   }, [concentrados]);
+
+  const exportPDF = useCallback(async () => {
+    if (!statistics || !pdfContainerRef.current) return;
+    setExporting(true);
+
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const chartElements = pdfContainerRef.current.querySelectorAll<HTMLElement>('[data-pdf-chart]');
+
+      for (let i = 0; i < chartElements.length; i++) {
+        const el = chartElements[i];
+
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+
+        if (i > 0) pdf.addPage();
+
+        // Margen de 10mm
+        const margin = 10;
+        const imgWidth = pageWidth - margin * 2;
+        const imgHeight = pageHeight - margin * 2;
+
+        pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+      }
+
+      pdf.save('Estadisticas_Calificaciones.pdf');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al exportar PDF');
+    }
+
+    setExporting(false);
+  }, [statistics]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50">
@@ -233,6 +373,22 @@ export default function EstadisticasPage() {
         {/* Charts section */}
         {statistics && (
           <div className="space-y-6">
+            {/* Export PDF button */}
+            <div className="flex justify-end">
+              <Button
+                onClick={exportPDF}
+                disabled={exporting}
+                variant="outline"
+                className="border-[#003d5c] text-[#003d5c] hover:bg-[#003d5c] hover:text-white"
+              >
+                {exporting ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Exportando PDF...</>
+                ) : (
+                  <><Download className="h-4 w-4 mr-2" /> Exportar PDF</>
+                )}
+              </Button>
+            </div>
+
             {/* Promedios Generales */}
             <Card>
               <CardHeader>
@@ -246,25 +402,7 @@ export default function EstadisticasPage() {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={statistics.promediosGenerales} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="semester"
-                        tickFormatter={(val) => `Semestre ${val}`}
-                      />
-                      <YAxis domain={[0, 10]} />
-                      <Tooltip
-                        formatter={(value: number) => [value.toFixed(2), 'Promedio']}
-                        labelFormatter={(label) => `Semestre ${label}`}
-                      />
-                      <Bar dataKey="promedio" name="Promedio" radius={[4, 4, 0, 0]}>
-                        {statistics.promediosGenerales.map((_, index) => (
-                          <Cell key={index} fill={GROUP_COLORS[index % GROUP_COLORS.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ChartPromediosGenerales data={statistics.promediosGenerales} />
                 </div>
               </CardContent>
             </Card>
@@ -289,22 +427,7 @@ export default function EstadisticasPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={sem.groups.map(g => ({ name: g.groupName, promedio: g.promedio }))}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis domain={[0, 10]} />
-                            <Tooltip formatter={(value: number) => [value.toFixed(2), 'Promedio']} />
-                            <Bar dataKey="promedio" name="Promedio" radius={[4, 4, 0, 0]}>
-                              {sem.groups.map((_, index) => (
-                                <Cell key={index} fill={GROUP_COLORS[index % GROUP_COLORS.length]} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <ChartPromediosPorGrupo sem={sem} />
                       </div>
                     </CardContent>
                   </Card>
@@ -317,39 +440,7 @@ export default function EstadisticasPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="h-96">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={sem.allCourses.map(course => {
-                              const entry: Record<string, string | number> = { name: course };
-                              sem.groups.forEach(g => {
-                                entry[g.groupName] = g.promediosPorAsignatura[course] || 0;
-                              });
-                              return entry;
-                            })}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis
-                              dataKey="name"
-                              angle={-25}
-                              textAnchor="end"
-                              height={80}
-                              interval={0}
-                              tick={{ fontSize: 11 }}
-                            />
-                            <YAxis domain={[0, 10]} />
-                            <Tooltip formatter={(value: number) => value.toFixed(2)} />
-                            <Legend />
-                            {sem.groups.map((g, index) => (
-                              <Bar
-                                key={g.groupName}
-                                dataKey={g.groupName}
-                                fill={GROUP_COLORS[index % GROUP_COLORS.length]}
-                                radius={[2, 2, 0, 0]}
-                              />
-                            ))}
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <ChartPromediosPorGrupoAsignatura sem={sem} />
                       </div>
                     </CardContent>
                   </Card>
@@ -362,34 +453,99 @@ export default function EstadisticasPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart
-                            data={sem.allCourses.map(course => ({
-                              name: course,
-                              reprobados: sem.reprobadosPorAsignatura[course] || 0,
-                            }))}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis
-                              dataKey="name"
-                              angle={-25}
-                              textAnchor="end"
-                              height={80}
-                              interval={0}
-                              tick={{ fontSize: 11 }}
-                            />
-                            <YAxis allowDecimals={false} />
-                            <Tooltip formatter={(value: number) => [value, 'Reprobados']} />
-                            <Bar dataKey="reprobados" name="Reprobados" fill="#c0392b" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <ChartReprobados sem={sem} />
                       </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
               ))}
             </Tabs>
+          </div>
+        )}
+
+        {/* Hidden off-screen container for PDF rendering */}
+        {statistics && (
+          <div
+            ref={pdfContainerRef}
+            style={{ position: 'fixed', left: '-10000px', top: 0 }}
+            aria-hidden="true"
+          >
+            {/* Página 1: Promedios Generales */}
+            <div
+              data-pdf-chart="promedios-generales"
+              style={{ width: PDF_WIDTH, height: PDF_HEIGHT, background: '#fff', padding: 32 }}
+            >
+              <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#111', margin: 0 }}>
+                  Promedios Generales por Semestre
+                </h2>
+                <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>
+                  Promedio general de todos los alumnos por cada semestre
+                </p>
+              </div>
+              <div style={{ width: PDF_WIDTH - 64, height: PDF_HEIGHT - 120 }}>
+                <ChartPromediosGenerales data={statistics.promediosGenerales} />
+              </div>
+            </div>
+
+            {/* Páginas por semestre */}
+            {statistics.semestres.map((sem) => (
+              <React.Fragment key={sem.semester}>
+                {/* Promedios por Grupo */}
+                <div
+                  data-pdf-chart={`sem${sem.semester}-promedios-grupo`}
+                  style={{ width: PDF_WIDTH, height: PDF_HEIGHT, background: '#fff', padding: 32 }}
+                >
+                  <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                    <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#111', margin: 0 }}>
+                      Promedios por Grupo - Semestre {sem.semester}
+                    </h2>
+                    <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>
+                      Promedio general de cada grupo
+                    </p>
+                  </div>
+                  <div style={{ width: PDF_WIDTH - 64, height: PDF_HEIGHT - 120 }}>
+                    <ChartPromediosPorGrupo sem={sem} />
+                  </div>
+                </div>
+
+                {/* Promedios por Grupo por Asignatura */}
+                <div
+                  data-pdf-chart={`sem${sem.semester}-promedios-asignatura`}
+                  style={{ width: PDF_WIDTH, height: PDF_HEIGHT, background: '#fff', padding: 32 }}
+                >
+                  <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                    <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#111', margin: 0 }}>
+                      Promedios por Grupo por Asignatura - Semestre {sem.semester}
+                    </h2>
+                    <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>
+                      Promedio de cada asignatura desglosado por grupo
+                    </p>
+                  </div>
+                  <div style={{ width: PDF_WIDTH - 64, height: PDF_HEIGHT - 120 }}>
+                    <ChartPromediosPorGrupoAsignatura sem={sem} />
+                  </div>
+                </div>
+
+                {/* Reprobados por Asignatura */}
+                <div
+                  data-pdf-chart={`sem${sem.semester}-reprobados`}
+                  style={{ width: PDF_WIDTH, height: PDF_HEIGHT, background: '#fff', padding: 32 }}
+                >
+                  <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                    <h2 style={{ fontSize: 22, fontWeight: 'bold', color: '#111', margin: 0 }}>
+                      Alumnos Reprobados por Asignatura - Semestre {sem.semester}
+                    </h2>
+                    <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>
+                      Cantidad de alumnos con calificación final menor a 7
+                    </p>
+                  </div>
+                  <div style={{ width: PDF_WIDTH - 64, height: PDF_HEIGHT - 120 }}>
+                    <ChartReprobados sem={sem} />
+                  </div>
+                </div>
+              </React.Fragment>
+            ))}
           </div>
         )}
       </div>
