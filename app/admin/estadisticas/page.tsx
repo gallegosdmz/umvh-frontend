@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, X, BarChart3, FileSpreadsheet, Loader2, AlertCircle, ArrowLeft, Download } from 'lucide-react';
 import Link from 'next/link';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LabelList,
 } from 'recharts';
 import {
   parseConcentradoExcel,
@@ -47,6 +47,7 @@ function ChartPromediosGenerales({ data }: { data: StatisticsResult['promediosGe
           labelFormatter={(label) => `Semestre ${label}`}
         />
         <Bar dataKey="promedio" name="Promedio" radius={[4, 4, 0, 0]}>
+          <LabelList dataKey="promedio" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 12, fontWeight: 'bold', fill: '#333' }} />
           {data.map((_, index) => (
             <Cell key={index} fill={GROUP_COLORS[index % GROUP_COLORS.length]} />
           ))}
@@ -68,6 +69,7 @@ function ChartPromediosPorGrupo({ sem }: { sem: SemesterStatistics }) {
         <YAxis domain={[0, 10]} />
         <Tooltip formatter={(value: number) => [value.toFixed(2), 'Promedio']} />
         <Bar dataKey="promedio" name="Promedio" radius={[4, 4, 0, 0]}>
+          <LabelList dataKey="promedio" position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 12, fontWeight: 'bold', fill: '#333' }} />
           {sem.groups.map((_, index) => (
             <Cell key={index} fill={GROUP_COLORS[index % GROUP_COLORS.length]} />
           ))}
@@ -96,7 +98,9 @@ function ChartPromediosPorGrupoAsignatura({ sem }: { sem: SemesterStatistics }) 
         <Tooltip formatter={(value: number) => value.toFixed(2)} />
         <Legend />
         {sem.groups.map((g, index) => (
-          <Bar key={g.groupName} dataKey={g.groupName} fill={GROUP_COLORS[index % GROUP_COLORS.length]} radius={[2, 2, 0, 0]} />
+          <Bar key={g.groupName} dataKey={g.groupName} fill={GROUP_COLORS[index % GROUP_COLORS.length]} radius={[2, 2, 0, 0]}>
+            <LabelList position="top" formatter={(v: number) => v.toFixed(2)} style={{ fontSize: 10, fill: '#333' }} />
+          </Bar>
         ))}
       </BarChart>
     </ResponsiveContainer>
@@ -117,7 +121,9 @@ function ChartReprobados({ sem }: { sem: SemesterStatistics }) {
         <XAxis dataKey="name" angle={-25} textAnchor="end" height={100} interval={0} tick={{ fontSize: 11 }} />
         <YAxis allowDecimals={false} />
         <Tooltip formatter={(value: number) => [value, 'Reprobados']} />
-        <Bar dataKey="reprobados" name="Reprobados" fill="#c0392b" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="reprobados" name="Reprobados" fill="#c0392b" radius={[4, 4, 0, 0]}>
+          <LabelList dataKey="reprobados" position="top" style={{ fontSize: 12, fontWeight: 'bold', fill: '#333' }} />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
