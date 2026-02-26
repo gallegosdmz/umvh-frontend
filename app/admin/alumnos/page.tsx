@@ -108,6 +108,15 @@ export default function AlumnosPage() {
   const [excelWarnings, setExcelWarnings] = useState<string[]>([]);
   const [excelErrors, setExcelErrors] = useState<string[]>([]);
   const [openExcelWarningsModal, setOpenExcelWarningsModal] = useState(false);
+  // Concentrado Final
+  const [openConcentradoFinalModal, setOpenConcentradoFinalModal] = useState(false);
+  const [cfFiles, setCfFiles] = useState<File[]>([]);
+  const [cfPeriodo, setCfPeriodo] = useState("");
+  const [cfSemestre, setCfSemestre] = useState("");
+  const [cfWarnings, setCfWarnings] = useState<string[]>([]);
+  const [cfErrors, setCfErrors] = useState<string[]>([]);
+  const [openCfWarningsModal, setOpenCfWarningsModal] = useState(false);
+  const [generatingCf, setGeneratingCf] = useState<string | null>(null);
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -167,6 +176,20 @@ export default function AlumnosPage() {
 
   const handleRemoveExcelFile = (index: number) => {
     setExcelFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Concentrado Final handlers
+  const handleCfFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      setCfFiles(prev => [...prev, ...newFiles]);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveCfFile = (index: number) => {
+    setCfFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const convertToIBoleta = (processed: IBoletaProcessed[]): IBoleta[] => {
@@ -623,6 +646,61 @@ export default function AlumnosPage() {
     }
   };
 
+  const handleGenerateConcentradoFinal = async () => {
+    if (cfFiles.length === 0) return;
+
+    if (!cfPeriodo || !cfSemestre) {
+      toast.error('Debes ingresar el período y el semestre');
+      return;
+    }
+
+    setGeneratingCf('modal');
+    setCfWarnings([]);
+    setCfErrors([]);
+
+    try {
+      const { dataMap, warnings, errors } = await processAllExcelFiles(
+        cfFiles,
+        cfPeriodo,
+        Number(cfSemestre)
+      );
+
+      setCfWarnings(warnings);
+      setCfErrors(errors);
+
+      const processedArray = Array.from(dataMap.values());
+
+      if (warnings.length > 0 || errors.length > 0) {
+        setOpenCfWarningsModal(true);
+      }
+
+      const boletasArray = convertToIBoleta(processedArray);
+
+      const blob = await ExcelDocumentService.generateConcentradoFinalExcel(boletasArray);
+      const filename = `ConcentradoFinal_${cfPeriodo}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      ExcelDocumentService.downloadDocument(blob, filename);
+
+      if (warnings.length > 0 || errors.length > 0) {
+        toast.success(`Concentrado Final generado: ${boletasArray.length} alumnos. Revisa las advertencias.`, {
+          autoClose: 4000,
+        });
+      } else {
+        toast.success(`Concentrado Final generado correctamente: ${boletasArray.length} alumnos`);
+      }
+
+      setOpenConcentradoFinalModal(false);
+      setCfFiles([]);
+      setCfPeriodo("");
+      setCfSemestre("");
+
+    } catch (error) {
+      console.error('Error generando Concentrado Final:', error);
+      toast.error('Error al procesar los archivos');
+    } finally {
+      setGeneratingCf(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
       <div className="max-w-4xl mx-auto">
@@ -650,6 +728,16 @@ export default function AlumnosPage() {
             >
               <FileSpreadsheet className="h-5 w-5 mr-2" />
               Generar Excel
+            </Button>
+            <Button
+              onClick={() => setOpenConcentradoFinalModal(true)}
+              variant="outline"
+              size="lg"
+              className="border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white"
+              disabled={generatingBoleta !== null || generatingExcel !== null || generatingCf !== null}
+            >
+              <FileSpreadsheet className="h-5 w-5 mr-2" />
+              Concentrado Final
             </Button>
           </div>
         </div>
@@ -1025,6 +1113,188 @@ export default function AlumnosPage() {
                   setExcelErrors([]);
                 }}
                 className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+              >
+                Entendido
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para generar Concentrado Final */}
+        <Dialog open={openConcentradoFinalModal} onOpenChange={setOpenConcentradoFinalModal}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Generar Concentrado Final</DialogTitle>
+              <DialogDescription>
+                Sube los archivos Excel para generar el concentrado con ORD (promedio redondeado) y Extra
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cf-periodo">Período</Label>
+                  <Input
+                    id="cf-periodo"
+                    value={cfPeriodo}
+                    onChange={e => setCfPeriodo(e.target.value)}
+                    placeholder="Ej. Enero - Junio 2026"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cf-semestre">Semestre</Label>
+                  <Input
+                    id="cf-semestre"
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={cfSemestre}
+                    onChange={e => setCfSemestre(e.target.value)}
+                    placeholder="Ej. 1"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cf-modal-files">Archivos Excel</Label>
+                <Input
+                  id="cf-modal-files"
+                  type="file"
+                  multiple
+                  accept=".xlsx,.xls,.xlsm"
+                  onChange={handleCfFileChange}
+                  className="cursor-pointer"
+                />
+                <p className="text-sm text-gray-500">
+                  Puedes seleccionar múltiples archivos Excel (.xlsx, .xls, .xlsm)
+                </p>
+              </div>
+
+              {cfFiles.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Archivos seleccionados ({cfFiles.length})</Label>
+                  <div className="border rounded-lg p-3 max-h-[200px] overflow-y-auto space-y-2">
+                    {cfFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-gray-50 p-2 rounded"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm truncate max-w-[300px]">
+                            {file.name}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleRemoveCfFile(index)}
+                        >
+                          <X className="h-4 w-4 text-gray-500 hover:text-red-500" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setOpenConcentradoFinalModal(false);
+                  setCfFiles([]);
+                  setCfPeriodo("");
+                  setCfSemestre("");
+                  setCfWarnings([]);
+                  setCfErrors([]);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleGenerateConcentradoFinal}
+                disabled={cfFiles.length === 0 || generatingCf !== null}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              >
+                {generatingCf === 'modal' ? 'Generando...' : 'Generar Concentrado Final'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para advertencias del Concentrado Final */}
+        <Dialog open={openCfWarningsModal} onOpenChange={setOpenCfWarningsModal}>
+          <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {cfErrors.length > 0 && (
+                  <span className="text-red-600">Errores y Advertencias</span>
+                )}
+                {cfErrors.length === 0 && cfWarnings.length > 0 && (
+                  <span className="text-yellow-600">Advertencias</span>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                Se encontraron {cfWarnings.length} advertencia(s) y {cfErrors.length} error(es) durante el procesamiento
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+              {cfErrors.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-red-600 flex items-center gap-2">
+                    <span>Errores ({cfErrors.length})</span>
+                  </h3>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                    {cfErrors.map((error, index) => (
+                      <div key={index} className="text-sm text-red-800 flex items-start gap-2">
+                        <span className="mt-0.5">•</span>
+                        <span className="flex-1">{error}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {cfWarnings.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-yellow-600 flex items-center gap-2">
+                    <span>Advertencias ({cfWarnings.length})</span>
+                  </h3>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2 max-h-[300px] overflow-y-auto">
+                    {cfWarnings.map((warning, index) => (
+                      <div key={index} className="text-sm text-yellow-800 flex items-start gap-2">
+                        <span className="mt-0.5">•</span>
+                        <span className="flex-1">{warning}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Nota:</strong> El Concentrado Final se generó correctamente, pero algunos datos pueden requerir revisión.
+                  {cfErrors.length > 0 && (
+                    <span className="block mt-1">Algunos archivos no pudieron procesarse completamente.</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setOpenCfWarningsModal(false);
+                  setCfWarnings([]);
+                  setCfErrors([]);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
               >
                 Entendido
               </Button>
