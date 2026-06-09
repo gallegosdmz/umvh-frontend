@@ -16,6 +16,9 @@ export interface IBoleta {
       gradeOrdinary: number;
       gradeExtraordinary: number;
     }
+    // Valores ya calculados por el Excel fuente (formato oficial)
+    exentos?: number | string | null;       // Columna "Exentos" (I): número redondeado o "Ord A"
+    ordinarioFinal?: number | string | null; // Columna "Ordinario" (K): número o "EXTRA"
   }[]
 }
 
@@ -732,6 +735,356 @@ export class ExcelDocumentService {
       });
     } catch (error) {
       console.error('Error generando el Concentrado Final:', error);
+      throw error;
+    }
+  }
+
+  // Resuelve los valores Ord/Extra del formato oficial a partir de las columnas
+  // "Exentos" (I) y "Ordinario" (K) ya calculadas por el Excel fuente, con recálculo
+  // de respaldo cuando no hay resultados cacheados.
+  private static resolveOrdExtra(course: IBoleta['courses'][number]): {
+    ord: string | number;
+    extra: string | number;
+    final: number;
+  } {
+    const toNum = (v: unknown): number | null => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = typeof v === 'number' ? v : parseFloat(String(v));
+      return isNaN(n) ? null : n;
+    };
+
+    const exentosNum = toNum(course.exentos);
+    const ordinarioNum = toNum(course.ordinarioFinal);
+    const extraNum = course.finalGrades?.gradeExtraordinary
+      ? toNum(course.finalGrades.gradeExtraordinary)
+      : null;
+
+    let ord: string | number = '';
+    let goesToExtra = false;
+
+    if (exentosNum !== null) {
+      // Exento: calificación redondeada de los parciales
+      ord = Math.round(exentosNum);
+    } else if (ordinarioNum !== null) {
+      // Fue a ordinario y aprobó
+      ord = ordinarioNum;
+    } else if (
+      typeof course.ordinarioFinal === 'string' &&
+      course.ordinarioFinal.trim().toUpperCase() === 'EXTRA'
+    ) {
+      // Fue a ordinario y no aprobó -> se va a extraordinario
+      ord = 'NA';
+      goesToExtra = true;
+    } else {
+      // Respaldo: el Excel no trae I/K cacheados, recalcular con los parciales
+      const parciales = [
+        course.grades.find(g => g.partial === 1)?.grade ?? 0,
+        course.grades.find(g => g.partial === 2)?.grade ?? 0,
+        course.grades.find(g => g.partial === 3)?.grade ?? 0,
+      ].filter(p => p > 0);
+
+      if (parciales.length > 0) {
+        const promedio = parciales.reduce((s, g) => s + g, 0) / parciales.length;
+        if (promedio >= 8.5) {
+          ord = Math.round(promedio);
+        } else {
+          const califOrd = course.finalGrades?.gradeOrdinary ?? 0;
+          const resultadoOrd = promedio * 0.5 + califOrd * 0.5;
+          if (resultadoOrd >= 6) {
+            ord = parseFloat(resultadoOrd.toFixed(2));
+          } else {
+            ord = 'NA';
+            goesToExtra = true;
+          }
+        }
+      }
+    }
+
+    let extra: string | number = '';
+    let final = typeof ord === 'number' ? ord : 0;
+
+    if (goesToExtra) {
+      if (extraNum !== null) {
+        extra = parseFloat(extraNum.toFixed(2));
+        final = extraNum;
+      }
+    }
+
+    return { ord, extra, final };
+  }
+
+  static async generateConcentradoSemestreExcel(boletas: IBoleta[]): Promise<Blob> {
+    try {
+      if (boletas.length === 0) {
+        throw new Error('No hay boletas disponibles para este grupo');
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Concentrado', {
+        pageSetup: {
+          paperSize: 9,
+          orientation: 'landscape',
+          fitToPage: true,
+          fitToWidth: 1,
+          fitToHeight: 0
+        }
+      });
+
+      const groupInfo = boletas[0];
+
+      try {
+        const logoBuffer = await this.getLogoBuffer();
+        const imageId = workbook.addImage({
+          buffer: logoBuffer,
+          extension: 'png',
+        });
+        worksheet.addImage(imageId, {
+          tl: { col: 0, row: 0 },
+          ext: { width: 200, height: 60 }
+        });
+      } catch (error) {
+        console.warn('No se pudo cargar el logo:', error);
+      }
+
+      worksheet.mergeCells('A5:F5');
+      const titleCell = worksheet.getCell('A5');
+      titleCell.value = "Unidad Académica Multidisciplinaria 'VALLE HERMOSO'";
+      titleCell.font = { bold: true, size: 14 };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      worksheet.mergeCells('A6:F6');
+      const subtitleCell = worksheet.getCell('A6');
+      subtitleCell.value = `Semestre: ${groupInfo.semester}    Grupo: ${groupInfo.groupName}    Periodo Escolar: ${groupInfo.periodName}`;
+      subtitleCell.font = { bold: true, size: 12 };
+      subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // Código de formato oficial (esquina superior derecha)
+      const formCodeCell = worksheet.getCell('A7');
+      formCodeCell.value = 'R-OP-81-05-02 Rev. 2';
+      formCodeCell.font = { italic: true, size: 9 };
+      formCodeCell.alignment = { horizontal: 'left', vertical: 'middle' };
+
+      const startRow = 9;
+
+      const allCourses = new Set<string>();
+      boletas.forEach(boleta => {
+        boleta.courses.forEach(course => {
+          allCourses.add(course.name);
+        });
+      });
+      const coursesList = Array.from(allCourses);
+
+      const cellBorder = {
+        top: { style: 'thin' as const },
+        left: { style: 'thin' as const },
+        bottom: { style: 'thin' as const },
+        right: { style: 'thin' as const }
+      };
+
+      const headerRow = worksheet.getRow(startRow);
+      headerRow.height = 20;
+
+      const headerFixed = [
+        { col: 1, label: 'Lista' },
+        { col: 2, label: 'Matrícula' },
+        { col: 3, label: 'Nombre del Alumno' },
+      ];
+      headerFixed.forEach(({ col, label }) => {
+        worksheet.mergeCells(`${this.getColumnLetter(col)}${startRow}:${this.getColumnLetter(col)}${startRow + 1}`);
+        const cell = worksheet.getCell(`${this.getColumnLetter(col)}${startRow}`);
+        cell.value = label;
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = cellBorder;
+      });
+
+      let currentCol = 4;
+      const courseColumnMap = new Map<string, number>();
+
+      coursesList.forEach((courseName) => {
+        courseColumnMap.set(courseName, currentCol);
+
+        const startColLetter = this.getColumnLetter(currentCol);
+        const endColLetter = this.getColumnLetter(currentCol + 1);
+        worksheet.mergeCells(`${startColLetter}${startRow}:${endColLetter}${startRow}`);
+
+        const courseHeaderCell = worksheet.getCell(`${startColLetter}${startRow}`);
+        courseHeaderCell.value = courseName;
+        courseHeaderCell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        courseHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBC4B26' } };
+        courseHeaderCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        courseHeaderCell.border = cellBorder;
+
+        const subHeaders = ['Ord', 'Extra'];
+        const subHeaderRow = worksheet.getRow(startRow + 1);
+        subHeaderRow.height = 18;
+
+        for (let i = 0; i < subHeaders.length; i++) {
+          const cell = subHeaderRow.getCell(currentCol + i);
+          cell.value = subHeaders[i];
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD05F27' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = cellBorder;
+        }
+
+        currentCol += 2;
+      });
+
+      const promedioCol = currentCol;
+      worksheet.mergeCells(`${this.getColumnLetter(promedioCol)}${startRow}:${this.getColumnLetter(promedioCol)}${startRow + 1}`);
+      const promedioHeaderCell = worksheet.getCell(`${this.getColumnLetter(promedioCol)}${startRow}`);
+      promedioHeaderCell.value = 'Prom.';
+      promedioHeaderCell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      promedioHeaderCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0066CC' } };
+      promedioHeaderCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      promedioHeaderCell.border = cellBorder;
+
+      // Acumuladores para los promedios por materia (fila inferior)
+      const courseOrdSums = new Map<string, { sum: number; count: number }>();
+      coursesList.forEach(c => courseOrdSums.set(c, { sum: 0, count: 0 }));
+
+      let currentRow = startRow + 2;
+      let listIndex = 1;
+      boletas.forEach((boleta) => {
+        const row = worksheet.getRow(currentRow);
+        row.height = 18;
+
+        const listCell = row.getCell(1);
+        listCell.value = listIndex;
+        listCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        listCell.border = cellBorder;
+
+        const regCell = row.getCell(2);
+        regCell.value = boleta.registrationNumber;
+        regCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        regCell.border = cellBorder;
+
+        const nameCell = row.getCell(3);
+        nameCell.value = boleta.fullName;
+        nameCell.alignment = { horizontal: 'left', vertical: 'middle' };
+        nameCell.border = cellBorder;
+
+        const finalGrades: number[] = [];
+
+        coursesList.forEach((courseName) => {
+          const course = boleta.courses.find(c => c.name === courseName);
+          const startCol = courseColumnMap.get(courseName)!;
+
+          if (course) {
+            const { ord, extra, final } = this.resolveOrdExtra(course);
+
+            // ===== COLUMNA ORD =====
+            const ordCell = row.getCell(startCol);
+            ordCell.value = ord;
+            ordCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            ordCell.border = cellBorder;
+            if (ord === 'NA') {
+              ordCell.font = { bold: true, color: { argb: 'FFFF0000' } };
+            } else if (typeof ord === 'number' && ord < 7) {
+              ordCell.font = { color: { argb: 'FFFF0000' } };
+            }
+
+            // ===== COLUMNA EXTRA =====
+            const extCell = row.getCell(startCol + 1);
+            extCell.value = extra;
+            extCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            extCell.border = cellBorder;
+            if (typeof extra === 'number' && extra < 6) {
+              // No aprobó la materia ni con extraordinario
+              extCell.font = { bold: true, color: { argb: 'FFFF0000' } };
+            }
+
+            // Promedio por materia: solo cuenta el valor numérico de Ord
+            if (typeof ord === 'number') {
+              const acc = courseOrdSums.get(courseName)!;
+              acc.sum += ord;
+              acc.count += 1;
+            }
+
+            if (final > 0) {
+              finalGrades.push(final);
+            }
+          } else {
+            for (let i = 0; i < 2; i++) {
+              const cell = row.getCell(startCol + i);
+              cell.value = '';
+              cell.border = cellBorder;
+            }
+          }
+        });
+
+        // Promedio general del alumno
+        const promedio = finalGrades.length > 0
+          ? finalGrades.reduce((sum, grade) => sum + grade, 0) / finalGrades.length
+          : 0;
+
+        const promedioCell = row.getCell(promedioCol);
+        promedioCell.value = promedio > 0 ? parseFloat(promedio.toFixed(2)) : '';
+        promedioCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        promedioCell.border = cellBorder;
+
+        if (promedio >= 7) {
+          promedioCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
+          promedioCell.font = { bold: true, size: 11, color: { argb: 'FF155724' } };
+        } else if (promedio > 0) {
+          promedioCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8D7DA' } };
+          promedioCell.font = { bold: true, size: 11, color: { argb: 'FFFF0000' } };
+        } else {
+          promedioCell.font = { bold: true, size: 11 };
+        }
+
+        currentRow++;
+        listIndex++;
+      });
+
+      // ===== FILA INFERIOR: promedio por materia (columna Ord) =====
+      const footerRow = worksheet.getRow(currentRow);
+      footerRow.height = 18;
+
+      const footerLabelCell = footerRow.getCell(1);
+      worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
+      footerLabelCell.value = 'Promedio por materia';
+      footerLabelCell.font = { bold: true };
+      footerLabelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      footerLabelCell.border = cellBorder;
+
+      coursesList.forEach((courseName) => {
+        const startCol = courseColumnMap.get(courseName)!;
+        const acc = courseOrdSums.get(courseName)!;
+        const avg = acc.count > 0 ? acc.sum / acc.count : 0;
+
+        const avgCell = footerRow.getCell(startCol);
+        avgCell.value = avg > 0 ? parseFloat(avg.toFixed(2)) : '';
+        avgCell.font = { bold: true };
+        avgCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        avgCell.border = cellBorder;
+
+        // La subcolumna Extra del pie queda vacía pero con borde
+        const extraFooter = footerRow.getCell(startCol + 1);
+        extraFooter.value = '';
+        extraFooter.border = cellBorder;
+      });
+
+      const promedioFooterCell = footerRow.getCell(promedioCol);
+      promedioFooterCell.value = '';
+      promedioFooterCell.border = cellBorder;
+
+      worksheet.getColumn(1).width = 6;
+      worksheet.getColumn(2).width = 14;
+      worksheet.getColumn(3).width = 32;
+      for (let i = 4; i < currentCol; i++) {
+        worksheet.getColumn(i).width = 7;
+      }
+      worksheet.getColumn(promedioCol).width = 10;
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      return new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+    } catch (error) {
+      console.error('Error generando el Concentrado por Semestre:', error);
       throw error;
     }
   }

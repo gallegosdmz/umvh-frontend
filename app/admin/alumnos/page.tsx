@@ -41,6 +41,9 @@ interface IBoletaProcessed {
       gradeExtraordinary: number | null;
     };
     promedioFinal: number | null;
+    // Valores ya calculados por el Excel fuente (formato oficial)
+    exentos: number | string | null;       // Columna "Exentos" (I)
+    ordinarioFinal: number | string | null; // Columna "Ordinario" (K)
   }[];
 }
 
@@ -117,6 +120,15 @@ export default function AlumnosPage() {
   const [cfErrors, setCfErrors] = useState<string[]>([]);
   const [openCfWarningsModal, setOpenCfWarningsModal] = useState(false);
   const [generatingCf, setGeneratingCf] = useState<string | null>(null);
+  // Concentrado por Semestre
+  const [openConcentradoSemestreModal, setOpenConcentradoSemestreModal] = useState(false);
+  const [csFiles, setCsFiles] = useState<File[]>([]);
+  const [csPeriodo, setCsPeriodo] = useState("");
+  const [csSemestre, setCsSemestre] = useState("");
+  const [csWarnings, setCsWarnings] = useState<string[]>([]);
+  const [csErrors, setCsErrors] = useState<string[]>([]);
+  const [openCsWarningsModal, setOpenCsWarningsModal] = useState(false);
+  const [generatingCs, setGeneratingCs] = useState<string | null>(null);
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -192,6 +204,19 @@ export default function AlumnosPage() {
     setCfFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleCsFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      setCsFiles(prev => [...prev, ...newFiles]);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveCsFile = (index: number) => {
+    setCsFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const convertToIBoleta = (processed: IBoletaProcessed[]): IBoleta[] => {
     return processed.map(boleta => ({
       fullName: boleta.fullName,
@@ -209,6 +234,8 @@ export default function AlumnosPage() {
           gradeOrdinary: course.finalGrades.gradeOrdinary ?? 0,
           gradeExtraordinary: course.finalGrades.gradeExtraordinary ?? 0,
         },
+        exentos: course.exentos,
+        ordinarioFinal: course.ordinarioFinal,
       })),
     }));
   };
@@ -301,6 +328,9 @@ export default function AlumnosPage() {
           const promedio = getNumericValue(worksheet.getCell(`G${row}`));
           const ordinario = getNumericValue(worksheet.getCell(`J${row}`));
           const extraordinario = getNumericValue(worksheet.getCell(`L${row}`));
+          // Columnas calculadas del formato oficial (pueden ser texto: "Ord A" / "EXTRA")
+          const exentos = getCellValue(worksheet.getCell(`I${row}`));
+          const ordinarioFinal = getCellValue(worksheet.getCell(`K${row}`));
 
           let promedioFinal: number | null;
           if (extraordinario !== null) {
@@ -323,6 +353,8 @@ export default function AlumnosPage() {
               gradeExtraordinary: extraordinario,
             },
             promedioFinal,
+            exentos,
+            ordinarioFinal,
           };
 
           if (dataMap.has(registrationNumber)) {
@@ -701,6 +733,61 @@ export default function AlumnosPage() {
     }
   };
 
+  const handleGenerateConcentradoSemestre = async () => {
+    if (csFiles.length === 0) return;
+
+    if (!csPeriodo || !csSemestre) {
+      toast.error('Debes ingresar el período y el semestre');
+      return;
+    }
+
+    setGeneratingCs('modal');
+    setCsWarnings([]);
+    setCsErrors([]);
+
+    try {
+      const { dataMap, warnings, errors } = await processAllExcelFiles(
+        csFiles,
+        csPeriodo,
+        Number(csSemestre)
+      );
+
+      setCsWarnings(warnings);
+      setCsErrors(errors);
+
+      const processedArray = Array.from(dataMap.values());
+
+      if (warnings.length > 0 || errors.length > 0) {
+        setOpenCsWarningsModal(true);
+      }
+
+      const boletasArray = convertToIBoleta(processedArray);
+
+      const blob = await ExcelDocumentService.generateConcentradoSemestreExcel(boletasArray);
+      const filename = `ConcentradoSemestre_${csPeriodo}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      ExcelDocumentService.downloadDocument(blob, filename);
+
+      if (warnings.length > 0 || errors.length > 0) {
+        toast.success(`Concentrado por Semestre generado: ${boletasArray.length} alumnos. Revisa las advertencias.`, {
+          autoClose: 4000,
+        });
+      } else {
+        toast.success(`Concentrado por Semestre generado correctamente: ${boletasArray.length} alumnos`);
+      }
+
+      setOpenConcentradoSemestreModal(false);
+      setCsFiles([]);
+      setCsPeriodo("");
+      setCsSemestre("");
+
+    } catch (error) {
+      console.error('Error generando Concentrado por Semestre:', error);
+      toast.error('Error al procesar los archivos');
+    } finally {
+      setGeneratingCs(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-red-50 p-6">
       <div className="max-w-4xl mx-auto">
@@ -738,6 +825,16 @@ export default function AlumnosPage() {
             >
               <FileSpreadsheet className="h-5 w-5 mr-2" />
               Concentrado Final
+            </Button>
+            <Button
+              onClick={() => setOpenConcentradoSemestreModal(true)}
+              variant="outline"
+              size="lg"
+              className="border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white"
+              disabled={generatingBoleta !== null || generatingExcel !== null || generatingCf !== null || generatingCs !== null}
+            >
+              <FileSpreadsheet className="h-5 w-5 mr-2" />
+              Concentrado por Semestre
             </Button>
           </div>
         </div>
@@ -1295,6 +1392,188 @@ export default function AlumnosPage() {
                   setCfErrors([]);
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+              >
+                Entendido
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para generar Concentrado por Semestre */}
+        <Dialog open={openConcentradoSemestreModal} onOpenChange={setOpenConcentradoSemestreModal}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Generar Concentrado por Semestre</DialogTitle>
+              <DialogDescription>
+                Sube los archivos Excel para generar el concentrado oficial con Ord (calificación final redondeada) y Extra
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cs-periodo">Período</Label>
+                  <Input
+                    id="cs-periodo"
+                    value={csPeriodo}
+                    onChange={e => setCsPeriodo(e.target.value)}
+                    placeholder="Ej. 2023-3"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cs-semestre">Semestre</Label>
+                  <Input
+                    id="cs-semestre"
+                    type="number"
+                    min="1"
+                    max="12"
+                    value={csSemestre}
+                    onChange={e => setCsSemestre(e.target.value)}
+                    placeholder="Ej. 3"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cs-modal-files">Archivos Excel</Label>
+                <Input
+                  id="cs-modal-files"
+                  type="file"
+                  multiple
+                  accept=".xlsx,.xls,.xlsm"
+                  onChange={handleCsFileChange}
+                  className="cursor-pointer"
+                />
+                <p className="text-sm text-gray-500">
+                  Puedes seleccionar múltiples archivos Excel (.xlsx, .xls, .xlsm)
+                </p>
+              </div>
+
+              {csFiles.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Archivos seleccionados ({csFiles.length})</Label>
+                  <div className="border rounded-lg p-3 max-h-[200px] overflow-y-auto space-y-2">
+                    {csFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-gray-50 p-2 rounded"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet className="h-4 w-4 text-purple-600" />
+                          <span className="text-sm truncate max-w-[300px]">
+                            {file.name}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleRemoveCsFile(index)}
+                        >
+                          <X className="h-4 w-4 text-gray-500 hover:text-red-500" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setOpenConcentradoSemestreModal(false);
+                  setCsFiles([]);
+                  setCsPeriodo("");
+                  setCsSemestre("");
+                  setCsWarnings([]);
+                  setCsErrors([]);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleGenerateConcentradoSemestre}
+                disabled={csFiles.length === 0 || generatingCs !== null}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
+              >
+                {generatingCs === 'modal' ? 'Generando...' : 'Generar Concentrado por Semestre'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para advertencias del Concentrado por Semestre */}
+        <Dialog open={openCsWarningsModal} onOpenChange={setOpenCsWarningsModal}>
+          <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {csErrors.length > 0 && (
+                  <span className="text-red-600">Errores y Advertencias</span>
+                )}
+                {csErrors.length === 0 && csWarnings.length > 0 && (
+                  <span className="text-yellow-600">Advertencias</span>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                Se encontraron {csWarnings.length} advertencia(s) y {csErrors.length} error(es) durante el procesamiento
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+              {csErrors.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-red-600 flex items-center gap-2">
+                    <span>Errores ({csErrors.length})</span>
+                  </h3>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2">
+                    {csErrors.map((error, index) => (
+                      <div key={index} className="text-sm text-red-800 flex items-start gap-2">
+                        <span className="mt-0.5">•</span>
+                        <span className="flex-1">{error}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {csWarnings.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-yellow-600 flex items-center gap-2">
+                    <span>Advertencias ({csWarnings.length})</span>
+                  </h3>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2 max-h-[300px] overflow-y-auto">
+                    {csWarnings.map((warning, index) => (
+                      <div key={index} className="text-sm text-yellow-800 flex items-start gap-2">
+                        <span className="mt-0.5">•</span>
+                        <span className="flex-1">{warning}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Nota:</strong> El Concentrado por Semestre se generó correctamente, pero algunos datos pueden requerir revisión.
+                  {csErrors.length > 0 && (
+                    <span className="block mt-1">Algunos archivos no pudieron procesarse completamente.</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setOpenCsWarningsModal(false);
+                  setCsWarnings([]);
+                  setCsErrors([]);
+                }}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
               >
                 Entendido
               </Button>
