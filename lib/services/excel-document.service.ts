@@ -766,8 +766,8 @@ export class ExcelDocumentService {
       // Exento: calificación redondeada de los parciales
       ord = Math.round(exentosNum);
     } else if (ordinarioNum !== null) {
-      // Fue a ordinario y aprobó
-      ord = ordinarioNum;
+      // Fue a ordinario y aprobó (redondear a entero, como exento)
+      ord = Math.round(ordinarioNum);
     } else if (
       typeof course.ordinarioFinal === 'string' &&
       course.ordinarioFinal.trim().toUpperCase() === 'EXTRA'
@@ -791,7 +791,7 @@ export class ExcelDocumentService {
           const califOrd = course.finalGrades?.gradeOrdinary ?? 0;
           const resultadoOrd = promedio * 0.5 + califOrd * 0.5;
           if (resultadoOrd >= 6) {
-            ord = parseFloat(resultadoOrd.toFixed(2));
+            ord = Math.round(resultadoOrd);
           } else {
             ord = 'NA';
             goesToExtra = true;
@@ -805,8 +805,8 @@ export class ExcelDocumentService {
 
     if (goesToExtra) {
       if (extraNum !== null) {
-        extra = parseFloat(extraNum.toFixed(2));
-        final = extraNum;
+        extra = Math.round(extraNum);
+        final = extra;
       }
     }
 
