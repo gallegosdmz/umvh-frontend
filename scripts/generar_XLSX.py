@@ -1,6 +1,38 @@
 import sys
 import json
 import os
+import unicodedata
+
+
+def _norm(s):
+    """Normaliza texto para comparar encabezados: sin acentos, minúsculas,
+    espacios colapsados."""
+    if s is None:
+        return ""
+    s = unicodedata.normalize("NFKD", str(s))
+    s = "".join(c for c in s if not unicodedata.combining(c))  # quita acentos
+    return " ".join(s.lower().split())
+
+
+def buscar_columna_por_encabezado(ws, texto, fila_encabezado=6, max_col=200):
+    """Devuelve el índice de columna cuyo encabezado (en `fila_encabezado`)
+    coincide con `texto`, normalizado (sin acentos/mayúsculas). Fallback: la
+    primera columna cuyo encabezado contiene todos los tokens de `texto`
+    (p.ej. "Producto Parcial" resuelve a "Producto del Parcial"). Devuelve
+    None si no se encuentra."""
+    objetivo = _norm(texto)
+    tokens = objetivo.split()
+    aprox = None
+    for col in range(1, max_col + 1):
+        val = _norm(ws.Cells(fila_encabezado, col).Value)
+        if not val:
+            continue
+        if val == objetivo:
+            return col
+        if aprox is None and all(t in val.split() for t in tokens):
+            aprox = col
+    return aprox
+
 
 def main():
   if len(sys.argv) != 4:
@@ -308,11 +340,29 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
                         except:
                             pass  # Ignorar errores
 
-                # Bloquear rango BD9:BJ53 (bloqueo normal, sin ocultar)
-                # BD = columna 56, BJ = columna 62
-                # Filas 9 a 53
+                # Bloquear rango por ENCABEZADO: "Producto del Parcial" ->
+                # "Porcentaje de asistencia" (incluye BB y BC además del rango
+                # previo BD..BJ). Se localizan las columnas por su encabezado
+                # (fila 6) para no depender de letras fijas. Filas de datos 9-53.
+                col_ini = buscar_columna_por_encabezado(ws, "Producto del Parcial")
+                col_fin = buscar_columna_por_encabezado(ws, "Porcentaje de asistencia")
+
+                if col_ini and col_fin and col_ini <= col_fin:
+                    rango_cols = range(col_ini, col_fin + 1)
+                else:
+                    # Fallback defensivo: conserva el bloqueo previo BD9:BJ53
+                    # (columnas 56-62) si no se hallan los encabezados, para no
+                    # romper el pipeline si cambia el layout de la plantilla.
+                    print(
+                        "Advertencia: no se hallaron los encabezados "
+                        "'Producto del Parcial'/'Porcentaje de asistencia' en "
+                        f"la hoja '{ws.Name}'; se usa el rango fijo BD:BJ.",
+                        file=sys.stderr,
+                    )
+                    rango_cols = range(56, 63)  # BD(56) a BJ(62)
+
                 for row in range(9, 54):  # Filas 9-53 (range es exclusivo al final)
-                    for col in range(56, 63):  # Columnas BD(56) a BJ(62) (range es exclusivo al final)
+                    for col in rango_cols:
                         try:
                             cell = ws.Cells(row, col)
                             # Si es celda combinada, bloquear todo el MergeArea
