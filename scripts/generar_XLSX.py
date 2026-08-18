@@ -72,7 +72,7 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
     Genera el archivo XLSX usando win32com para preservar macros.
     """
     import win32com.client as win32
-    from win32com.client import dynamic
+    from win32com.client import constants
 
     # Convertir rutas a absolutas (win32com las requiere)
     template_path = os.path.abspath(template_path)
@@ -82,12 +82,8 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
     workbook = None
 
     try:
-        # Iniciar Excel en modo invisible.
-        # Se usa late-binding (dynamic.Dispatch) en lugar de
-        # gencache.EnsureDispatch para no depender del caché gen_py de win32com,
-        # que puede corromperse ("has no attribute 'CLSIDToClassMap'") si un
-        # proceso de Excel/Python se interrumpe a la mitad. No usamos constants.
-        excel = dynamic.Dispatch('Excel.Application')
+        # Iniciar Excel en modo invisible
+        excel = win32.gencache.EnsureDispatch('Excel.Application')
         excel.Visible = False
         excel.DisplayAlerts = False
 
