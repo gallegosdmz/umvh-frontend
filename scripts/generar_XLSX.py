@@ -104,11 +104,13 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
         # Ajusta las celdas según tu template
         # ========================================
         ponderaciones = data.get("ponderaciones", {})
-        sheet.Range("D7").Value = 0 / 100
-        sheet.Range("E7").Value = 0 / 100
-        sheet.Range("F7").Value = 0 / 100
-        sheet.Range("G7").Value = 0 / 100
-        sheet.Range("H7").Value = 0 / 100
+        # Sentinela -1 = "sin configurar": distingue el estado inicial de una
+        # ponderación válida (0-1) y dispara el modal solo la primera vez.
+        sheet.Range("D7").Value = -1
+        sheet.Range("E7").Value = -1
+        sheet.Range("F7").Value = -1
+        sheet.Range("G7").Value = -1
+        sheet.Range("H7").Value = -1
 
         # ========================================
         # SECCIÓN 3: Lista de Alumnos
@@ -133,8 +135,8 @@ def generar_evaluacion(data: dict, template_path: str, output_path: str):
         # Código VBA para ThisWorkbook (se ejecuta al abrir)
         vba_thisworkbook = '''
         Private Sub Workbook_Open()
-            ' Mostrar modal solo si las ponderaciones están en 0
-            If Worksheets(1).Range("D7").Value = 0 Then
+            ' Mostrar modal solo si las ponderaciones aún no se han configurado (sentinela -1)
+            If Worksheets(1).Range("D7").Value < 0 Then
                 frmPonderaciones.Show
             End If
         End Sub
